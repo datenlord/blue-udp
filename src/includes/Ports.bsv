@@ -22,12 +22,18 @@ typedef PipeOut#(DataStream) DataStreamPipeOut;
 
 typedef struct{
     UdpLength  dataLen;
-    EthMacAddr macAddr;
+    //EthMacAddr macAddr;
     IpAddr     ipAddr;
     UdpPort    dstPort;
     UdpPort    srcPort;
 } MetaData deriving(Bits, Bounded, Eq, FShow);
 typedef PipeOut#(MetaData) MetaDataPipeOut;
+
+typedef struct{
+    EthMacAddr macAddr;
+    EthType    ethType;
+} MacMetaData deriving(Bits, Eq);
+typedef PipeOut#(MacMetaData) MacMetaDataPipeOut;
 
 
 typedef struct{

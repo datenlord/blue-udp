@@ -1,5 +1,3 @@
 build/
 utils/
-ArpCache.bsv
-MacLayer.bsv
 question.txt
