@@ -20,7 +20,7 @@ module mkTestUdpEthRxTx();
 
     FIFOF#(MacMetaData) macMetaDataBuf <- mkFIFOF;
     UdpEthRxTx udpEthRxTx <- mkUdpEthRxTx(f_FIFOF_to_PipeOut(macMetaDataBuf));
-    RandomDelay#(DataStream, 4) loopBuf <- mkRandomDelay(2);
+    RandomDelay#(DataStream, 4) loopBuf <- mkRandomDelay;
     mkConnection(toGet(udpEthRxTx.dataStreamOutTx), loopBuf.request);
     mkConnection(loopBuf.response, udpEthRxTx.dataStreamInRx);
     //mkConnection(toGet(udpEthRxTx.dataStreamOutTx), udpEthRxTx.dataStreamInRx);

@@ -7,10 +7,10 @@ typedef Server#(
     dType, dType
 ) RandomDelay#(type dType, numeric type maxDelay);
 
-module mkRandomDelay#(Integer bufSize)(RandomDelay#(dType, delay)) 
+module mkRandomDelay(RandomDelay#(dType, delay)) 
     provisos(Bits#(dType, sz));
 
-    FIFOF#(dType) buffer <- mkSizedFIFOF(bufSize);
+    FIFOF#(dType) buffer <- mkFIFOF;
     Reg#(Bool) hasInit <- mkReg(False);
     Reg#(Bit#(TLog#(delay))) delayCounter <- mkReg(0);
     Reg#(Bit#(TLog#(delay))) delayCountMax <- mkReg(0);
@@ -33,12 +33,7 @@ module mkRandomDelay#(Integer bufSize)(RandomDelay#(dType, delay))
         end
     endrule
     
-    interface Put request;
-        method Action put(dType in);
-            buffer.enq(in);
-        endmethod
-    endinterface
-
+    interface Put request = toPut(buffer);
     interface Get response;
         method ActionValue#(dType) get if(passData);
             let data = buffer.first;

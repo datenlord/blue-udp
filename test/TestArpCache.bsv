@@ -8,85 +8,172 @@ import GetPut::*;
 
 import ArpCache::*;
 import TestUtils::*;
+import PrimUtils::*;
 
-typedef 10 SIM_MEM_ADDR_WIDTH;
+typedef 8 SIM_MEM_ADDR_WIDTH;
 typedef TExp#(SIM_MEM_ADDR_WIDTH) SIM_MEM_SIZE;
 typedef Bit#(SIM_MEM_ADDR_WIDTH) SimMemAddr;
 typedef 16 SIM_MEM_DATA_WIDTH;
 typedef Bit#(SIM_MEM_DATA_WIDTH) SimMemData;
 
+// MemServer with random response delay and order
+typedef 8 MAX_SERVER_DELAY;
+typedef 8 REORDER_BUF_SIZE;
+
+interface RandomArpMem;
+    method CacheData getRefResp(CacheAddr addr);
+    interface Server#(CacheAddr, ArpResp) memServer;
+endinterface
+
+module mkRandomArpMem(RandomArpMem);
+    Reg#(Bool) randInit <- mkReg(False);
+    Reg#(Bool) memInit <- mkReg(False);
+    Vector#(SIM_MEM_SIZE, Randomize#(SimMemData)) memDataRand <- replicateM(mkGenericRandomizer);
+    Randomize#(Bool) selectRand <- mkGenericRandomizer;
+    Vector#(SIM_MEM_SIZE, Reg#(SimMemData)) simMem <- replicateM(mkRegU);
+    FIFOF#(ArpResp) inputBuf <- mkFIFOF;
+    FIFOF#(ArpResp) reorderBuf <- mkSizedFIFOF(valueOf(REORDER_BUF_SIZE));
+    RandomDelay#(ArpResp, MAX_SERVER_DELAY) randDelay <- mkRandomDelay;
+
+    rule doRandInit if (!randInit);
+        for(Integer i=0; i < valueOf(SIM_MEM_SIZE); i=i+1) begin
+            memDataRand[i].cntrl.init;
+        end
+        selectRand.cntrl.init;
+        $display("Init Randomizer");
+        randInit <= True;
+    endrule
+
+    rule doMemInit if (randInit && !memInit);
+        for(Integer i=0; i < valueOf(SIM_MEM_SIZE); i=i+1) begin
+            let memData <- memDataRand[i].next;
+            simMem[i] <= memData;
+            $display("Init Sim Addr:%x Data:%x", i, memData);
+        end
+        memInit <= True;
+        $display("Init SimMem Finish");
+    endrule
+
+    rule doReorder;
+        let select <- selectRand.next;
+        if (select) begin
+            if (inputBuf.notEmpty) begin
+                let arpResp = inputBuf.first;
+                inputBuf.deq;
+                randDelay.request.put(arpResp);
+                $display("SimMem Resp: addr=%x data=%x", arpResp.ipAddr, arpResp.macAddr);
+            end
+
+            if (reorderBuf.notEmpty) begin
+                let arpResp = reorderBuf.first;
+                reorderBuf.deq;
+                reorderBuf.enq(arpResp);
+            end
+        end
+        else begin
+            if (inputBuf.notEmpty) begin
+                let arpResp = inputBuf.first;
+                inputBuf.deq;
+                reorderBuf.enq(arpResp);
+            end
+
+            if (reorderBuf.notEmpty) begin
+                let arpResp = reorderBuf.first;
+                reorderBuf.deq;
+                randDelay.request.put(arpResp);
+                $display("SimMem Resp: addr=%x data=%x", arpResp.ipAddr, arpResp.macAddr);
+            end
+        end
+
+    endrule
+
+    method CacheData getRefResp(CacheAddr addr) if (memInit);
+        SimMemAddr simAddr = truncate(addr);
+        return zeroExtend(simMem[simAddr]);
+    endmethod
+
+    interface Server memServer;
+        interface Put request;
+            method Action put(CacheAddr addr);
+                SimMemAddr simAddr = truncate(addr);
+                inputBuf.enq(
+                    ArpResp{
+                        ipAddr: addr,
+                        macAddr: zeroExtend(simMem[simAddr])
+                    }
+                );
+            endmethod
+        endinterface
+
+        interface Get response = randDelay.response;
+    endinterface
+
+endmodule
+
+typedef 32 CASE_NUM;
+typedef 300 MAX_CYCLE;
+typedef 32 REF_RESP_BUF_SIZE;
+typedef Bit#(16) TestbenchCycle;
+typedef Bit#(16) TestCaseCount;
 (* synthesize *)
 module mkTestArpCache();
+
+    Integer caseNum = valueOf(CASE_NUM);
+    Integer maxCycle = valueOf(MAX_CYCLE);
+    
     ArpCache arpCache <- mkArpCache();
-    // Vector#(SIM_MEM_SIZE, Reg#(SimMemData)) simMem <- replicateM(mkRegU);
+    RandomArpMem arpMem <- mkRandomArpMem;
+    mkConnection(arpCache.arpClient, arpMem.memServer);
+    Randomize#(SimMemAddr) memAddrRand <- mkGenericRandomizer;
 
-    
-    // Randomize#(SimMemData) memDataRand <- mkGenericRandomizer;
-    // Randomize#(SimMemAddr) memAddrRand <- mkGenericRandomizer;
+    Reg#(TestbenchCycle) cycle <- mkReg(0);
+    Reg#(TestCaseCount) reqCount <- mkReg(0);
+    Reg#(TestCaseCount) respCount <- mkReg(0);
 
-    // Reg#(Bit#(16)) cycle <- mkReg(0);
-    // rule test;
-    //     if (cycle == 0) begin
-    //         memDataRand.cntrl.init;
-    //         memAddrRand.cntrl.init;
-    //     end
-    //     else if(cycle == 1) begin
-    //         for(Integer i=0; i < valueOf(SIM_MEM_SIZE); i=i+1) begin
-    //             let memData <- memDataRand.next;
-    //             simMem[i] <= memData;
-    //         end
-    //     end
-    //     cycle <= cycle + 1;
-    //     $display("\nCycle %d -----------------------------------",cycle);
-    //     if(cycle == 6000) begin
-    //         $display("Error: Time Out!");
-    //         $finish;
-    //     end
-    // endrule
+    FIFOF#(ArpResp) refRespBuf <- mkSizedFIFOF(valueOf(REF_RESP_BUF_SIZE));
 
-    // Integer caseNum = 512;
-    // FIFOF#(CacheData) refDataBuf <- mkSizedFIFOF(32);
-    // FIFOF#(CacheAddr) refAddrBuf <- mkSizedFIFOF(32);
+    rule test;
+        if (cycle == 0) begin
+            memAddrRand.cntrl.init;
+        end
+        cycle <= cycle + 1;
 
-    // Reg#(Bit#(16)) reqCount <- mkReg(0);
-    // rule doReq if(reqCount < fromInteger(caseNum) && cycle != 0);
-    //     SimMemAddr memAddr <- memAddrRand.next;
-    //     arpCache.req.put( zeroExtend(memAddr) );
-    //     let refData = simMem[memAddr];
-    //     refDataBuf.enq(zeroExtend(refData));
-    //     refAddrBuf.enq(zeroExtend(memAddr));
-    //     $display("Cache Req: Addr = %x", memAddr);
-    //     reqCount <= reqCount + 1;
-    // endrule
+        immAssert(
+            cycle != fromInteger(maxCycle),
+            "Testbench timeout assertion @ mkTestArpCache",
+            $format("Cycle count can't overflow %d", maxCycle)
+        );
+        $display("\nCycle %d -----------------------------------",cycle);
+    endrule
 
-    // Reg#(Bit#(16)) respCount <- mkReg(0);
-    // rule checkResp;
-    //     let dutData = arpCache.resp.first; arpCache.resp.deq;
-    //     let refData = refDataBuf.first; refDataBuf.deq;
-    //     let refAddr = refAddrBuf.first; refAddrBuf.deq;
-    //     if(dutData != refData) begin
-    //         $display("Cache Resp: result is fault at Addr = %x", refAddr);
-    //         $display("DUT Data: %x", dutData);
-    //         $display("REF Data: %x", refData);
-    //         $finish;
-    //     end
-    //     respCount <= respCount + 1;
-    // endrule
-    
-    // RandomDelay#(ArpResp, 10) arpRespBuf <- mkRandomDelay(6);
-    // rule doArpReq;
-    //     SimMemAddr addr = truncate(arpCache.arpReq.first); arpCache.arpReq.deq;
-    //     let data = simMem[addr];
-    //     arpRespBuf.request.put(ArpResp{ipAddr: zeroExtend(addr), macAddr:zeroExtend(data)});
-    // endrule
+    rule sendCacheReq if (reqCount < fromInteger(caseNum));
+        SimMemAddr memAddr <- memAddrRand.next;
+        CacheAddr cacheAddr = zeroExtend(memAddr);
+        arpCache.cacheServer.request.put(cacheAddr);
+        let refData = arpMem.getRefResp(cacheAddr);
+        refRespBuf.enq(ArpResp{ipAddr: cacheAddr, macAddr:refData});
+        $display("Send %d Cache Req: Addr = %x", reqCount, memAddr);
+        reqCount <= reqCount + 1;
+    endrule
 
-    // mkConnection(arpRespBuf.response, arpCache.arpResp);
+    rule checkCacheResp if (respCount < fromInteger(caseNum));
+        let dutResp <- arpCache.cacheServer.response.get;
+        let refResp = refRespBuf.first; 
+        refRespBuf.deq;
+        $display("Check %d Cache Response\nDUT:data=%x\nREF:addr=%x data=%x", respCount, dutResp, refResp.ipAddr, refResp.macAddr);
 
-    // rule doFinish;
-    //     if(respCount == fromInteger(caseNum)) begin
-    //         $display("Pass All test cases!");
-    //         $finish;
-    //     end
-    // endrule
+        //assert
+        immAssert(
+            dutResp == refResp.macAddr,
+            "Check output assertion @ mkTestArpCache",
+            $format("The responses of dut and ref are inconsistent.", maxCycle)
+        );
+        respCount <= respCount + 1;
+    endrule
+
+    rule doFinish if(respCount == fromInteger(caseNum));
+        $display("Pass all %d test cases!", caseNum);
+        $finish;
+    endrule
 
 endmodule

@@ -2,9 +2,12 @@ import GetPut::*;
 import FIFOF::*;
 import PAClib::*;
 import Vector::*;
-import CompletionBuffer::*;
+import ClientServer::*;
 
+
+import CompletionBuf::*;
 import EthernetTypes::*;
+import RFile::*;
 
 // ARP request/response
 
@@ -18,7 +21,6 @@ import EthernetTypes::*;
 // replcae Vector Reg
 // Integrate
 
-
 typedef 2 CACHE_WAY_INDEX_WIDTH;
 typedef TExp#(CACHE_WAY_INDEX_WIDTH) CACHE_WAY_NUM;
 typedef 6 CACHE_INDEX_WIDTH;
@@ -30,21 +32,22 @@ typedef TSub#(CACHE_WAY_NUM, 1) CACHE_AGE_WIDTH; // used in pseduo LRU
 
 typedef Bit#(CACHE_DATA_WIDTH) CacheData;
 typedef Bit#(CACHE_ADDR_WIDTH) CacheAddr;
-typedef Bit#(CACHE_TAG_WIDTH) CacheTag;
+typedef Bit#(CACHE_TAG_WIDTH)  CacheTag;
+typedef Bit#(CACHE_AGE_WIDTH) CacheAge;
 typedef Bit#(CACHE_INDEX_WIDTH) CacheIndex;
 typedef Bit#(CACHE_WAY_INDEX_WIDTH) CacheWayIndex;
 
-typedef Vector#(CACHE_ROW_NUM, Reg#(CacheData)) CacheDataCol;
-typedef Vector#(CACHE_ROW_NUM, Reg#(Maybe#(CacheTag))) CacheTagCol;
-typedef Vector#(CACHE_AGE_WIDTH, Reg#(Bool)) CacheAgeCol;
+typedef RFile#(CACHE_INDEX_WIDTH, CacheData) CacheDataWay;
+typedef Vector#(CACHE_WAY_NUM, CacheDataWay) CacheDataSet;
 
-typedef Vector#(CACHE_WAY_NUM, CacheDataCol) CacheDataArray;
-typedef Vector#(CACHE_WAY_NUM, CacheTagCol) CacheTagArray;
-typedef Vector#(CACHE_ROW_NUM, CacheAgeCol) CacheAgeArray;
+typedef RFile#(CACHE_INDEX_WIDTH, Maybe#(CacheTag)) CacheTagWay;
+typedef Vector#(CACHE_WAY_NUM, CacheTagWay) CacheTagSet;
+
+typedef RFile#(CACHE_INDEX_WIDTH, CacheAge) CacheAgeWay;
 
 //
 typedef 8 CBUF_SIZE;
-typedef 8 FILLQ_SIZE;
+typedef 8 MISSQ_SIZE;
 
 // Useful Functions
 function CacheTag getTag(CacheAddr addr);
@@ -55,135 +58,164 @@ function CacheIndex getIndex(CacheAddr addr);
     return truncate(addr);
 endfunction
 
-function Maybe#(CacheWayIndex) getHitWayIdx(CacheAddr addr, CacheTagArray tagArray);
+function Maybe#(CacheWayIndex) getHitWayIdx(CacheAddr addr, CacheTagSet tagSet);
     let tag = getTag(addr);
     let index = getIndex(addr);
     Maybe#(CacheWayIndex) wayIdx = tagged Invalid;
     for(Integer i=0; i < valueOf(CACHE_WAY_NUM); i=i+1) begin
-        if(tagArray[i][index] matches tagged Valid .x &&& x == tag) begin
+        if(tagSet[i].rd(index) matches tagged Valid .x &&& x == tag) begin
             wayIdx = tagged Valid fromInteger(i);
         end
     end
     return wayIdx;
 endfunction
 
-// function CacheData getCacheData(CacheData addr, CacheTagArray tagArray, CacheDataArray dataArray);
-//     let tag = getTag(addr);
-//     let index = getIndex(addr);
-//     let CacheData data;
-//     for(Integer i = 0; i < valueOf(CACHE_WAY_NUM); i = i+1) begin
-//         if(tagArray[i][index] matches tagged Valid .x && x == tag) begin
-//             data = dataArray[i][index];
-//         end
-//     end
-//     return data;
-// endfunction
-
-function CacheWayIndex getReplaceWayIdx(CacheAgeCol ageCol);
-    CacheWayIndex wayIdx;
+function CacheWayIndex getReplaceWayIdx(CacheAge age);
+    CacheWayIndex wayIdx = 0;
     Bit#(TLog#(CACHE_AGE_WIDTH)) ageIdx = 0;
     for(Integer i=0; i < valueOf(CACHE_WAY_INDEX_WIDTH); i=i+1) begin
-        wayIdx[i] = pack(ageCol[ageIdx]);
-        if (ageIdx == 0) ageIdx = (ageIdx << 1) + 1;
-        else ageIdx = (ageIdx << 1) + 2;
+        wayIdx[i] = age[ageIdx];
+        if (wayIdx[i] == 0) begin 
+            ageIdx = (ageIdx << 1) + 1;
+        end
+        else begin 
+            ageIdx = (ageIdx << 1) + 2;
+        end
     end
     return wayIdx;
 endfunction
 
-function Action setCacheAge(CacheAgeCol ageCol, CacheWayIndex wayIdx);
+function Action setCacheAge(CacheIndex idx, CacheAgeWay age, CacheWayIndex wayIdx);
     action
         Bit#(TLog#(CACHE_AGE_WIDTH)) ageIdx = 0;
+        CacheAge nextAge = age.rd(idx);
         for(Integer i=0; i < valueOf(CACHE_WAY_INDEX_WIDTH); i=i+1) begin
             if (wayIdx[i] == 0) begin
-                ageCol[ageIdx] <= True;
+                nextAge[ageIdx] = 1;
                 ageIdx = (ageIdx << 1) + 1;
             end
             else begin
-                ageCol[ageIdx] <= False;
+                nextAge[ageIdx] = 0;
                 ageIdx = (ageIdx << 1) + 2;
             end
         end
+        age.wr(idx, nextAge);
     endaction
 endfunction
+
 
 typedef struct{
     IpAddr ipAddr;
     EthMacAddr macAddr;
 } ArpResp deriving(Bits, Eq, FShow);
 
+typedef struct{
+    CBufIndex#(CBUF_SIZE) token;
+    CacheData data;
+    CacheIndex index;
+    CacheWayIndex wayIndex;
+} HitMessage deriving(Bits, Eq, FShow);
+
 interface ArpCache;
-    interface Put#(CacheAddr) req;
-    interface PipeOut#(CacheData) resp;
-    interface Put#(ArpResp) arpResp;
-    interface PipeOut#(CacheAddr) arpReq;
+    interface Server#(CacheAddr, CacheData) cacheServer;
+    interface Client#(CacheAddr,   ArpResp) arpClient;
 endinterface
 
 module mkArpCache(ArpCache);
-    // state elements
-    CacheDataArray dataArray <- replicateM(replicateM(mkRegU));
-    CacheTagArray tagArray <- replicateM(replicateM(mkReg(Invalid)));
-    CacheAgeArray ageArray <- replicateM(replicateM(mkReg(False)));
     
-    CompletionBuffer#(CBUF_SIZE, CacheData) respCBuf <- mkCompletionBuffer;
+    CacheDataSet dataSet <- replicateM(mkCFRFile);
+    CacheTagSet  tagSet <- replicateM(mkCFRFile);
+    CacheAgeWay  ageWay <- mkCFRFileInit(0);
 
-    FIFOF#(Tuple2#(CBToken#(CBUF_SIZE), CacheAddr)) fillQ <- mkSizedFIFOF(valueOf(FILLQ_SIZE));
+    FIFOF#(Tuple2#(CBufIndex#(CBUF_SIZE), CacheAddr)) missQ <- mkSizedFIFOF(valueOf(MISSQ_SIZE));
 
-    FIFOF#(CacheData) respBuf <- mkFIFOF;
-    //FIFOF#(CacheAddr) reqBuf <- mkFIFOF;
+    FIFOF#(HitMessage) hitBuf <- mkFIFOF;
+    FIFOF#(HitMessage) missQHitBuf <- mkFIFOF;
     FIFOF#(ArpResp) arpRespBuf <- mkFIFOF;
     FIFOF#(CacheAddr) arpReqBuf <- mkFIFOF;
-    
 
-    rule deFillQ;
-        match {.token, .addr} = fillQ.first;
-        if (fillQ.notEmpty) begin
-            let cacheIdx = getIndex(addr);
-            let hitWayIdx = getHitWayIdx(addr, tagArray);
-            if (hitWayIdx matches tagged Valid .wayIdx) begin
-                let cacheData = dataArray[wayIdx][cacheIdx];
-                fillQ.deq;
-                respCBuf.complete.put(tuple2(token, cacheData));
-                setCacheAge(ageArray[cacheIdx], wayIdx);
-            end
+    CompletionBuf#(CBUF_SIZE, CacheData) respCBuf <- mkCompletionBuf;
+
+    rule deMissQ;
+        match {.token, .addr} = missQ.first;
+        let cacheIdx = getIndex(addr);
+        let hitWayIdx = getHitWayIdx(addr, tagSet);
+        if (hitWayIdx matches tagged Valid .wayIdx) begin
+            let cacheData = dataSet[wayIdx].rd(cacheIdx);
+            missQ.deq;
+            missQHitBuf.enq(
+                HitMessage{
+                    token: token,
+                    data: cacheData,
+                    index: cacheIdx,
+                    wayIndex: wayIdx
+                }
+            );
+        end
+        $display("The first element of MissQ: addr=%x", addr);
+    endrule
+
+    rule doRespCBuf;
+        if (missQHitBuf.notEmpty) begin
+            let hitInfo = missQHitBuf.first;
+            missQHitBuf.deq;
+            respCBuf.complete(tuple2(hitInfo.token, hitInfo.data));
+            setCacheAge(hitInfo.index, ageWay, hitInfo.wayIndex);
+            $display("MissQHit enter respCBuf: addr=%x data=%x", hitInfo.index, hitInfo.data);
+        end
+        else if (hitBuf.notEmpty) begin
+            let hitInfo = hitBuf.first;
+            hitBuf.deq;
+            respCBuf.complete(tuple2(hitInfo.token, hitInfo.data));
+            setCacheAge(hitInfo.index, ageWay, hitInfo.wayIndex);
+            $display("HitBuf enter respCBuf: addr=%x data=%x", hitInfo.index, hitInfo.data);
         end
     endrule
 
     rule doArpResp;
-        let arpResp = arpRespBuf.first; arpRespBuf.deq;
+        let arpResp  = arpRespBuf.first; 
+        arpRespBuf.deq;
         let cacheIdx = getIndex(arpResp.ipAddr);
         let cacheTag = getTag(arpResp.ipAddr);
         let cacheData = arpResp.macAddr;
-        let repWayIdx = getReplaceWayIdx(ageArray[cacheIdx]);
-        dataArray[repWayIdx][cacheIdx] <= cacheData;
-        tagArray[repWayIdx][cacheIdx] <= tagged Valid cacheTag;
+        let repWayIdx = getReplaceWayIdx(ageWay.rd(cacheIdx));
+        dataSet[repWayIdx].wr(cacheIdx, cacheData);
+        tagSet[repWayIdx].wr(cacheIdx, tagged Valid cacheTag);
+        $display("ArpResp: Cache get arp reponse: addr=%x data=%x", arpResp.ipAddr, arpResp.macAddr);
     endrule
 
-    rule doResp;
-        let respData <- respCBuf.drain.get;
-        respBuf.enq(respData);
-    endrule
+    interface Server cacheServer;
+        interface Put request;
+            method Action put(CacheAddr addr);
+                let token <- respCBuf.reserve;
+                let cacheIdx = getIndex(addr);
+                let hitWayIdx = getHitWayIdx(addr, tagSet);
+                if (hitWayIdx matches tagged Valid .wayIdx) begin
+                    let cacheData = dataSet[wayIdx].rd(cacheIdx);
+                    hitBuf.enq(HitMessage{
+                        token: token,
+                        data: cacheData,
+                        index: cacheIdx,
+                        wayIndex:wayIdx
+                    });
+                end
+                else begin
+                    missQ.enq(tuple2(token, addr));
+                    arpReqBuf.enq(addr);
+                end
+            endmethod
+        endinterface
+        interface Get response = toGet(respCBuf);
 
-    interface Put req;
-        method Action put(CacheAddr addr);
-            let token <- respCBuf.reserve.get;
-            let cacheIdx = getIndex(addr);
-            let hitWayIdx = getHitWayIdx(addr, tagArray);
-            if (hitWayIdx matches tagged Valid .wayIdx ) begin
-                let cacheData = dataArray[wayIdx][cacheIdx];
-                respCBuf.complete.put(tuple2(token, cacheData));
-                setCacheAge(ageArray[cacheIdx], wayIdx);
-            end
-            else begin
-                fillQ.enq(tuple2(token, addr));
-                arpReqBuf.enq(addr);
-            end
-        endmethod
     endinterface
 
-    interface PipeOut resp = f_FIFOF_to_PipeOut(respBuf);
-    interface Put arpResp  = toPut(arpRespBuf);
-    interface PipeOut arpReq = f_FIFOF_to_PipeOut(arpReqBuf);
+    interface Client arpClient;
+        interface Get request = toGet(arpReqBuf);
+        interface Put response = toPut(arpRespBuf);
+    endinterface
 
 endmodule
+
+
 
 

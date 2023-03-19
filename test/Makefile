@@ -9,7 +9,8 @@ compile:
 #	bsc -u -sim -simdir $(buildDir) -bdir $(buildDir) -info-dir $(buildDir) $(bscflags) -p +:$(srcdir):$(includedir) TestUdpReceiver.bsv
 	bsc -u -sim -simdir $(buildDir) -bdir $(buildDir) -info-dir $(buildDir) $(bscflags) -p +:$(srcdir):$(includedir) TestUdpEthRxTx.bsv
 	bsc -u -sim -simdir $(buildDir) -bdir $(buildDir) -info-dir $(buildDir) $(bscflags) -p +:$(srcdir):$(includedir) TestArpCache.bsv
-	
+	bsc -u -sim -simdir $(buildDir) -bdir $(buildDir) -info-dir $(buildDir) $(bscflags) -p +:$(srcdir):$(includedir) TestCompletionBuf.bsv
+	bsc -u -sim -simdir $(buildDir) -bdir $(buildDir) -info-dir $(buildDir) $(bscflags) -p +:$(srcdir):$(includedir) TestContentAddressMem.bsv
 
 # udpTransmitter: compile
 # 	bsc -sim -e mkTestUdpTransmitter -bdir $(buildDir) -info-dir $(buildDir) -simdir $(buildDir) -aggressive-conditions -keep-fires -o $(buildDir)/simUdpTransmitter
@@ -21,6 +22,11 @@ udpEthRxTx: compile
 
 arpCache: compile
 	bsc -sim -e mkTestArpCache -bdir $(buildDir) -info-dir $(buildDir) -simdir $(buildDir) -aggressive-conditions -keep-fires -o $(buildDir)/simArpCache
+
+completionBuf: compile
+	bsc -sim -e mkTestCompletionBuf -bdir $(buildDir) -info-dir $(buildDir) -simdir $(buildDir) -aggressive-conditions -keep-fires -o $(buildDir)/simCompletionBuf
+#	$(buildDir)/simCompletionBuf
+
 
 clean:
 	rm -rf $(buildDir)
