@@ -1,3 +1,10 @@
 build/
 utils/
 question.txt
+py-test/
+.Xil/
+output/
+generated/
+*.log
+vivado.*
+__pycache__

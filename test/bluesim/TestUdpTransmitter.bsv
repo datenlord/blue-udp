@@ -1,13 +1,13 @@
-import Randomizable::*;
-import Vector::*;
-import GetPut::*;
-import PAClib::*;
+import Randomizable :: *;
+import Vector :: *;
+import GetPut :: *;
+import PAClib :: *;
 
-import Ports::*;
-import UdpTransmitter::*;
-import EthernetTypes::*;
-import Utils::*;
-import HeaderGenerator::*;
+import Ports :: *;
+import UdpTransmitter :: *;
+import EthernetTypes :: *;
+import Utils :: *;
+import HeaderGenerator :: *;
 
 
 typedef enum {
@@ -55,7 +55,7 @@ module mkTestUdpTransmitter();
 
         $display("Cycle %d ---------------------------------------", cycle);
         cycle <= cycle + 1;
-        if(cycle == 100) begin
+        if (cycle == 100) begin
             $display("Time Out!");
             $finish;
         end
@@ -89,7 +89,7 @@ module mkTestUdpTransmitter();
     endrule
 
     rule doSendData if (state == DATA);
-        if(inputVecIndex < 3) begin
+        if (inputVecIndex < 3) begin
             Data randData <- dataRand.next;
             ByteEn byteEn = 1 << valueOf(DATA_BUS_BYTE_WIDTH) - 1;
             DataStream data = DataStream{
@@ -115,13 +115,13 @@ module mkTestUdpTransmitter();
 
     endrule
 
-    rule doCheck if(outputLast);
+    rule doCheck if (outputLast);
 
         Bit#(TOTAL_HDR_WIDTH) refHdr = pack(totalHdrReg);
         Bit#(TMul#(3,DATA_BUS_WIDTH)) refData = pack(inputDataVec);
         let refFrame = {refData, refHdr};
         Bit#(TMul#(5, DATA_BUS_WIDTH)) dutFrame = pack(outputDataVec);
-        if(zeroExtend(refFrame) == dutFrame) begin
+        if (zeroExtend(refFrame) == dutFrame) begin
             $display("Pass");
         end
         else begin

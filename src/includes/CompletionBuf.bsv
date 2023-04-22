@@ -1,6 +1,6 @@
-import Vector::*;
-import PAClib::*;
-import GetPut::*;
+import Vector :: *;
+import PAClib :: *;
+import GetPut :: *;
 
 
 typedef Bit#(TLog#(size)) CBufIndex#(numeric type size);

@@ -1,0 +1,22 @@
+1. RDMA-UDP CRC32
+2. Cocotb
+- BVI encapsulattion
+- Vivado simulation
+- Bus transformation
+
+
+- Cocotb Verification and debug cross-gateway ARP request
+- Cross-gateway ARP Request
+- reconstruct udpArpEthRxTx
+
+- RDMA FCS
+- Replace Cache Memory
+- ARP TTL and Retry
+
+- BVI
+- Vivado Simulation
+- Timing Optimizatio
+- Merge Codes
+
+
+- Addition Task: Bluespec coding tyle guide

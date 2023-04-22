@@ -1,9 +1,10 @@
-import PAClib::*;
-import Ports::*;
-import Vector::*;
-import FIFOF::*;
+import PAClib :: *;
+import Ports :: *;
+import Vector :: *;
+import FIFOF :: *;
 
-import PrimUtils::*;
+import PrimUtils :: *;
+import EthernetTypes :: *;
 
 function PipeOut#(anytype) muxPipeOut2(
     Bool sel, PipeOut#(anytype) pipeIn1, PipeOut#(anytype) pipeIn0
@@ -18,7 +19,7 @@ function PipeOut#(anytype) muxPipeOut2(
         endmethod
 
         method Action deq;
-            if( sel ) begin pipeIn1.deq; end 
+            if (sel) begin pipeIn1.deq; end 
             else begin pipeIn0.deq; end
         endmethod
         
@@ -45,13 +46,13 @@ endfunction
 
 function PipeOut#(anyType) continuePipeOutWhen(PipeOut#(anyType) pipeIn, Bool cond);
     return (interface PipeOut;
-                method anyType first if(cond);
+                method anyType first if (cond);
                     return pipeIn.first;
                 endmethod
                 method Bool notEmpty;
                     return pipeIn.notEmpty && cond;
                 endmethod
-                method Action deq if(cond);
+                method Action deq if (cond);
                     pipeIn.deq;
                 endmethod
             endinterface);
@@ -60,7 +61,7 @@ endfunction
 
 function Bit#(width) oneComplementAdd( Vector#(n, Bit#(width)) op ) provisos(Add#(a__, TLog#(width), width));
     Bit#( TAdd#(TLog#(width), width) ) temp = 0;
-    for(Integer i=0; i < valueOf(n); i=i+1) begin
+    for (Integer i = 0; i < valueOf(n); i = i + 1) begin
         temp = temp + zeroExtend(op[i]);
     end
     Bit#( TLog#(width) ) overFlow = truncateLSB( temp );
@@ -75,8 +76,8 @@ endfunction
 
 function Bit#(w) bitMask(Bit#(w) data, Bit#(m) mask) provisos(Div#(w,m,8));
     Bit#(w) fullMask = 0;
-    for(Integer i=0; i < valueOf(m); i=i+1) begin
-        for(Integer j=0; j < 8; j=j+1) begin
+    for (Integer i = 0; i < valueOf(m); i = i + 1) begin
+        for (Integer j = 0; j < 8; j = j + 1) begin
             fullMask[i*8+j] = mask[i];
         end
     end
@@ -86,6 +87,11 @@ endfunction
 function Bit#(w) setAllBits;
     Bit#(TAdd#(w,1)) result = 1;
     return truncate((result << valueOf(w)) - 1);
+endfunction
+
+function Bool isAllOnes(Bit#(nSz) bits);
+    Bool ret = unpack(&bits);
+    return ret;
 endfunction
 
 typedef struct{
@@ -103,14 +109,22 @@ function SepDataStream#(lw, lbw) seperateDataStream(DataStream dIn)
         lowByteEn: truncate(dIn.byteEn),
         highByteEn: truncateLSB(dIn.byteEn)
     };
+endfunction
 
+function Bit#(width) swapEndian(Bit#(width) data) provisos(Mul#(8, byteNum, width));
+    Vector#(byteNum, Byte) dataVec = unpack(data);
+    return pack(reverse(dataVec));
+endfunction
+
+function Bool isInGateWay(IpNetMask netMask, IpAddr host, IpAddr target);
+    return (netMask & host) == (netMask & target);
 endfunction
 
 
 typedef enum{
     INSERT, PASS, CLEAN
 } InsertState deriving(Bits, Eq, FShow);
-// Insert Bit#(w) into the head of DataStream
+// Insert iType into the head of DataStream
 module mkDataStreamInsert#(
     DataStreamPipeOut dataStreamIn,
     PipeOut#(iType) insertDataIn
@@ -130,9 +144,11 @@ provisos(
     rule doInsertion;
         case (insertState)
             INSERT: begin
-                let dataStream = dataStreamIn.first; dataStreamIn.deq;
+                let dataStream = dataStreamIn.first; 
+                dataStreamIn.deq;
                 SepDataStream#(rWidth,rByteWidth) sepData = seperateDataStream(dataStream);
-                let additionData = pack(insertDataIn.first); insertDataIn.deq;
+                let additionData = swapEndian(pack(insertDataIn.first)); // change to big-endian
+                insertDataIn.deq;
                 
                 dataStream.data = {sepData.lowData, additionData};
                 dataStream.byteEn = {sepData.lowByteEn, setAllBits};
@@ -158,8 +174,8 @@ provisos(
                 residueBuf <= sepData.highData;
                 residueByteEnBuf <= sepData.highByteEn;
                 
-                if(dataStream.isLast) begin
-                    if(sepData.highByteEn == 0 ) begin
+                if (dataStream.isLast) begin
+                    if (sepData.highByteEn == 0 ) begin
                         insertState <= INSERT;
                     end
                     else begin
@@ -179,12 +195,12 @@ provisos(
                 outputBuf.enq(dataStream);
                 insertState <= INSERT;
             end
-            // default: begin
-            //     immFail(
-            //         "unreachible case @ mkDataStreamInsert",
-            //         $format("insertState=", fshow(insertState))
-            //     );
-            // end
+            default: begin
+                immFail(
+                    "unreachible case @ mkDataStreamInsert",
+                    $format("insertState=", fshow(insertState))
+                );
+            end
         endcase
     endrule
 
@@ -226,7 +242,7 @@ provisos(
                 SepDataStream#(eWidth, eByteWidth) sepData = seperateDataStream(dataStream);
                 residueBuf <= sepData.highData;
                 residueByteEnBuf <= sepData.highByteEn;
-                extractDataBuf.enq(unpack(sepData.lowData));
+                extractDataBuf.enq(unpack(swapEndian(sepData.lowData))); // change to little endian
                 if (dataStream.isLast) begin
                     if (sepData.highByteEn != 0) extractState <= CLEAN;
                 end
@@ -268,18 +284,106 @@ provisos(
                 dataStreamBuf.enq(dataStream);
                 extractState <= EXTRACT;
             end
-            // default: begin
-            //     immFail(
-            //         "unreachible case @ mkDataStreamExtract",
-            //         $format("extractState = %", extractState)
-            //     );
-            // end
+            default: begin
+                immFail(
+                    "unreachible case @ mkDataStreamExtract",
+                    $format("extractState = %", extractState)
+                );
+            end
         endcase
 
     endrule
 
     interface PipeOut extractDataOut = f_FIFOF_to_PipeOut(extractDataBuf);
     interface PipeOut dataStreamOut = f_FIFOF_to_PipeOut(dataStreamBuf);
+endmodule
+
+
+module mkDataStreamToAxiStream#(DataStreamPipeOut dataStreamIn)(AxiStreamPipeOut);
+    Reg#(Data) dataBuf <- mkRegU;
+    Reg#(ByteEn) byteEnBuf <- mkRegU;
+    Reg#(Bool) bufValid <- mkReg(False);
+
+    FIFOF#(AxiStream) axiStreamOutBuf <- mkFIFOF;
+
+    rule doStreamExtension;
+        if (bufValid) begin
+            let dataStream = dataStreamIn.first;
+            dataStreamIn.deq;
+            let axiStream = AxiStream{
+                tData: { dataStream.data, dataBuf },
+                tKeep: { dataStream.byteEn, byteEnBuf },
+                tUser: False,
+                tLast: dataStream.isLast
+            };
+            axiStreamOutBuf.enq(axiStream);
+            bufValid <= False;
+        end
+        else begin
+            let dataStream = dataStreamIn.first;
+            dataStreamIn.deq;
+            if (dataStream.isLast) begin
+                let axiStream = AxiStream{
+                    tData: zeroExtend(dataStream.data),
+                    tKeep: zeroExtend(dataStream.byteEn),
+                    tUser: False,
+                    tLast: True
+                };
+                axiStreamOutBuf.enq(axiStream);
+            end
+            else begin
+                dataBuf <= dataStream.data;
+                byteEnBuf <= dataStream.byteEn;
+                bufValid <= True;
+            end
+        end
+    endrule
+
+    return f_FIFOF_to_PipeOut(axiStreamOutBuf);
+endmodule
+
+module mkAxiStreamToDataStream#(AxiStreamPipeOut axiStreamIn)(DataStreamPipeOut);
+    Reg#(Bool) isFirstReg <- mkReg(True);
+    Reg#(Maybe#(DataStream)) extraDataStreamBuf <- mkReg(Invalid);
+
+    FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
+
+    rule doStreamReduction;
+        if (extraDataStreamBuf matches tagged Valid .dataStream) begin
+            dataStreamOutBuf.enq(dataStream);
+            extraDataStreamBuf <= tagged Invalid;
+        end
+        else begin
+            let axiStream = axiStreamIn.first;
+            axiStreamIn.deq;
+
+            let extraDataStream = DataStream{
+                data: truncateLSB(axiStream.tData),
+                byteEn: truncateLSB(axiStream.tKeep),
+                isFirst: False,
+                isLast: axiStream.tLast
+            };
+
+            let dataStreamOut = DataStream{
+                data: truncate(axiStream.tData),
+                byteEn: truncate(axiStream.tKeep),
+                isFirst: isFirstReg,
+                isLast: False
+            };
+
+            if (extraDataStream.byteEn == 0) begin
+                dataStreamOut.isLast = True;
+            end
+            else begin
+                extraDataStreamBuf <= tagged Valid extraDataStream;
+            end
+            dataStreamOutBuf.enq(dataStreamOut);
+            isFirstReg <= axiStream.tLast;
+        end
+    endrule
+
+    return f_FIFOF_to_PipeOut(dataStreamOutBuf);
+
 endmodule
 
 

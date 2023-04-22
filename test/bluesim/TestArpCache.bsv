@@ -1,16 +1,16 @@
-import FIFOF::*;
-import Randomizable::*;
-import Connectable::*;
-import Vector::*;
-import PAClib::*;
-import ClientServer::*;
-import GetPut::*;
+import FIFOF :: *;
+import Randomizable :: *;
+import Connectable :: *;
+import Vector :: *;
+import PAClib :: *;
+import ClientServer :: *;
+import GetPut :: *;
 
-import ArpCache::*;
-import TestUtils::*;
-import PrimUtils::*;
+import ArpCache :: *;
+import TestUtils :: *;
+import PrimUtils :: *;
 
-typedef 8 SIM_MEM_ADDR_WIDTH;
+typedef 9 SIM_MEM_ADDR_WIDTH;
 typedef TExp#(SIM_MEM_ADDR_WIDTH) SIM_MEM_SIZE;
 typedef Bit#(SIM_MEM_ADDR_WIDTH) SimMemAddr;
 typedef 16 SIM_MEM_DATA_WIDTH;
@@ -36,7 +36,7 @@ module mkRandomArpMem(RandomArpMem);
     RandomDelay#(ArpResp, MAX_SERVER_DELAY) randDelay <- mkRandomDelay;
 
     rule doRandInit if (!randInit);
-        for(Integer i=0; i < valueOf(SIM_MEM_SIZE); i=i+1) begin
+        for (Integer i = 0; i < valueOf(SIM_MEM_SIZE); i = i + 1) begin
             memDataRand[i].cntrl.init;
         end
         selectRand.cntrl.init;
@@ -45,7 +45,7 @@ module mkRandomArpMem(RandomArpMem);
     endrule
 
     rule doMemInit if (randInit && !memInit);
-        for(Integer i=0; i < valueOf(SIM_MEM_SIZE); i=i+1) begin
+        for (Integer i = 0; i < valueOf(SIM_MEM_SIZE); i = i + 1) begin
             let memData <- memDataRand[i].next;
             simMem[i] <= memData;
             $display("Init Sim Addr:%x Data:%x", i, memData);
@@ -110,8 +110,8 @@ module mkRandomArpMem(RandomArpMem);
 
 endmodule
 
-typedef 32 CASE_NUM;
-typedef 300 MAX_CYCLE;
+typedef 2048 CASE_NUM;
+typedef 10000 MAX_CYCLE;
 typedef 32 REF_RESP_BUF_SIZE;
 typedef Bit#(16) TestbenchCycle;
 typedef Bit#(16) TestCaseCount;
@@ -166,12 +166,12 @@ module mkTestArpCache();
         immAssert(
             dutResp == refResp.macAddr,
             "Check output assertion @ mkTestArpCache",
-            $format("The responses of dut and ref are inconsistent.", maxCycle)
+            $format("The responses of dut and ref are inconsistent.")
         );
         respCount <= respCount + 1;
     endrule
 
-    rule doFinish if(respCount == fromInteger(caseNum));
+    rule doFinish if (respCount == fromInteger(caseNum));
         $display("Pass all %d test cases!", caseNum);
         $finish;
     endrule

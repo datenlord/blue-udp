@@ -1,7 +1,7 @@
-import GetPut::*;
-import FIFOF::*;
-import ClientServer::*;
-import Randomizable::*;
+import GetPut :: *;
+import FIFOF :: *;
+import ClientServer :: *;
+import Randomizable :: *;
 
 typedef Server#(
     dType, dType
@@ -23,7 +23,7 @@ module mkRandomDelay(RandomDelay#(dType, delay))
     endrule
 
     rule doCount;
-        if(delayCounter == delayCountMax) begin
+        if (delayCounter == delayCountMax) begin
             delayCounter <= 0;
             Bit#(TLog#(delay)) randDelay <- delayRand.next;
             delayCountMax <= randDelay;
@@ -35,7 +35,7 @@ module mkRandomDelay(RandomDelay#(dType, delay))
     
     interface Put request = toPut(buffer);
     interface Get response;
-        method ActionValue#(dType) get if(passData);
+        method ActionValue#(dType) get if (passData);
             let data = buffer.first;
             buffer.deq;
             return data;

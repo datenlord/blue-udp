@@ -1,4 +1,4 @@
-import UdpReceiver::*;
+import UdpReceiver :: *;
 
 (* synthesize *)
 module mkTestUdpReceiver();

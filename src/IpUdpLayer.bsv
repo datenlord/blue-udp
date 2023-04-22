@@ -1,13 +1,13 @@
-import FIFOF::*;
-import GetPut::*;
-import PAClib::*;
-import Vector::*;
+import FIFOF :: *;
+import GetPut :: *;
+import PAClib :: *;
+import Vector :: *;
 
-import Utils::*;
-import Ports::*;
-import EthernetTypes::*;
+import Utils :: *;
+import Ports :: *;
+import EthernetTypes :: *;
 
-function IpUdpHeader genIpUdpHeader(MetaData meta, UdpConfig udpConfig, IpID ipId);
+function IpUdpHeader genIpUdpHeader(UdpMetaData meta, UdpConfig udpConfig, IpID ipId);
 
     UdpLength udpLen = meta.dataLen + fromInteger(valueOf(UDP_HDR_BYTE_WIDTH));
     IpTL ipLen = udpLen + fromInteger(valueOf(IP_HDR_BYTE_WIDTH));
@@ -23,7 +23,7 @@ function IpUdpHeader genIpUdpHeader(MetaData meta, UdpConfig udpConfig, IpID ipI
         ipTTL:     fromInteger(valueOf(IP_TTL_VAL)),
         ipProtocol:fromInteger(valueOf(IP_PROTOCOL_VAL)),
         ipChecksum:0,
-        srcIpAddr :udpConfig.srcIpAddr,
+        srcIpAddr :udpConfig.ipAddr,
         dstIpAddr :meta.ipAddr
     };
     Vector#(IP_HDR_WORD_WIDTH, Word) ipHdrVec = unpack(pack(ipHeader));
@@ -35,8 +35,8 @@ function IpUdpHeader genIpUdpHeader(MetaData meta, UdpConfig udpConfig, IpID ipI
         length:  udpLen,
         checksum:0
     };
-    Vector#(UDP_HDR_WORD_WIDTH, Word) udpHdrVec = unpack(pack(udpHeader));
-    udpHeader.checksum = getCheckSum(udpHdrVec);
+    // Vector#(UDP_HDR_WORD_WIDTH, Word) udpHdrVec = unpack(pack(udpHeader));
+    // udpHeader.checksum = getCheckSum(udpHdrVec);
 
     IpUdpHeader ipUdpHeader = IpUdpHeader{
         ipHeader: ipHeader,
@@ -46,19 +46,19 @@ function IpUdpHeader genIpUdpHeader(MetaData meta, UdpConfig udpConfig, IpID ipI
 endfunction
 
 module mkIpUdpGenerator#(
-    MetaDataPipeOut metaDataIn,
+    UdpMetaDataPipeOut metaDataIn,
     DataStreamPipeOut dataStreamIn,
-    Maybe#(UdpConfig) udpConfig
+    UdpConfig udpConfig
 )(DataStreamPipeOut);
 
     FIFOF#(IpUdpHeader) ipUdpHeaderBuf <- mkFIFOF;
     // FIFOF#(DataStream) dataStreamInBuf <- mkFIFOF;
     Reg#(IpID) ipIdCounter <- mkReg(0);
-    let udpConfigVal = fromMaybe(?, udpConfig);
     
-    rule genIpUdpHeader if (isValid(udpConfig));
-        let metaData = metaDataIn.first; metaDataIn.deq;
-        IpUdpHeader ipUdpHeader = genIpUdpHeader(metaData, udpConfigVal, ipIdCounter);
+    rule genIpUdpHeader;
+        let metaData = metaDataIn.first; 
+        metaDataIn.deq;
+        IpUdpHeader ipUdpHeader = genIpUdpHeader(metaData, udpConfig, 1);
         ipUdpHeaderBuf.enq(ipUdpHeader);
         ipIdCounter <= ipIdCounter + 1;
         $display("IpUdpGen: genHeader of %d frame", ipIdCounter);
@@ -69,13 +69,12 @@ module mkIpUdpGenerator#(
     DataStreamPipeOut dataStreamOut <- mkDataStreamInsert(dataStreamIn, hdrStream);
 
     return dataStreamOut;
-
 endmodule
 
 
-function MetaData extractMetaData(IpUdpHeader hdr);
+function UdpMetaData extractMetaData(IpUdpHeader hdr);
     UdpLength dataLen = hdr.udpHeader.length - fromInteger(valueOf(UDP_HDR_BYTE_WIDTH));
-    MetaData meta = MetaData{
+    UdpMetaData meta = UdpMetaData{
         dataLen: dataLen,
         ipAddr : hdr.ipHeader.srcIpAddr,
         dstPort: hdr.udpHeader.dstPort,
@@ -87,62 +86,72 @@ endfunction
 function Bool checkIpUdp(IpUdpHeader hdr, UdpConfig udpConfig);
     // To be modified!!!
     Vector#(IP_HDR_WORD_WIDTH, Word) ipHdrVec = unpack(pack(hdr.ipHeader));
-    Vector#(UDP_HDR_WORD_WIDTH, Word) udpHdrVec = unpack(pack(hdr.udpHeader));
     let ipChecksum = getCheckSum(ipHdrVec);
-    let udpChecksum = getCheckSum(udpHdrVec);
 
-    let ipAddrMatch = hdr.ipHeader.dstIpAddr == udpConfig.srcIpAddr;
+    // Skip checksum of udp header
+    // Vector#(UDP_HDR_WORD_WIDTH, Word) udpHdrVec = unpack(pack(hdr.udpHeader));
+    // let udpChecksum = getCheckSum(udpHdrVec);
+
+    let ipAddrMatch = hdr.ipHeader.dstIpAddr == udpConfig.ipAddr;
     let protocolMatch = hdr.ipHeader.ipProtocol == fromInteger(valueOf(IP_PROTOCOL_VAL));
 
-    return (ipChecksum == 0) && (udpChecksum == 0) && ipAddrMatch && protocolMatch;
+    return (ipChecksum == 0) && ipAddrMatch && protocolMatch;
 endfunction
 
 interface IpUdpExtractor;
-    interface MetaDataPipeOut   metaDataOut;
+    interface UdpMetaDataPipeOut udpMetaDataOut;
     interface DataStreamPipeOut dataStreamOut;
 endinterface
 
 typedef enum{
-    PASS, THROW
+    HEAD, PASS, THROW
 } ExtState deriving(Bits, Eq);
 
 module mkIpUdpExtractor#(
     DataStreamPipeOut dataStreamIn,
-    Maybe#(UdpConfig) udpConfig
+    UdpConfig udpConfig
 )(IpUdpExtractor);
     FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
-    FIFOF#(MetaData) metaDataOutBuf <- mkFIFOF;
-    Reg#(Maybe#(ExtState)) extState[2] <- mkCReg(2, Invalid);
+    FIFOF#(UdpMetaData) metaDataOutBuf <- mkFIFOF;
+    Reg#(ExtState) extState <- mkReg(HEAD);
     
-    DataStreamExtract#(IpUdpHeader) ipUdpExt <- mkDataStreamExtract(dataStreamIn);
+    DataStreamExtract#(IpUdpHeader) ipUdpExtractor <- mkDataStreamExtract(dataStreamIn);
     
-    rule doCheck if (isValid(udpConfig));
-        let ipUdpHeader = ipUdpExt.extractDataOut.first; ipUdpExt.extractDataOut.deq;
-        let checkRes = checkIpUdp( ipUdpHeader, fromMaybe(?,udpConfig));
+    rule doCheck if (extState == HEAD);
+        let ipUdpHeader = ipUdpExtractor.extractDataOut.first; 
+        ipUdpExtractor.extractDataOut.deq;
+        let checkRes = checkIpUdp(ipUdpHeader, udpConfig);
         if (checkRes) begin
             let metaData = extractMetaData(ipUdpHeader);
             metaDataOutBuf.enq(metaData);
-            extState[0] <= tagged Valid PASS;
+            extState <= PASS;
             $display("IpUdp EXT: Check Pass");
         end
         else begin
             $display("IpUdp EXT: Check Fail ");
-            extState[0] <= tagged Valid THROW;
+            extState <= THROW;
         end
     endrule
 
-    rule doPass if (isValid(extState[1]));
-        let dataStream = ipUdpExt.dataStreamOut.first; ipUdpExt.dataStreamOut.deq;
-        if (fromMaybe(?, extState[1]) == PASS) begin
-            dataStreamOutBuf.enq(dataStream);
-        end
+    rule doPass if (extState == PASS);
+        let dataStream = ipUdpExtractor.dataStreamOut.first; 
+        ipUdpExtractor.dataStreamOut.deq;
+        dataStreamOutBuf.enq(dataStream);
         if (dataStream.isLast) begin
-            extState[1] <= tagged Invalid;
+            extState <= HEAD;
+        end
+    endrule
+
+    rule doThrow if (extState == THROW);
+        let dataStream = ipUdpExtractor.dataStreamOut.first; 
+        ipUdpExtractor.dataStreamOut.deq;
+        if (dataStream.isLast) begin
+            extState <= HEAD;
         end
     endrule
 
     interface PipeOut dataStreamOut = f_FIFOF_to_PipeOut(dataStreamOutBuf);
-    interface PipeOut metaDataOut = f_FIFOF_to_PipeOut(metaDataOutBuf);
+    interface PipeOut udpMetaDataOut = f_FIFOF_to_PipeOut(metaDataOutBuf);
 
 endmodule
 

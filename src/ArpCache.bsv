@@ -1,13 +1,13 @@
-import GetPut::*;
-import FIFOF::*;
-import PAClib::*;
-import Vector::*;
-import ClientServer::*;
+import GetPut :: *;
+import FIFOF :: *;
+import PAClib :: *;
+import Vector :: *;
+import ClientServer :: *;
 
-
-import CompletionBuf::*;
-import EthernetTypes::*;
-import RFile::*;
+import CompletionBuf :: *;
+import EthernetTypes :: *;
+import RFile :: *;
+import ContentAddressMem :: *;
 
 // ARP request/response
 
@@ -32,7 +32,7 @@ typedef TSub#(CACHE_WAY_NUM, 1) CACHE_AGE_WIDTH; // used in pseduo LRU
 
 typedef Bit#(CACHE_DATA_WIDTH) CacheData;
 typedef Bit#(CACHE_ADDR_WIDTH) CacheAddr;
-typedef Bit#(CACHE_TAG_WIDTH)  CacheTag;
+typedef Bit#(CACHE_TAG_WIDTH) CacheTag;
 typedef Bit#(CACHE_AGE_WIDTH) CacheAge;
 typedef Bit#(CACHE_INDEX_WIDTH) CacheIndex;
 typedef Bit#(CACHE_WAY_INDEX_WIDTH) CacheWayIndex;
@@ -46,8 +46,8 @@ typedef Vector#(CACHE_WAY_NUM, CacheTagWay) CacheTagSet;
 typedef RFile#(CACHE_INDEX_WIDTH, CacheAge) CacheAgeWay;
 
 //
-typedef 8 CBUF_SIZE;
-typedef 8 MISSQ_SIZE;
+typedef 8 CACHE_CBUF_SIZE;
+typedef 8 CACHE_MAX_MISS;
 
 // Useful Functions
 function CacheTag getTag(CacheAddr addr);
@@ -62,8 +62,8 @@ function Maybe#(CacheWayIndex) getHitWayIdx(CacheAddr addr, CacheTagSet tagSet);
     let tag = getTag(addr);
     let index = getIndex(addr);
     Maybe#(CacheWayIndex) wayIdx = tagged Invalid;
-    for(Integer i=0; i < valueOf(CACHE_WAY_NUM); i=i+1) begin
-        if(tagSet[i].rd(index) matches tagged Valid .x &&& x == tag) begin
+    for (Integer i = 0; i < valueOf(CACHE_WAY_NUM); i = i + 1) begin
+        if (tagSet[i].rd(index) matches tagged Valid .x &&& x == tag) begin
             wayIdx = tagged Valid fromInteger(i);
         end
     end
@@ -73,7 +73,7 @@ endfunction
 function CacheWayIndex getReplaceWayIdx(CacheAge age);
     CacheWayIndex wayIdx = 0;
     Bit#(TLog#(CACHE_AGE_WIDTH)) ageIdx = 0;
-    for(Integer i=0; i < valueOf(CACHE_WAY_INDEX_WIDTH); i=i+1) begin
+    for (Integer i = 0; i < valueOf(CACHE_WAY_INDEX_WIDTH); i = i + 1) begin
         wayIdx[i] = age[ageIdx];
         if (wayIdx[i] == 0) begin 
             ageIdx = (ageIdx << 1) + 1;
@@ -89,7 +89,7 @@ function Action setCacheAge(CacheIndex idx, CacheAgeWay age, CacheWayIndex wayId
     action
         Bit#(TLog#(CACHE_AGE_WIDTH)) ageIdx = 0;
         CacheAge nextAge = age.rd(idx);
-        for(Integer i=0; i < valueOf(CACHE_WAY_INDEX_WIDTH); i=i+1) begin
+        for (Integer i = 0; i < valueOf(CACHE_WAY_INDEX_WIDTH); i = i + 1) begin
             if (wayIdx[i] == 0) begin
                 nextAge[ageIdx] = 1;
                 ageIdx = (ageIdx << 1) + 1;
@@ -110,7 +110,7 @@ typedef struct{
 } ArpResp deriving(Bits, Eq, FShow);
 
 typedef struct{
-    CBufIndex#(CBUF_SIZE) token;
+    CBufIndex#(CACHE_CBUF_SIZE) token;
     CacheData data;
     CacheIndex index;
     CacheWayIndex wayIndex;
@@ -127,48 +127,32 @@ module mkArpCache(ArpCache);
     CacheTagSet  tagSet <- replicateM(mkCFRFile);
     CacheAgeWay  ageWay <- mkCFRFileInit(0);
 
-    FIFOF#(Tuple2#(CBufIndex#(CBUF_SIZE), CacheAddr)) missQ <- mkSizedFIFOF(valueOf(MISSQ_SIZE));
+    ContentAddressMem#(
+        CACHE_MAX_MISS, CacheAddr, CBufIndex#(CACHE_CBUF_SIZE)
+    ) missReqTable <- mkContentAddressMem;
 
     FIFOF#(HitMessage) hitBuf <- mkFIFOF;
-    FIFOF#(HitMessage) missQHitBuf <- mkFIFOF;
+    FIFOF#(HitMessage) missHitBuf <- mkFIFOF;
     FIFOF#(ArpResp) arpRespBuf <- mkFIFOF;
     FIFOF#(CacheAddr) arpReqBuf <- mkFIFOF;
 
-    CompletionBuf#(CBUF_SIZE, CacheData) respCBuf <- mkCompletionBuf;
+    CompletionBuf#(CACHE_CBUF_SIZE, CacheData) respCBuf <- mkCompletionBuf;
 
-    rule deMissQ;
-        match {.token, .addr} = missQ.first;
-        let cacheIdx = getIndex(addr);
-        let hitWayIdx = getHitWayIdx(addr, tagSet);
-        if (hitWayIdx matches tagged Valid .wayIdx) begin
-            let cacheData = dataSet[wayIdx].rd(cacheIdx);
-            missQ.deq;
-            missQHitBuf.enq(
-                HitMessage{
-                    token: token,
-                    data: cacheData,
-                    index: cacheIdx,
-                    wayIndex: wayIdx
-                }
-            );
-        end
-        $display("The first element of MissQ: addr=%x", addr);
-    endrule
 
     rule doRespCBuf;
-        if (missQHitBuf.notEmpty) begin
-            let hitInfo = missQHitBuf.first;
-            missQHitBuf.deq;
+        if (missHitBuf.notEmpty) begin
+            let hitInfo = missHitBuf.first;
+            missHitBuf.deq;
             respCBuf.complete(tuple2(hitInfo.token, hitInfo.data));
             setCacheAge(hitInfo.index, ageWay, hitInfo.wayIndex);
-            $display("MissQHit enter respCBuf: addr=%x data=%x", hitInfo.index, hitInfo.data);
+            $display("ArpCache: MissQHit enter respCBuf: addr=%x data=%x", hitInfo.index, hitInfo.data);
         end
         else if (hitBuf.notEmpty) begin
             let hitInfo = hitBuf.first;
             hitBuf.deq;
             respCBuf.complete(tuple2(hitInfo.token, hitInfo.data));
             setCacheAge(hitInfo.index, ageWay, hitInfo.wayIndex);
-            $display("HitBuf enter respCBuf: addr=%x data=%x", hitInfo.index, hitInfo.data);
+            $display("ArpCache: HitBuf enter respCBuf: addr=%x data=%x", hitInfo.index, hitInfo.data);
         end
     endrule
 
@@ -181,7 +165,20 @@ module mkArpCache(ArpCache);
         let repWayIdx = getReplaceWayIdx(ageWay.rd(cacheIdx));
         dataSet[repWayIdx].wr(cacheIdx, cacheData);
         tagSet[repWayIdx].wr(cacheIdx, tagged Valid cacheTag);
-        $display("ArpResp: Cache get arp reponse: addr=%x data=%x", arpResp.ipAddr, arpResp.macAddr);
+
+        if (missReqTable.search(arpResp.ipAddr)) begin
+            let token = fromMaybe(?, missReqTable.read(arpResp.ipAddr));
+            missReqTable.clear(arpResp.ipAddr);
+            missHitBuf.enq(
+                HitMessage{
+                    token: token,
+                    data: cacheData,
+                    index: cacheIdx,
+                    wayIndex: repWayIdx
+                }
+            );
+        end
+        $display("ArpCache: get arp reponse: addr=%x data=%x", arpResp.ipAddr, arpResp.macAddr);
     endrule
 
     interface Server cacheServer;
@@ -192,28 +189,31 @@ module mkArpCache(ArpCache);
                 let hitWayIdx = getHitWayIdx(addr, tagSet);
                 if (hitWayIdx matches tagged Valid .wayIdx) begin
                     let cacheData = dataSet[wayIdx].rd(cacheIdx);
-                    hitBuf.enq(HitMessage{
-                        token: token,
-                        data: cacheData,
-                        index: cacheIdx,
-                        wayIndex:wayIdx
-                    });
+                    hitBuf.enq(
+                        HitMessage{
+                            token: token,
+                            data: cacheData,
+                            index: cacheIdx,
+                            wayIndex: wayIdx
+                        }
+                    );
+                    $display("ArpCache: Hit Directly: addr=%x", addr);
                 end
                 else begin
-                    missQ.enq(tuple2(token, addr));
+                    missReqTable.write(addr, token);
                     arpReqBuf.enq(addr);
+                    $display("ArpCache: Miss: addr=%x", addr);
                 end
             endmethod
         endinterface
-        interface Get response = toGet(respCBuf);
 
+        interface Get response = toGet(respCBuf);
     endinterface
 
     interface Client arpClient;
         interface Get request = toGet(arpReqBuf);
         interface Put response = toPut(arpRespBuf);
     endinterface
-
 endmodule
 
 

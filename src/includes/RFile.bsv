@@ -1,4 +1,4 @@
-import Vector::*;
+import Vector :: *;
 
 
 interface RFile#(numeric type indexWidth, type dataType);
@@ -9,7 +9,7 @@ endinterface
 module mkCFRFile(RFile#(iWidth, dType)) provisos(Bits#(dType, dSz));
     Vector#(TExp#(iWidth), Reg#(dType)) rfile <- replicateM(mkRegU);
     Wire#(Maybe#(Tuple2#(Bit#(iWidth), dType))) wrReq <- mkDWire(Invalid);
-    
+
     (* fire_when_enabled *)
 	(* no_implicit_conditions *)
     rule cononicalize;

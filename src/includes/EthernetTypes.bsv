@@ -10,17 +10,17 @@ typedef struct{
     EthMacAddr dstMacAddr;
     EthMacAddr srcMacAddr;
     EthType    ethType;
-} EthHeader deriving( FShow, Eq, Bounded);
+} EthHeader deriving( Bits, FShow, Eq, Bounded);
 
-instance Bits#(EthHeader, ETH_HDR_WIDTH );
-    function Bit#(ETH_HDR_WIDTH) pack(EthHeader x);
-        return {x.ethType, x.srcMacAddr, x.dstMacAddr};
-    endfunction
+// instance Bits#(EthHeader, ETH_HDR_WIDTH );
+//     function Bit#(ETH_HDR_WIDTH) pack(EthHeader x);
+//         return {x.ethType, x.srcMacAddr, x.dstMacAddr};
+//     endfunction
 
-    function EthHeader unpack( Bit#(ETH_HDR_WIDTH) x);
-        return EthHeader{ dstMacAddr:x[47:0], srcMacAddr:x[95:48], ethType:x[111:96]};
-    endfunction
-endinstance
+//     function EthHeader unpack( Bit#(ETH_HDR_WIDTH) x);
+//         return EthHeader{ dstMacAddr:x[47:0], srcMacAddr:x[95:48], ethType:x[111:96]};
+//     endfunction
+// endinstance
 
 typedef 2048 ETH_TYPE_IP; // TYPE = 0x0800
 typedef 2054 ETH_TYPE_ARP;// TYPE = 0x0806
@@ -63,29 +63,29 @@ typedef struct{
     IpCheckSum ipChecksum;
     IpAddr     srcIpAddr;
     IpAddr     dstIpAddr;
-} IpHeader deriving( FShow, Eq, Bounded);
+} IpHeader deriving( Bits, FShow, Eq, Bounded);
 
-instance Bits#(IpHeader, IP_HDR_WIDTH);
-    function Bit#(IP_HDR_WIDTH) pack(IpHeader x);
-        return {
-            x.dstIpAddr, x.srcIpAddr, x.ipChecksum, x.ipProtocol, x.ipTTL,
-            x.ipOffset, x.ipFlag, x.ipID, x.ipTL, x.ipDS, x.ipIHL, x.ipVersion
-        };
-    endfunction
+// instance Bits#(IpHeader, IP_HDR_WIDTH);
+//     function Bit#(IP_HDR_WIDTH) pack(IpHeader x);
+//         return {
+//             x.dstIpAddr, x.srcIpAddr, x.ipChecksum, x.ipProtocol, x.ipTTL,
+//             x.ipOffset[12:5], x.ipFlag, x.ipOffset[4:0], x.ipID, x.ipTL, x.ipDS, x.ipVersion, x.ipIHL
+//         };
+//     endfunction
 
-    function IpHeader unpack(Bit#(IP_HDR_WIDTH) x);
-        return IpHeader{
-            ipVersion:x[3:0], ipIHL:x[7:4], ipDS:x[15:8], ipTL:x[31:16], ipID:x[47:32],
-            ipFlag:x[50:48], ipOffset:x[63: 51], ipTTL:x[71:64], ipProtocol:x[79:72],
-            ipChecksum:x[95:80], srcIpAddr:x[127:96], dstIpAddr:x[159:128]
-        };
-    endfunction
-endinstance
+//     function IpHeader unpack(Bit#(IP_HDR_WIDTH) x);
+//         return IpHeader{
+//             ipVersion:x[7:4], ipIHL:x[3:0], ipDS:x[15:8], ipTL:x[31:16], ipID:x[47:32],
+//             ipFlag:x[50:48], ipOffset:x[63: 48], ipTTL:x[71:64], ipProtocol:x[79:72],
+//             ipChecksum:x[95:80], srcIpAddr:x[127:96], dstIpAddr:x[159:128]
+//         };
+//     endfunction
+// endinstance
 
 typedef 4  IP_VERSION_VAL;         // VERSION = 0x4
 typedef 5  IP_IHL_VAL;             // IHL = 0x5
 typedef 0  IP_DS_VAL;              // DS  = 0x0
-typedef 2  IP_FLAGS_VAL;           // FLAGS = 0x2
+typedef 0  IP_FLAGS_VAL;           // FLAGS = 0x0
 typedef 0  IP_OFFSET_VAL;          // FRAGMENT_OFFSET = 0
 typedef 64 IP_TTL_VAL;             // TTL = 0x40
 typedef 17 IP_PROTOCOL_VAL;        // PROTOCOL = 0x11(UDP)
@@ -104,16 +104,16 @@ typedef struct{
     UdpPort     dstPort;
     UdpLength   length;
     UdpCheckSum checksum;
-} UdpHeader deriving( FShow, Eq, Bounded);
-instance Bits#(UdpHeader, UDP_HDR_WIDTH);
-    function Bit#(UDP_HDR_WIDTH) pack(UdpHeader x);
-        return {x.checksum, x.length, x.dstPort, x.srcPort};
-    endfunction
+} UdpHeader deriving( Bits, FShow, Eq, Bounded);
+// instance Bits#(UdpHeader, UDP_HDR_WIDTH);
+//     function Bit#(UDP_HDR_WIDTH) pack(UdpHeader x);
+//         return {x.checksum, x.length, x.dstPort, x.srcPort};
+//     endfunction
     
-    function UdpHeader unpack( Bit#(UDP_HDR_WIDTH) x);
-        return UdpHeader{ srcPort:x[15:0], dstPort:x[31:16], length:x[47:32], checksum:x[63:48]};
-    endfunction
-endinstance
+//     function UdpHeader unpack( Bit#(UDP_HDR_WIDTH) x);
+//         return UdpHeader{ srcPort:x[15:0], dstPort:x[31:16], length:x[47:32], checksum:x[63:48]};
+//     endfunction
+// endinstance
 
 
 //////////////// 
@@ -146,41 +146,41 @@ typedef TSub#(UDP_MIN_SIZE, UDP_HDR_BYTE_WIDTH) DATA_MIN_SIZE; // 18 bytes
 typedef struct{
     IpHeader ipHeader;
     UdpHeader udpHeader;
-} IpUdpHeader deriving(Eq, FShow, Bounded);
+} IpUdpHeader deriving(Bits, Eq, FShow, Bounded);
 
-instance Bits#(IpUdpHeader, IP_UDP_HDR_WIDTH);
-    function Bit#(IP_UDP_HDR_WIDTH) pack(IpUdpHeader x);
-        return {pack(x.udpHeader), pack(x.ipHeader)};
-    endfunction
+// instance Bits#(IpUdpHeader, IP_UDP_HDR_WIDTH);
+//     function Bit#(IP_UDP_HDR_WIDTH) pack(IpUdpHeader x);
+//         return {pack(x.udpHeader), pack(x.ipHeader)};
+//     endfunction
     
-    function IpUdpHeader unpack(Bit#(IP_UDP_HDR_WIDTH) x);
-        return IpUdpHeader{
-            ipHeader:  unpack(x[159:0]),
-            udpHeader: unpack(x[223:160])
-        };
-    endfunction
-endinstance
+//     function IpUdpHeader unpack(Bit#(IP_UDP_HDR_WIDTH) x);
+//         return IpUdpHeader{
+//             ipHeader:  unpack(x[159:0]),
+//             udpHeader: unpack(x[223:160])
+//         };
+//     endfunction
+// endinstance
 
 
 typedef struct{
     EthHeader ethHeader;
     IpHeader  ipHeader;
     UdpHeader udpHeader;
-} TotalHeader deriving( FShow, Eq, Bounded);
+} TotalHeader deriving( Bits, FShow, Eq, Bounded);
 
-instance Bits#(TotalHeader, TOTAL_HDR_WIDTH);
-    function Bit#(TOTAL_HDR_WIDTH) pack(TotalHeader x);
-        return { pack(x.udpHeader), pack(x.ipHeader), pack(x.ethHeader) };
-    endfunction
+// instance Bits#(TotalHeader, TOTAL_HDR_WIDTH);
+//     function Bit#(TOTAL_HDR_WIDTH) pack(TotalHeader x);
+//         return { pack(x.udpHeader), pack(x.ipHeader), pack(x.ethHeader) };
+//     endfunction
     
-    function TotalHeader unpack( Bit#(TOTAL_HDR_WIDTH) x);
-        return TotalHeader{
-            ethHeader: unpack(x[111:0]),
-            ipHeader:  unpack(x[271:112]),
-            udpHeader: unpack(x[335:272])
-        };
-    endfunction
-endinstance
+//     function TotalHeader unpack( Bit#(TOTAL_HDR_WIDTH) x);
+//         return TotalHeader{
+//             ethHeader: unpack(x[111:0]),
+//             ipHeader:  unpack(x[271:112]),
+//             udpHeader: unpack(x[335:272])
+//         };
+//     endfunction
+// endinstance
 
 ///// ARP Protocol
 typedef 16 ARP_HTYPE_WIDTH;
@@ -212,32 +212,45 @@ typedef struct{
     ArpSpa   arpSpa;
     ArpTha   arpTha;
     ArpTpa   arpTpa;
-} ArpFrame deriving(Eq, FShow);
+} ArpFrame deriving(Bits, Eq, FShow);
 
 typedef 28 ARP_FRAME_BYTE_WIDTH;
 typedef 14 ARP_FRAME_WORD_WIDTH;
 typedef TMul#(ARP_FRAME_BYTE_WIDTH, 8) ARP_FRAME_WIDTH;
+typedef TSub#(ETH_DATA_MIN_SIZE, ARP_FRAME_BYTE_WIDTH) ARP_PAD_BYTE_WIDTH;
 
-instance Bits#(ArpFrame, ARP_FRAME_WIDTH);
-    function Bit#(ARP_FRAME_WIDTH) pack(ArpFrame x);
-        return {x.arpTpa, x.arpTha, x.arpSpa, x.arpSha, x.arpOper, x.arpPLen, x.arpHLen, x.arpPType, x.arpHType};
-    endfunction
+// instance Bits#(ArpFrame, ARP_FRAME_WIDTH);
+//     function Bit#(ARP_FRAME_WIDTH) pack(ArpFrame x);
+//         return {x.arpTpa, x.arpTha, x.arpSpa, x.arpSha, x.arpOper, x.arpPLen, x.arpHLen, x.arpPType, x.arpHType};
+//     endfunction
     
-    function ArpFrame unpack(Bit#(ARP_FRAME_WIDTH) x);
-        return ArpFrame{
-            arpHType: x[15: 0],
-            arpPType: x[31:16],
-            arpHLen:  x[39:32],
-            arpPLen:  x[47:40],
-            arpOper:  x[63:48],
-            arpSha:  x[111:64],
-            arpSpa:  x[143:112],
-            arpTha:  x[191:144],
-            arpTpa:  x[223:192]
-        };
-    endfunction
-endinstance
+//     function ArpFrame unpack(Bit#(ARP_FRAME_WIDTH) x);
+//         return ArpFrame{
+//             arpHType: x[15: 0],
+//             arpPType: x[31:16],
+//             arpHLen:  x[39:32],
+//             arpPLen:  x[47:40],
+//             arpOper:  x[63:48],
+//             arpSha:  x[111:64],
+//             arpSpa:  x[143:112],
+//             arpTha:  x[191:144],
+//             arpTpa:  x[223:192]
+//         };
+//     endfunction
+// endinstance
 
+typedef 1 ARP_HTYPE_ETH;   // for ethernet hardware type = 1
+typedef 2048 ARP_PTYPE_IP; // for ip protocol type = 0x0800
+typedef 6 ARP_HLEN_MAC;
+typedef 4 ARP_PLEN_IP;
+typedef 1 ARP_OPER_REQ;
+typedef 2 ARP_OPER_REPLY;
+
+
+typedef 32 IP_NET_MASK_WIDTH;
+typedef Bit#(IP_NET_MASK_WIDTH) IpNetMask;
+typedef 32 IP_GATE_WAY_WIDTH;
+typedef Bit#(IP_GATE_WAY_WIDTH) IpGateWay;
 
 
 

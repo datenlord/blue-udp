@@ -1,7 +1,7 @@
-import FIFOF::*;
-import PrimUtils::*;
-import CompletionBuf::*;
-import Randomizable::*;
+import FIFOF :: *;
+import PrimUtils :: *;
+import CompletionBuf :: *;
+import Randomizable :: *;
 
 typedef Bit#(32) CBufData;
 typedef 7 CBUF_SIZE;
@@ -50,7 +50,7 @@ module mkTestCompletionBuf();
     rule completeCBuf;
         let completeSelect <- completeRand.next;
         if (completeSelect) begin
-            if(completeBuf.notEmpty) begin
+            if (completeBuf.notEmpty) begin
                 let tokenAndData = completeBuf.first;
                 completeBuf.deq;
                 reorderBuf.enq(tokenAndData);
@@ -64,8 +64,7 @@ module mkTestCompletionBuf();
         end
         else begin
 
-    
-            if(completeBuf.notEmpty) begin
+            if (completeBuf.notEmpty) begin
                 let tokenAndData = completeBuf.first;
                 completeBuf.deq;
                 cBuf.complete(tokenAndData);
