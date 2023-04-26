@@ -14,7 +14,6 @@ import Utils :: *;
 // 36 * 256 * 4 36 KB ROM/RAM
 // 
 
-
 module mkCrcBramTable#(Integer offset)(BRAM1Port#(Byte, Crc32Checksum));
     let initFile = sprintf("/home/wengwz/workspace/udp-eth/crc32tab/crc32_tab_%d.txt", offset);
     BRAM_Configure bramConfig = BRAM_Configure{
@@ -29,7 +28,7 @@ module mkCrcBramTable#(Integer offset)(BRAM1Port#(Byte, Crc32Checksum));
 endmodule
 
 module mkCrcRegFileTable#(Integer offset)(RegFile#(Byte, Crc32Checksum));
-    let initFile = sprintf("/home/wengwz/workspace/udp-eth/crc32tab/crc32_tab_%d.txt", offset + 28);
+    let initFile = sprintf("/home/wengwz/workspace/udp-eth/crc32tab/crc32_tab_%d.txt", offset);
     RegFile#(Byte, Crc32Checksum) regFile <- mkRegFileFullLoad(initFile);
     return regFile;
 endmodule
@@ -42,117 +41,190 @@ function Crc32Checksum passCrc(Crc32Checksum crc);
     return crc;
 endfunction
 
+typedef struct {
+    Bool isLast;
+    DataByteShiftAmt shiftAmt;
+} Crc32CtrlSig deriving(Bits, FShow);
+
+typedef struct {
+    Data data;
+    Crc32CtrlSig ctrlSig;
+} PreProcessContext deriving(Bits, FShow);
+
+typedef PreProcessContext ShiftContext;
+
+typedef struct {
+    Crc32Checksum curCrc;
+    Crc32CtrlSig ctrlSig;
+} ReduceContext deriving(Bits, FShow);
+
+typedef struct {
+    Crc32Checksum curCrc;
+    Crc32Checksum interCrc;
+    Crc32CtrlSig ctrlSig;
+} AccumulateContext deriving(Bits, FShow);
+
+typedef struct {
+    Crc32Checksum curCrc;
+    Crc32Checksum remainder;
+    Data interCrc;
+} LastShiftContext deriving(Bits, FShow);
 
 module mkStandardCrc32#(
     DataStreamPipeOut dataStreamIn
 )(PipeOut#(Crc32Checksum));
 
-    FIFOF#(DataStream) reflectedStream <- mkFIFOF;
-    //FIFOF#(DataStream) shiftedStream <- mkFIFOF;
-    FIFOF#(Vector#(TDiv#(DATA_BUS_BYTE_WIDTH, 4), Crc32Checksum)) reducedStream8 <- mkFIFOF;
-    FIFOF#(Vector#(TDiv#(DATA_BUS_BYTE_WIDTH, 16), Crc32Checksum)) reducedStream2 <- mkFIFOF;
+    FIFOF#(PreProcessContext) preProcessedStream <- mkFIFOF;
+    FIFOF#(ShiftContext) shiftedStream <- mkFIFOF;
+    FIFOF#(Vector#(TDiv#(DATA_BUS_BYTE_WIDTH, 4), Crc32Checksum)) crcVec8Stream <- mkFIFOF;
+    FIFOF#(Crc32CtrlSig) crcCtrlSigBuf <- mkFIFOF;
+    FIFOF#(ReduceContext) reducedStream <- mkFIFOF;
+    FIFOF#(AccumulateContext) accumulatedStream <- mkFIFOF;
+    FIFOF#(LastShiftContext) shiftedStreamLast <- mkFIFOF;
+    FIFOF#(Vector#(TDiv#(DATA_BUS_BYTE_WIDTH, 4), Crc32Checksum)) crcVec8StreamLast <- mkFIFOF;
+    FIFOF#(Crc32Checksum) curCrcBuf <- mkFIFOF;
     FIFOF#(Crc32Checksum) outputBuf <- mkFIFOF;
-    FIFOF#(Tuple2#(Bool, Bool)) ctrlSignalBuf <- mkSizedFIFOF(6);
+    //FIFOF#(Crc32CtrlSig) ctrlSignalBuf <- mkSizedFIFOF(6);
 
-    Reg#(Crc32Checksum) interChecksum <- mkReg(setAllBits);
+    Reg#(Crc32Checksum) interCrcResult <- mkReg(setAllBits);
     
-    Vector#(DATA_BUS_BYTE_WIDTH, BRAM1Port#(Byte, Crc32Checksum)) crcBramTabVec <- genWithM(mkCrcBramTable);
-    Vector#(CRC32_BYTE_WIDTH, RegFile#(Byte, Crc32Checksum)) crcDramTabVec <- genWithM(mkCrcRegFileTable);
+    // Vector#(DATA_BUS_BYTE_WIDTH, BRAM1Port#(Byte, Crc32Checksum)) crcBramTabVec <- genWithM(mkCrcBramTable);
+    Vector#(DATA_BUS_BYTE_WIDTH, RegFile#(Byte, Crc32Checksum)) crcDramTabVec <- genWithM(mkCrcRegFileTable);
     
-    rule reflectInput;
+    rule preProcessing;
         let dataIn = dataStreamIn.first;
         dataStreamIn.deq;
-        dataIn.data = swapEndian(reverseBits(dataIn.data));
-        reflectedStream.enq(dataIn);
+        
+        // swap endian and reverse each byte
+        dataIn.data = reverseBits(dataIn.data);
+        dataIn.byteEn = reverseBits(dataIn.byteEn);
+        
+        let extraByteNum = countZerosLSB(dataIn.byteEn);
+        
+        Crc32CtrlSig ctrlSig = Crc32CtrlSig {
+            isLast: dataIn.isLast,
+            shiftAmt: pack(extraByteNum)
+        };
+        PreProcessContext crcContext = PreProcessContext {
+            data: dataIn.data,
+            ctrlSig: ctrlSig
+        };
+        preProcessedStream.enq(crcContext);
+        $display("StandardCrc32 PreProcessing: ", fshow(crcContext));
     endrule
 
-    // rule resolveUnalign;
-    //     let dataIn = reflectedStream.first;
-    //     reflectedStream.deq
-
-    //     if (isAllOnes(dataIn.byteEn)) begin
-    //         shiftedStream.enq(dataIn);
-    //     end
-    //     else begin
-    //         Bit#(TLog#(DATA_BUS_WIDTH)) shiftAmt = zeroExtend(countZerosLSB(dataIn.byteEn));
-    //         shiftAmt = shiftAmt << 3;
-    //         Bit#(TAdd#(CRC32_WIDTH, DATA_BUS_WIDTH)) temp = { interChecksum, dataIn.data };
-    //         temp = temp >> shiftAmt;
-    //         Tuple2#(CRC32_WIDTH, DATA_BUS_WIDTH) tempTuple = split(temp);
-    //         interChecksum <= tpl_1(tempTuple);
-    //         dataIn.data = tpl_2(tempTuple);
-    //         shiftedStream.enq(dataIn);
-    //     end
-    // endrule
-
-    rule sendCrc32TabReq;
-        // let dataIn = shiftedStream.first;
-        // shiftedStream.deq;
-
-        let dataIn = reflectedStream.first;
-        reflectedStream.deq;
-        Vector#(DATA_BUS_BYTE_WIDTH, Byte) dataByteVec = unpack(dataIn.data);
-        for (Integer i = 0; i < fromInteger(valueOf(DATA_BUS_BYTE_WIDTH)); i = i + 1) begin
-            BRAMRequest#(Byte, Crc32Checksum) bramReq = BRAMRequest {
-                write: False,
-                responseOnWrite: False,
-                address: dataByteVec[i],
-                datain: 0
-            };
-            crcBramTabVec[i].portA.request.put(bramReq);
-        end
-
-        ctrlSignalBuf.enq(tuple2(dataIn.isFirst, dataIn.isLast));
+    rule shiftOutExtraByte;
+        let crcContext = preProcessedStream.first;
+        preProcessedStream.deq;
+        let data = crcContext.data;
+        let shiftAmt = crcContext.ctrlSig.shiftAmt;
+        crcContext.data = byteRightShifter(data, shiftAmt);
+        shiftedStream.enq(crcContext);
+        $display("StandardCrc32 ShiftExtraByte: ", fshow(crcContext));
     endrule
 
-    rule recvCrc32TabReq;
+    rule readCrcTable;
+        let crcContext = shiftedStream.first;
+        shiftedStream.deq;
+        Vector#(DATA_BUS_BYTE_WIDTH, Byte) dataByteVec = unpack(crcContext.data);
         Vector#(DATA_BUS_BYTE_WIDTH, Crc32Checksum) crcVec32 = newVector;
-        for (Integer i = 0; i < fromInteger(valueOf(DATA_BUS_BYTE_WIDTH)); i = i + 1) begin
-            let bramRead <- crcBramTabVec[i].portA.response.get;
-            crcVec32[i] = bramRead;
+        for (Integer i = 0; i < valueOf(DATA_BUS_BYTE_WIDTH); i = i + 1) begin
+            crcVec32[i] = crcDramTabVec[i].sub(dataByteVec[i]);
         end
-
         let crcVec16 = mapPairs(combineCrc, passCrc, crcVec32);
         let crcVec8 = mapPairs(combineCrc, passCrc, crcVec16);
-        reducedStream8.enq(crcVec8);
+        crcVec8Stream.enq(crcVec8);
+        crcCtrlSigBuf.enq(crcContext.ctrlSig);
     endrule
 
     rule reduceCrcStream;
-        let crcVec8 = reducedStream8.first;
-        reducedStream8.deq;
+        let crcVec8 = crcVec8Stream.first;
+        crcVec8Stream.deq;
+        let ctrlSig = crcCtrlSigBuf.first;
+        crcCtrlSigBuf.deq;
 
         let crcVec4 = mapPairs(combineCrc, passCrc, crcVec8);
         let crcVec2 = mapPairs(combineCrc, passCrc, crcVec4);
-        reducedStream2.enq(crcVec2);
+        let crcVec1  = mapPairs(combineCrc, passCrc, crcVec2);
+
+        ReduceContext crcContext = ReduceContext {
+            ctrlSig: ctrlSig,
+            curCrc: crcVec1[0]
+        };
+        reducedStream.enq(crcContext);
     endrule
 
-    rule getFinalChecksum;
-        let crcVec2 = reducedStream2.first;
-        reducedStream2.deq;
-        let currentCrc = crcVec2[0] ^ crcVec2[1];
+    rule accumulateCrc;
+        let crcContext = reducedStream.first;
+        reducedStream.deq;
 
         // calculate previous checksum
-        Vector#(CRC32_BYTE_WIDTH, Byte) interCrcVec = unpack(interChecksum);
+        Vector#(CRC32_BYTE_WIDTH, Byte) interCrcVec = unpack(interCrcResult);
         Vector#(CRC32_BYTE_WIDTH, Crc32Checksum) preCrcVec4 = newVector;
-        for (Integer i = 0; i < fromInteger(valueOf(CRC32_BYTE_WIDTH)); i = i + 1) begin
-            preCrcVec4[i] = crcDramTabVec[i].sub(interCrcVec[i]);
+        Integer interCrcOffset = valueOf(DATA_BUS_BYTE_WIDTH) - valueOf(CRC32_BYTE_WIDTH);
+        for (Integer i = 0; i < valueOf(CRC32_BYTE_WIDTH); i = i + 1) begin
+            preCrcVec4[i] = crcDramTabVec[i + 28].sub(interCrcVec[i]);
         end
 
         let preCrcVec2 = mapPairs(combineCrc, passCrc, preCrcVec4);
-        let preCrc = preCrcVec2[0] ^ preCrcVec2[1];
+        let preCrcVec1 = mapPairs(combineCrc, passCrc, preCrcVec2);
 
-        //
-        let ctrlSignal = ctrlSignalBuf.first;
-        ctrlSignalBuf.deq;
+        let nextCrc = crcContext.curCrc ^ preCrcVec1[0];
+        AccumulateContext crcContextLast = AccumulateContext {
+            curCrc  : crcContext.curCrc,
+            interCrc: interCrcResult,
+            ctrlSig : crcContext.ctrlSig
+        };
 
-        let nextCrc = preCrc ^ currentCrc;
-        if (tpl_2(ctrlSignal) == True) begin
-            outputBuf.enq(reverseBits(~nextCrc));
-            interChecksum <= setAllBits;
+        if (crcContext.ctrlSig.isLast) begin
+            accumulatedStream.enq(crcContextLast);
+            interCrcResult <= setAllBits;
         end
         else begin
-            interChecksum <= nextCrc;
+            interCrcResult <= nextCrc;
         end
+    endrule
+
+    rule shiftLastCrc;
+        let crcContext = accumulatedStream.first;
+        accumulatedStream.deq;
+        Bit#(TAdd#(DATA_BUS_WIDTH, CRC32_WIDTH)) interCrc = zeroExtend(crcContext.interCrc);
+        interCrc = interCrc << valueOf(DATA_BUS_WIDTH);
+        interCrc = byteRightShifter(interCrc, crcContext.ctrlSig.shiftAmt);
+        LastShiftContext lastShiftContext = LastShiftContext {
+            curCrc: crcContext.curCrc,
+            remainder: truncate(interCrc),
+            interCrc: truncateLSB(interCrc)
+        };
+        shiftedStreamLast.enq(lastShiftContext);
+    endrule
+
+    rule readCrcTableLast;
+        let crcContext = shiftedStreamLast.first;
+        shiftedStreamLast.deq;
+        Vector#(DATA_BUS_BYTE_WIDTH, Byte) dataByteVec = unpack(crcContext.interCrc);
+        Vector#(DATA_BUS_BYTE_WIDTH, Crc32Checksum) crcVec32 = newVector;
+        for (Integer i = 0; i < valueOf(DATA_BUS_BYTE_WIDTH); i = i + 1) begin
+            crcVec32[i] = crcDramTabVec[i].sub(dataByteVec[i]);
+        end
+        let crcVec16 = mapPairs(combineCrc, passCrc, crcVec32);
+        let crcVec8 = mapPairs(combineCrc, passCrc, crcVec16);
+        crcVec8StreamLast.enq(crcVec8);
+        curCrcBuf.enq(crcContext.curCrc ^ crcContext.remainder);
+    endrule
+
+    rule calculateFinalCrc;
+        let crcVec8 = crcVec8StreamLast.first;
+        crcVec8StreamLast.deq;
+        let curCrc = curCrcBuf.first;
+        curCrcBuf.deq;
+
+        let crcVec4 = mapPairs(combineCrc, passCrc, crcVec8);
+        let crcVec2 = mapPairs(combineCrc, passCrc, crcVec4);
+        let crcVec1  = mapPairs(combineCrc, passCrc, crcVec2);
+        let finalCrcRes = crcVec1[0] ^ curCrc;
+        outputBuf.enq(reverseBits(~finalCrcRes));
+        $display("Finish computation of one case: %x", finalCrcRes);
     endrule
 
     return f_FIFOF_to_PipeOut(outputBuf);

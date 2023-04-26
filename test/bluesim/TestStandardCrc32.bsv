@@ -13,11 +13,12 @@ typedef 16 CYCLE_COUNT_WIDTH;
 typedef 50000 MAX_CYCLE;
 typedef 32 CASE_NUM;
 typedef TLog#(TAdd#(CASE_NUM, 1)) CASE_COUNT_WIDTH;
-typedef 128 CASE_BYTE_WIDTH;
+typedef 133 CASE_BYTE_WIDTH;
 typedef TMul#(CASE_BYTE_WIDTH, BYTE_WIDTH) CASE_WIDTH;
 typedef TLog#(TAdd#(CASE_BYTE_WIDTH, 1)) CASE_BYTE_COUNT_WIDTH;
 typedef TDiv#(CASE_WIDTH, DATA_BUS_WIDTH) FRAGMENT_NUM;
 typedef TLog#(FRAGMENT_NUM) FRAGMENT_COUNT_WIDTH;
+typedef TSub#(TMul#(FRAGMENT_NUM, DATA_BUS_BYTE_WIDTH), CASE_BYTE_WIDTH) EXTRA_BYTE_NUM;
 
 module mkTestStandardCrc32 (Empty);
     Reg#(Bit#(CASE_COUNT_WIDTH)) inputCaseCount <- mkReg(0);
@@ -84,11 +85,16 @@ module mkTestStandardCrc32 (Empty);
         Integer maxFragmentCount = valueOf(FRAGMENT_NUM) - 1;
         let isFirstFrag = fragmentCount == 0;
         let isLastFrag = fragmentCount == fromInteger(maxFragmentCount);
-        Vector#(FRAGMENT_NUM, Bit#(DATA_BUS_WIDTH)) fragmentDataVec = unpack(caseDataBuf.first);
+        Bit#(TMul#(FRAGMENT_NUM, DATA_BUS_WIDTH)) extCaseData = {caseDataBuf.first, 0};
+        Vector#(FRAGMENT_NUM, Bit#(DATA_BUS_WIDTH)) fragmentDataVec = unpack(extCaseData);
         fragmentDataVec = reverse(fragmentDataVec);
+        ByteEn byteEn = setAllBits;
+        if (isLastFrag) begin
+            byteEn = byteEn >> valueOf(EXTRA_BYTE_NUM);
+        end
         DataStream fragment = DataStream {
-            data: fragmentDataVec[fragmentCount],
-            byteEn: setAllBits,
+            data: swapEndian(fragmentDataVec[fragmentCount]),
+            byteEn: byteEn,
             isFirst: isFirstFrag,
             isLast: isLastFrag
         };

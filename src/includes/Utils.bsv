@@ -94,6 +94,18 @@ function Bool isAllOnes(Bit#(nSz) bits);
     return ret;
 endfunction
 
+function Bit#(width) byteRightShifter(Bit#(width) dataIn, Bit#(TLog#(TAdd#(byteNum, 1))) shiftAmt) provisos(Mul#(BYTE_WIDTH, byteNum, width));
+    Vector#(byteNum, Byte) dataInVec = unpack(dataIn);
+    dataInVec = shiftOutFrom0(0, dataInVec, shiftAmt);
+    return pack(dataInVec);
+endfunction
+
+function Bit#(width) byteLeftShifter(Bit#(width) dataIn, Bit#(TLog#(TAdd#(byteNum, 1))) shiftAmt) provisos(Mul#(BYTE_WIDTH, byteNum, width));
+    Vector#(byteNum, Byte) dataInVec = unpack(dataIn);
+    dataInVec = shiftOutFromN(0, dataInVec, shiftAmt);
+    return pack(dataInVec);
+endfunction
+
 typedef struct{
     Bit#(lw) lowData;
     Bit#(TSub#(DATA_BUS_WIDTH,lw)) highData;

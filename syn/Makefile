@@ -4,7 +4,7 @@ SRCDIR = ../src
 INCLUDEDIR = ../src/includes
 VLOGDIR = generated
 OUTPUTDIR = output
-ONLYSYNTH = 1
+ONLYSYNTH = 0
 CLK = main_clock
 
 TARGETFILE ?= $(SRCDIR)/StandardCrc32.bsv
@@ -31,7 +31,7 @@ DEBUGFLAGS = -check-assert \
 	-show-stats \
 	-warn-action-shadowing \
 	-warn-method-urgency \
-	-promote-warnings ALL
+#	-promote-warnings ALL
 VERILOGFLAGS = -verilog -remove-dollar -remove-unused-modules # -use-dpi -verilog-filter cmd
 BLUESIMFLAGS = -parallel-sim-link 16 # -systemc
 OUTDIR = -bdir $(BUILDDIR) -info-dir $(BUILDDIR) -simdir $(BUILDDIR) -vdir $(BUILDDIR)

@@ -9,14 +9,15 @@ typedef Bit#(WORD_WIDTH) Word;
 
 typedef 32 CRC32_WIDTH;
 typedef TDiv#(CRC32_WIDTH, BYTE_WIDTH) CRC32_BYTE_WIDTH;
-typedef Bit# (CRC32_WIDTH) Crc32Checksum;
-typedef TAdd#(CRC32_BYTE_WIDTH, DATA_BUS_BYTE_WIDTH) CRC32_TAB_NUM;
-typedef 32'hFFFFFFFF CRC32_FINAL_XOR_VAL;
+typedef Bit#(CRC32_WIDTH) Crc32Checksum;
 
 typedef 256 DATA_BUS_WIDTH;
 typedef TDiv#( DATA_BUS_WIDTH, 8 ) DATA_BUS_BYTE_WIDTH;
 typedef Bit#( DATA_BUS_WIDTH ) Data;
 typedef Bit#( DATA_BUS_BYTE_WIDTH ) ByteEn;
+typedef Bit#(TLog#(TAdd#(DATA_BUS_WIDTH, 1))) DataShiftAmt;
+typedef Bit#(TLog#(TAdd#(DATA_BUS_BYTE_WIDTH, 1))) DataByteShiftAmt;
+
 typedef struct {
     Data data;
     ByteEn byteEn;
