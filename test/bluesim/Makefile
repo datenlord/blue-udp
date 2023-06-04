@@ -1,7 +1,7 @@
 include ../Makefile.base
 
-TESTFILE ?= TestUdpArpEthRxTx.bsv
-TOP ?= mkTestUdpArpEthRxTx
+TESTFILE ?= TestUdpTransmitter.bsv
+TOP ?= mkTestUdpTransmitter
 
 SIMEXE = $(BUILDDIR)/$(TOP).exe
 

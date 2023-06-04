@@ -1,5 +1,4 @@
 import PAClib :: *;
-
 import EthernetTypes :: *;
 
 typedef 8 BYTE_WIDTH;
@@ -12,9 +11,9 @@ typedef TDiv#(CRC32_WIDTH, BYTE_WIDTH) CRC32_BYTE_WIDTH;
 typedef Bit#(CRC32_WIDTH) Crc32Checksum;
 
 typedef 256 DATA_BUS_WIDTH;
-typedef TDiv#( DATA_BUS_WIDTH, 8 ) DATA_BUS_BYTE_WIDTH;
-typedef Bit#( DATA_BUS_WIDTH ) Data;
-typedef Bit#( DATA_BUS_BYTE_WIDTH ) ByteEn;
+typedef TDiv#(DATA_BUS_WIDTH, 8) DATA_BUS_BYTE_WIDTH;
+typedef Bit#(DATA_BUS_WIDTH) Data;
+typedef Bit#(DATA_BUS_BYTE_WIDTH) ByteEn;
 typedef Bit#(TLog#(TAdd#(DATA_BUS_WIDTH, 1))) DataShiftAmt;
 typedef Bit#(TLog#(TAdd#(DATA_BUS_BYTE_WIDTH, 1))) DataByteShiftAmt;
 
@@ -32,8 +31,8 @@ typedef struct {
     IpAddr     ipAddr;
     UdpPort    dstPort;
     UdpPort    srcPort;
-} UdpMetaData deriving(Bits, Bounded, Eq, FShow);
-typedef PipeOut#(UdpMetaData) UdpMetaDataPipeOut;
+} UdpIpMetaData deriving(Bits, Bounded, Eq, FShow);
+typedef PipeOut#(UdpIpMetaData) UdpIpMetaDataPipeOut;
 
 typedef struct {
     EthMacAddr macAddr;

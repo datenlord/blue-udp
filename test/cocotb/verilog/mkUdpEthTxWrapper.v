@@ -111,8 +111,8 @@ module mkUdpEthTxWrapper#(
 		.RDY_axiStreamOutTx_notEmpty()
     );
 
-    initial begin            
-        $dumpfile("udpEthTx.vcd");
-        $dumpvars(0);
-    end
+    // initial begin            
+    //     $dumpfile("udpEthTx.vcd");
+    //     $dumpvars(0);
+    // end
 endmodule

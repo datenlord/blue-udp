@@ -16,7 +16,7 @@ endinterface
 
 module mkArpProcessor#(
     DataStreamPipeOut arpStreamIn,
-    UdpMetaDataPipeOut metaDataIn,
+    UdpIpMetaDataPipeOut metaDataIn,
     UdpConfig udpConfig
 )(ArpProcessor);
     FIFOF#(ArpFrame) arpReplyBuf <- mkFIFOF;

@@ -2,7 +2,7 @@ import GetPut::*;
 import PAClib::*;
 import FIFOF::*;
 
-import IpUdpLayer::*;
+import UdpIpLayer::*;
 import MacLayer::*;
 import Ports::*;
 import EthernetTypes::*;
@@ -10,30 +10,31 @@ import Utils::*;
 
 interface UdpEthTx;
     interface Put#(UdpConfig) udpConfig;
-    interface Put#(UdpMetaData) udpMetaDataInTx;
-    interface Put#(MacMetaData) macMetaDataInTx;
-    interface Put#(DataStream) dataStreamInTx;
-    interface AxiStreamPipeOut axiStreamOutTx;
+    interface Put#(UdpIpMetaData) udpIpMetaDataIn;
+    interface Put#(MacMetaData) macMetaDataIn;
+    interface Put#(DataStream) dataStreamIn;
+    interface AxiStreamPipeOut axiStreamOut;
 endinterface
 
 (* synthesize *)
 module mkUdpEthTx (UdpEthTx);
-    FIFOF#( DataStream) dataStreamInTxBuf <- mkFIFOF;
-    FIFOF#(UdpMetaData) udpMetaDataInTxBuf <- mkFIFOF;
-    FIFOF#(MacMetaData) macMetaDataInTxBuf <- mkFIFOF;
+    FIFOF#( DataStream) dataStreamInBuf <- mkFIFOF;
+    FIFOF#(UdpIpMetaData) udpIpMetaDataInBuf <- mkFIFOF;
+    FIFOF#(MacMetaData) macMetaDataInBuf <- mkFIFOF;
     
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
+    let udpConfigVal = fromMaybe(?, udpConfigReg);
     
-    DataStreamPipeOut ipUdpStream <- mkIpUdpGenerator(
-        f_FIFOF_to_PipeOut(udpMetaDataInTxBuf),
-        f_FIFOF_to_PipeOut(dataStreamInTxBuf),
-        fromMaybe(?, udpConfigReg)
+    DataStreamPipeOut ipUdpStream <- mkUdpIpStreamGenerator(
+        f_FIFOF_to_PipeOut(udpIpMetaDataInBuf),
+        f_FIFOF_to_PipeOut(dataStreamInBuf),
+        udpConfigVal
     );
 
-    DataStreamPipeOut macStream <- mkMacGenerator(
+    DataStreamPipeOut macStream <- mkMacStreamGenerator(
         ipUdpStream, 
-        f_FIFOF_to_PipeOut(macMetaDataInTxBuf), 
-        fromMaybe(?, udpConfigReg)
+        f_FIFOF_to_PipeOut(macMetaDataInBuf), 
+        udpConfigVal
     );
 
     AxiStreamPipeOut macAxiStream <- mkDataStreamToAxiStream(
@@ -46,23 +47,23 @@ module mkUdpEthTx (UdpEthTx);
         endmethod
     endinterface
 
-    interface Put udpMetaDataInTx;
-        method Action put(UdpMetaData meta) if (isValid(udpConfigReg));
-            udpMetaDataInTxBuf.enq(meta);
+    interface Put udpIpMetaDataIn;
+        method Action put(UdpIpMetaData udpIpMeta) if (isValid(udpConfigReg));
+            udpIpMetaDataInBuf.enq(udpIpMeta);
         endmethod
     endinterface
 
-    interface Put dataStreamInTx;
+    interface Put dataStreamIn;
         method Action put(DataStream stream) if (isValid(udpConfigReg));
-            dataStreamInTxBuf.enq(stream);
+            dataStreamInBuf.enq(stream);
         endmethod
     endinterface
 
-    interface Put macMetaDataInTx;
+    interface Put macMetaDataIn;
         method Action put(MacMetaData macMeta) if (isValid(udpConfigReg));
-            macMetaDataInTxBuf.enq(macMeta);
+            macMetaDataInBuf.enq(macMeta);
         endmethod
     endinterface
 
-    interface PipeOut axiStreamOutTx = macAxiStream;
+    interface PipeOut axiStreamOut = macAxiStream;
 endmodule

@@ -144,9 +144,9 @@ typedef TSub#(UDP_MAX_SIZE, UDP_HDR_BYTE_WIDTH) DATA_MAX_SIZE; // 1472 bytes
 typedef TSub#(UDP_MIN_SIZE, UDP_HDR_BYTE_WIDTH) DATA_MIN_SIZE; // 18 bytes
 
 typedef struct{
-    IpHeader ipHeader;
     UdpHeader udpHeader;
-} IpUdpHeader deriving(Bits, Eq, FShow, Bounded);
+    IpHeader ipHeader;
+} UdpIpHeader deriving(Bits, Eq, FShow, Bounded);
 
 // instance Bits#(IpUdpHeader, IP_UDP_HDR_WIDTH);
 //     function Bit#(IP_UDP_HDR_WIDTH) pack(IpUdpHeader x);

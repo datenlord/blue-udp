@@ -20,3 +20,15 @@
 
 
 - Addition Task: Bluespec coding tyle guide
+
+
+
+- Style Guide
+
+CRC模块
+- CRC Table
+- 推到 GitHub 上 加Action
+- 参数化
+- 文档 
+- 测试 
+- 综合 / Implement (yosys + rapidWright)

@@ -1,8 +1,8 @@
 include ../Makefile.base
 
-FILE ?= UdpArpEthRxTx.bsv
+FILE ?= UdpEthRx.bsv
 FILE_PATH = ../../src/
-TOP ?= mkUdpArpEthRxTx
+TOP ?= mkUdpEthRx
 VLOGDIR = verilog
 TARGET_FILE = $(VLOGDIR)/$(TOP).v
 
