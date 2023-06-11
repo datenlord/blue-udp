@@ -10,3 +10,4 @@ vivado.*
 __pycache__
 crc32tab/
 ToDo
+verilog
