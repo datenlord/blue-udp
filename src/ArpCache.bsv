@@ -1,9 +1,9 @@
 import GetPut :: *;
 import FIFOF :: *;
-import PAClib :: *;
 import Vector :: *;
 import ClientServer :: *;
 
+import SemiFifo :: *;
 import CompletionBuf :: *;
 import EthernetTypes :: *;
 import RFile :: *;

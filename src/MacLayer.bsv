@@ -1,10 +1,10 @@
 import GetPut :: *;
-import PAClib :: *;
 import FIFOF :: *;
 
 import EthernetTypes :: *;
 import Ports :: *;
 import Utils :: *;
+import SemiFifo :: *;
 
 
 module mkMacStreamGenerator#(
@@ -24,7 +24,7 @@ module mkMacStreamGenerator#(
         ethHeaderBuf.enq(ethHeader);
     endrule
 
-    PipeOut#(EthHeader) headerStream = f_FIFOF_to_PipeOut(ethHeaderBuf);
+    PipeOut#(EthHeader) headerStream = convertFifoToPipeOut(ethHeaderBuf);
     DataStreamPipeOut macStreamOut <- mkDataStreamInsert(udpIpStreamIn, headerStream);
     return macStreamOut;
 
@@ -94,6 +94,6 @@ module mkMacStreamExtractor#(
         end
     endrule
 
-    interface PipeOut udpIpStreamOut = f_FIFOF_to_PipeOut(dataStreamOutBuf);
-    interface PipeOut macMetaDataOut = f_FIFOF_to_PipeOut(macMetaDataOutBuf);
+    interface PipeOut udpIpStreamOut = convertFifoToPipeOut(dataStreamOutBuf);
+    interface PipeOut macMetaDataOut = convertFifoToPipeOut(macMetaDataOutBuf);
 endmodule

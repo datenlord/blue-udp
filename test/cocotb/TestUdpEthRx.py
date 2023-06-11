@@ -15,7 +15,7 @@ from cocotbext.axi.stream import define_stream
 
 
 UdpConfigBus, UdpConfigTransation, UdpConfigSource, UdpConfigSink, UdpConfigMonitor = define_stream(
-    "UdpConfig", signals=["valid", "ready", "mac_addr", "ip_addr"]
+    "UdpConfig", signals=["valid", "ready", "mac_addr", "ip_addr", "net_mask", "gate_way"]
 )
 
 UdpMetaBus, UdpMetaTransation, UdpMetaSource, UdpMetaSink, UdpMetaMonitor = define_stream(
@@ -34,40 +34,45 @@ class UdpEthRxTester:
         self.log = logging.getLogger("cocotb.tb")
         self.log.setLevel(logging.DEBUG)
         
-        self.cases_num = 4096
-        self.max_payload_size = 1024
+        self.cases_num = 512
+        self.max_payload_size = 512
         self.ref_udp_meta_buf = Queue(maxsize = self.cases_num)
         self.ref_mac_meta_buf = Queue(maxsize = self.cases_num)
         self.ref_data_stream_buf = Queue(maxsize = self.cases_num)
 
-        self.udp_config_src = UdpConfigSource(UdpConfigBus.from_prefix(dut, "s_udp_config"), dut.clk, dut.reset_n, False)
-        self.axi_stream_src = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axi_stream"), dut.clk, dut.reset_n, False)
+        self.clock = self.dut.CLK
+        self.resetn = self.dut.RST_N
+        self.udp_config_src = UdpConfigSource(UdpConfigBus.from_prefix(dut, "s_udp_config"), self.clock, self.resetn, False)
+        self.axi_stream_src = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axis"), self.clock, self.resetn, False)
         
-        self.data_stream_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_data_stream"), dut.clk, dut.reset_n, False)
-        self.udp_meta_sink = UdpMetaSink(UdpMetaBus.from_prefix(dut, "m_udp_meta"), dut.clk, dut.reset_n, False)
-        self.mac_meta_sink = MacMetaSink(MacMetaBus.from_prefix(dut, "m_mac_meta"), dut.clk, dut.reset_n, False)
+        self.data_stream_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_data_stream"), self.clock, self.resetn, False)
+        self.udp_meta_sink = UdpMetaSink(UdpMetaBus.from_prefix(dut, "m_udp_meta"), self.clock, self.resetn, False)
+        self.mac_meta_sink = MacMetaSink(MacMetaBus.from_prefix(dut, "m_mac_meta"), self.clock, self.resetn, False)
         
-    async def clock(self):
-        await cocotb.start(Clock(self.dut.clk, 10, 'ns').start())
+    async def gen_clock(self):
+        await cocotb.start(Clock(self.clock, 10, 'ns').start())
         
-    async def reset(self):
-        self.dut.reset_n.setimmediatevalue(0)
-        await RisingEdge(self.dut.clk)
-        await RisingEdge(self.dut.clk)
-        await RisingEdge(self.dut.clk)
-        self.dut.reset_n.value = 1
-        await RisingEdge(self.dut.clk)
-        await RisingEdge(self.dut.clk)
-        await RisingEdge(self.dut.clk)
+    async def gen_reset(self):
+        self.resetn.value = 0
+        await RisingEdge(self.clock)
+        await RisingEdge(self.clock)
+        await RisingEdge(self.clock)
+        self.resetn.value = 1
+        await RisingEdge(self.clock)
+        await RisingEdge(self.clock)
+        await RisingEdge(self.clock)
         
     async def config(self):
         self.local_mac = random.randbytes(6)
         self.local_ip  = random.randbytes(4)
-        udpConfig = UdpConfigTransation();
+        self.net_mask = random.randbytes(4)
+        self.gate_way = random.randbytes(4)
+        udpConfig = UdpConfigTransation()
         udpConfig.mac_addr = int.from_bytes(self.local_mac, 'big')
-        udpConfig.ip_addr = int.from_bytes(self.local_ip, 'big')
+        udpConfig.ip_addr  = int.from_bytes(self.local_ip, 'big')
+        udpConfig.net_mask = int.from_bytes(self.net_mask, 'big')
+        udpConfig.gate_way = int.from_bytes(self.gate_way, 'big')
         await self.udp_config_src.send(udpConfig)
-        print("Set Udp Configuration Reg Succesfully", udpConfig)
         
     def gen_random_packet(self):
         src_mac = random.randbytes(6)
@@ -158,17 +163,17 @@ class UdpEthRxTester:
             self.log.info(f"Test Case {case_idx}: Pass data stream check")
     
     async def check_dut_output(self):
-        check_mac_meta = cocotb.start_soon(self.check_mac_meta())
-        check_udp_meta = cocotb.start_soon(self.check_udp_meta())
-        check_data_stream = cocotb.start_soon(self.check_data_stream())
+        check_mac_meta = await cocotb.start(self.check_mac_meta())
+        check_udp_meta = await cocotb.start(self.check_udp_meta())
+        check_data_stream = await cocotb.start(self.check_data_stream())
         await check_data_stream
 
-@cocotb.test(timeout_time=10000000, timeout_unit="ns")
+@cocotb.test(timeout_time=500000, timeout_unit="ns")
 async def runUdpEthRxTester(dut):
     
     tester = UdpEthRxTester(dut)
-    await tester.clock()
-    await tester.reset()
+    await tester.gen_clock()
+    await tester.gen_reset()
     await tester.config()
     drive_thread = cocotb.start_soon(tester.drive_dut_input())
     check_thread = cocotb.start_soon(tester.check_dut_output())
@@ -178,14 +183,12 @@ async def runUdpEthRxTester(dut):
 
 
 def test_UdpEthRx():
-    toplevel = "mkUdpEthRxWrapper"
+    toplevel = "mkRawUdpEthRx"
     module = os.path.splitext(os.path.basename(__file__))[0]
     test_dir = os.path.abspath(os.path.dirname(__file__))
     sim_build = os.path.join(test_dir, "build")
-    v_wrapper_file = os.path.join(test_dir, "verilog", f"{toplevel}.v")
-    v_source_file  = os.path.join(test_dir, "verilog", "mkUdpEthRx.v")
-    verilog_sources = [v_wrapper_file, v_source_file]
-    
+    v_top_file = os.path.join(test_dir, "verilog", f"{toplevel}.v")
+    verilog_sources = [v_top_file]
     cocotb_test.simulator.run(
         toplevel = toplevel,
         module = module,
@@ -195,5 +198,7 @@ def test_UdpEthRx():
         timescale="1ns/1ps"
     )
 
+if __name__ == "__main__":
+    test_UdpEthRx()
 
 

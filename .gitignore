@@ -8,3 +8,5 @@ generated/
 *.log
 vivado.*
 __pycache__
+crc32tab
+ToDo

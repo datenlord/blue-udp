@@ -1,5 +1,4 @@
 import GetPut :: *;
-import PAClib :: *;
 import FIFOF :: *;
 
 import UdpIpLayer :: *;
@@ -8,7 +7,8 @@ import ArpProcessor :: *;
 import ArpCache :: *;
 import Ports :: *;
 import EthernetTypes :: *;
-import Utils::*;
+import Utils :: *;
+import SemiFifo :: *;
 
 interface UdpArpEthRxTx;
     interface Put#(UdpConfig)  udpConfig;
@@ -16,10 +16,10 @@ interface UdpArpEthRxTx;
     // Tx
     interface Put#(UdpIpMetaData) udpIpMetaDataInTx;
     interface Put#(DataStream)    dataStreamInTx;
-    interface AxiStreamPipeOut    axiStreamOutTx;
+    interface AxiStream512PipeOut    axiStreamOutTx;
     
     // Rx
-    interface Put#(AxiStream)      axiStreamInRx;
+    interface Put#(AxiStream512)      axiStreamInRx;
     interface UdpIpMetaDataPipeOut udpIpMetaDataOutRx;
     interface DataStreamPipeOut    dataStreamOutRx;
 endinterface
@@ -38,7 +38,7 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
     FIFOF#(UdpIpMetaData) udpMetaDataTxBuf <- mkSizedFIFOF(valueOf(CACHE_CBUF_SIZE));
     FIFOF#(UdpIpMetaData) arpMetaDataTxBuf <- mkFIFOF;
     FIFOF#(DataStream)  dataStreamInTxBuf <- mkFIFOF;
-    FIFOF#(AxiStream)   axiStreamInRxBuf <- mkFIFOF;
+    FIFOF#(AxiStream512)   axiStreamInRxBuf <- mkFIFOF;
 
     // state elements of Tx datapath
     Reg#(MuxState) muxState <- mkReg(INIT);
@@ -52,15 +52,15 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
 
     // Arp Processor
     ArpProcessor arpProcessor <- mkArpProcessor(
-        f_FIFOF_to_PipeOut(arpStreamRxBuf),
-        f_FIFOF_to_PipeOut(arpMetaDataTxBuf),
+        convertFifoToPipeOut(arpStreamRxBuf),
+        convertFifoToPipeOut(arpMetaDataTxBuf),
         udpConfigVal
     );
 
     // Tx datapath
     DataStreamPipeOut ipUdpStreamTx <- mkUdpIpStreamGenerator(
-        f_FIFOF_to_PipeOut(udpMetaDataTxBuf),
-        f_FIFOF_to_PipeOut(dataStreamInTxBuf),
+        convertFifoToPipeOut(udpMetaDataTxBuf),
+        convertFifoToPipeOut(dataStreamInTxBuf),
         udpConfigVal
     );
 
@@ -106,15 +106,15 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
     endrule
 
     DataStreamPipeOut macStreamTx <- mkMacStreamGenerator(
-        f_FIFOF_to_PipeOut(macPayloadTxBuf), 
-        f_FIFOF_to_PipeOut(macMetaDataTxBuf), 
+        convertFifoToPipeOut(macPayloadTxBuf), 
+        convertFifoToPipeOut(macMetaDataTxBuf), 
         udpConfigVal
     );
-    AxiStreamPipeOut macAxiStreamOut <- mkDataStreamToAxiStream(macStreamTx);
+    AxiStream512PipeOut macAxiStreamOut <- mkDataStreamToAxiStream(macStreamTx);
 
     // Rx Datapath
     DataStreamPipeOut macStreamRx <- mkAxiStreamToDataStream(
-        f_FIFOF_to_PipeOut(axiStreamInRxBuf)
+        convertFifoToPipeOut(axiStreamInRxBuf)
     );
 
     MacMetaDataAndUdpIpStream macMetaAndUdpIpStream <- mkMacStreamExtractor(
@@ -161,7 +161,7 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
     endrule
 
     UdpIpMetaDataAndDataStream udpIpMetaDataAndDataStream <- mkUdpIpStreamExtractor(
-        f_FIFOF_to_PipeOut(ipUdpStreamRxBuf), 
+        convertFifoToPipeOut(ipUdpStreamRxBuf), 
         udpConfigVal
     );
 
@@ -191,7 +191,7 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
 
     // Rx interface
     interface Put axiStreamInRx;
-        method Action put(AxiStream stream) if (isValid(udpConfigReg));
+        method Action put(AxiStream512 stream) if (isValid(udpConfigReg));
             axiStreamInRxBuf.enq(stream);
         endmethod
     endinterface

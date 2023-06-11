@@ -1,5 +1,6 @@
-import PAClib :: *;
+import SemiFifo :: *;
 import EthernetTypes :: *;
+import AxiStreamTypes :: *;
 
 typedef 8 BYTE_WIDTH;
 typedef Bit#(BYTE_WIDTH) Byte;
@@ -37,7 +38,7 @@ typedef PipeOut#(UdpIpMetaData) UdpIpMetaDataPipeOut;
 typedef struct {
     EthMacAddr macAddr;
     EthType    ethType;
-} MacMetaData deriving(Bits, Eq);
+} MacMetaData deriving(Bits, Eq, FShow);
 typedef PipeOut#(MacMetaData) MacMetaDataPipeOut;
 
 typedef struct {
@@ -46,19 +47,14 @@ typedef struct {
     IpNetMask  netMask;
     IpGateWay  gateWay;
 } UdpConfig deriving(Bits, Bounded, Eq, FShow);
+typedef PipeOut#(UdpConfig) UdpConfigPipeOut;
 
 
 typedef 512 AXIS_TDATA_WIDTH;
-typedef Bit#(AXIS_TDATA_WIDTH) AxiStreamTData;
 typedef TDiv#(AXIS_TDATA_WIDTH, BYTE_WIDTH) AXIS_TKEEP_WIDTH;
-typedef Bit#(AXIS_TKEEP_WIDTH) AxiStreamTKeep;
-typedef struct{
-    AxiStreamTData tData;
-    AxiStreamTKeep tKeep;
-    Bool tUser;
-    Bool tLast;
-} AxiStream deriving(Bits, Eq, FShow);
+typedef 1 AXIS_TUSER_WIDTH;
 
-typedef PipeOut#(AxiStream) AxiStreamPipeOut;
+typedef AxiStream#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) AxiStream512;
+typedef PipeOut#(AxiStream512) AxiStream512PipeOut;
 
 //4k Cache

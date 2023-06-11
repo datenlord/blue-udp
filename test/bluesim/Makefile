@@ -1,7 +1,12 @@
-include ../Makefile.base
+ROOT_DIR = $(abspath ../../)
+SCRIPTS_DIR = $(ROOT_DIR)/scripts
+include $(SCRIPTS_DIR)/Makefile.base
+LOCALSRCDIR = $(ROOT_DIR)/src:$(ROOT_DIR)/src/includes
+LIBSRCDIR = $(ROOT_DIR)/lib/blue-wrapper/src
 
-TESTFILE ?= TestUdpTransmitter.bsv
-TOP ?= mkTestUdpTransmitter
+
+TESTFILE ?= TestUdpArpEthRxTx.bsv
+TOP ?= mkTestUdpArpEthRxTx
 
 SIMEXE = $(BUILDDIR)/$(TOP).exe
 

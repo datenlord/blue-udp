@@ -1,10 +1,10 @@
 import FIFOF :: *;
 import GetPut :: *;
-import PAClib :: *;
 import Vector :: *;
 
 import Utils :: *;
 import Ports :: *;
+import SemiFifo :: *;
 import EthernetTypes :: *;
 
 function UdpIpHeader genUdpIpHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId);
@@ -12,7 +12,7 @@ function UdpIpHeader genUdpIpHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpI
     UdpLength udpLen = meta.dataLen + fromInteger(valueOf(UDP_HDR_BYTE_WIDTH));
     IpTL ipLen = udpLen + fromInteger(valueOf(IP_HDR_BYTE_WIDTH));
     // generate ipHeader
-    IpHeader ipHeader = IpHeader{
+    IpHeader ipHeader = IpHeader {
         ipVersion: fromInteger(valueOf(IP_VERSION_VAL)),
         ipIHL:     fromInteger(valueOf(IP_IHL_VAL)),
         ipDS:      fromInteger(valueOf(IP_DS_VAL)),
@@ -64,7 +64,7 @@ module mkUdpIpStreamGenerator#(
         $display("IpUdpGen: genHeader of %d frame", ipIdCounter);
     endrule
 
-    PipeOut#(UdpIpHeader) udpIpHdrStream = f_FIFOF_to_PipeOut(udpIpHeaderBuf);
+    PipeOut#(UdpIpHeader) udpIpHdrStream = convertFifoToPipeOut(udpIpHeaderBuf);
     DataStreamPipeOut udpIpStreamOut <- mkDataStreamInsert(dataStreamIn, udpIpHdrStream);
 
     return udpIpStreamOut;
@@ -93,7 +93,7 @@ function Bool checkUdpIp(UdpIpHeader hdr, UdpConfig udpConfig);
 
     let ipAddrMatch = hdr.ipHeader.dstIpAddr == udpConfig.ipAddr;
     let protocolMatch = hdr.ipHeader.ipProtocol == fromInteger(valueOf(IP_PROTOCOL_VAL));
-
+    
     return (ipChecksum == 0) && ipAddrMatch && protocolMatch;
 endfunction
 
@@ -124,10 +124,10 @@ module mkUdpIpStreamExtractor#(
             let metaData = extractMetaData(udpIpHeader);
             udpIpMetaDataOutBuf.enq(metaData);
             extState <= PASS;
-            $display("IpUdp EXT: Check Pass");
+            $display("UdpIpStreamExtractor: Check Pass");
         end
         else begin
-            $display("IpUdp EXT: Check Fail ");
+            $display("UdpIpStreamExtractor: Check Fail ");
             extState <= THROW;
         end
     endrule
@@ -149,9 +149,8 @@ module mkUdpIpStreamExtractor#(
         end
     endrule
 
-    interface PipeOut dataStreamOut = f_FIFOF_to_PipeOut(dataStreamOutBuf);
-    interface PipeOut udpIpMetaDataOut = f_FIFOF_to_PipeOut(udpIpMetaDataOutBuf);
-
+    interface PipeOut dataStreamOut = convertFifoToPipeOut(dataStreamOutBuf);
+    interface PipeOut udpIpMetaDataOut = convertFifoToPipeOut(udpIpMetaDataOutBuf);
 endmodule
 
 

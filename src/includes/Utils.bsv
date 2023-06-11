@@ -1,10 +1,11 @@
-import PAClib :: *;
 import Ports :: *;
 import Vector :: *;
 import FIFOF :: *;
 
+import SemiFifo :: *;
 import PrimUtils :: *;
 import EthernetTypes :: *;
+import AxiStreamTypes :: *;
 
 function PipeOut#(anytype) muxPipeOut2(
     Bool sel, PipeOut#(anytype) pipeIn1, PipeOut#(anytype) pipeIn0
@@ -216,7 +217,7 @@ provisos(
         endcase
     endrule
 
-    return f_FIFOF_to_PipeOut(outputBuf);
+    return convertFifoToPipeOut(outputBuf);
 
 endmodule
 
@@ -306,26 +307,26 @@ provisos(
 
     endrule
 
-    interface PipeOut extractDataOut = f_FIFOF_to_PipeOut(extractDataBuf);
-    interface PipeOut dataStreamOut = f_FIFOF_to_PipeOut(dataStreamBuf);
+    interface PipeOut extractDataOut = convertFifoToPipeOut(extractDataBuf);
+    interface PipeOut dataStreamOut = convertFifoToPipeOut(dataStreamBuf);
 endmodule
 
 
-module mkDataStreamToAxiStream#(DataStreamPipeOut dataStreamIn)(AxiStreamPipeOut);
+module mkDataStreamToAxiStream#(DataStreamPipeOut dataStreamIn)(AxiStream512PipeOut);
     Reg#(Data) dataBuf <- mkRegU;
     Reg#(ByteEn) byteEnBuf <- mkRegU;
     Reg#(Bool) bufValid <- mkReg(False);
 
-    FIFOF#(AxiStream) axiStreamOutBuf <- mkFIFOF;
+    FIFOF#(AxiStream512) axiStreamOutBuf <- mkFIFOF;
 
     rule doStreamExtension;
         if (bufValid) begin
             let dataStream = dataStreamIn.first;
             dataStreamIn.deq;
-            let axiStream = AxiStream{
+            AxiStream512 axiStream = AxiStream {
                 tData: { dataStream.data, dataBuf },
                 tKeep: { dataStream.byteEn, byteEnBuf },
-                tUser: False,
+                tUser: 0,
                 tLast: dataStream.isLast
             };
             axiStreamOutBuf.enq(axiStream);
@@ -335,10 +336,10 @@ module mkDataStreamToAxiStream#(DataStreamPipeOut dataStreamIn)(AxiStreamPipeOut
             let dataStream = dataStreamIn.first;
             dataStreamIn.deq;
             if (dataStream.isLast) begin
-                let axiStream = AxiStream{
+                AxiStream512 axiStream = AxiStream {
                     tData: zeroExtend(dataStream.data),
                     tKeep: zeroExtend(dataStream.byteEn),
-                    tUser: False,
+                    tUser: 0,
                     tLast: True
                 };
                 axiStreamOutBuf.enq(axiStream);
@@ -351,10 +352,10 @@ module mkDataStreamToAxiStream#(DataStreamPipeOut dataStreamIn)(AxiStreamPipeOut
         end
     endrule
 
-    return f_FIFOF_to_PipeOut(axiStreamOutBuf);
+    return convertFifoToPipeOut(axiStreamOutBuf);
 endmodule
 
-module mkAxiStreamToDataStream#(AxiStreamPipeOut axiStreamIn)(DataStreamPipeOut);
+module mkAxiStreamToDataStream#(AxiStream512PipeOut axiStreamIn)(DataStreamPipeOut);
     Reg#(Bool) isFirstReg <- mkReg(True);
     Reg#(Maybe#(DataStream)) extraDataStreamBuf <- mkReg(Invalid);
 
@@ -394,7 +395,7 @@ module mkAxiStreamToDataStream#(AxiStreamPipeOut axiStreamIn)(DataStreamPipeOut)
         end
     endrule
 
-    return f_FIFOF_to_PipeOut(dataStreamOutBuf);
+    return convertFifoToPipeOut(dataStreamOutBuf);
 
 endmodule
 

@@ -1,8 +1,8 @@
-import PAClib :: *;
 import FIFOF :: *;
 import GetPut :: *;
 import ClientServer :: *;
 
+import SemiFifo :: *;
 import Ports :: *;
 import Utils :: *;
 import EthernetTypes :: *;
@@ -29,8 +29,8 @@ module mkArpProcessor#(
     ArpCache arpCache <- mkArpCache;
     DataStreamExtract#(ArpFrame) arpExtractor <- mkDataStreamExtract(arpStreamIn);
     DataStreamPipeOut arpGenerator <- mkDataStreamInsert(
-        f_FIFOF_to_PipeOut(paddingOutBuf),
-        f_FIFOF_to_PipeOut(arpFrameOutBuf)
+        convertFifoToPipeOut(paddingOutBuf),
+        convertFifoToPipeOut(arpFrameOutBuf)
     );
 
     rule doCacheReq;
@@ -151,6 +151,6 @@ module mkArpProcessor#(
 
 
     interface PipeOut arpStreamOut = arpGenerator;
-    interface PipeOut macMetaDataOut = f_FIFOF_to_PipeOut(macMetaOutBuf);
+    interface PipeOut macMetaDataOut = convertFifoToPipeOut(macMetaOutBuf);
 
 endmodule

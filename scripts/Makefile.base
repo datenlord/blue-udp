@@ -1,4 +1,4 @@
-TRANSFLAGS = -aggressive-conditions # -lift -split-if
+TRANSFLAGS = -aggressive-conditions -lift # -split-if
 RECOMPILEFLAGS = -u -show-compiles
 SCHEDFLAGS = -show-schedule -sched-dot # -show-rule-rel dMemInit_request_put doExecute
 #	-show-elab-progress
@@ -19,7 +19,9 @@ BLUESIMFLAGS = -parallel-sim-link 16 # -systemc
 BUILDDIR = build
 OUTDIR = -bdir $(BUILDDIR) -info-dir $(BUILDDIR) -simdir $(BUILDDIR) -vdir $(BUILDDIR)
 WORKDIR = -fdir $(abspath .)
-BSVSRCDIR = -p +:$(abspath ../../src):$(abspath ../../src/includes)
+LOCALSRCDIR ?=
+LIBSRCDIR ?= 
+BSVSRCDIR = -p +:$(LOCALSRCDIR):$(LIBSRCDIR)
 DIRFLAGS = $(BSVSRCDIR) $(OUTDIR) $(WORKDIR)
-MISCFLAGS = -print-flags -show-timestamps -show-version -steps 2000000 # -D macro
+MISCFLAGS = -print-flags -show-timestamps -show-version -steps 6000000 # -D macro
 RUNTIMEFLAGS = +RTS -K4095M -RTS

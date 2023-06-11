@@ -2,10 +2,10 @@ import FIFOF :: *;
 import PrimUtils :: *;
 import Randomizable :: *;
 import CRC :: *;
-import PAClib :: *;
 import Vector :: *;
 
 import Ports :: *;
+import SemiFifo :: *;
 import StandardCrc32 :: *;
 import Utils :: *;
 
@@ -32,7 +32,7 @@ module mkTestStandardCrc32 (Empty);
 
     CRC#(CRC32_WIDTH) refCrcModel <- mkCRC32;
     PipeOut#(Crc32Checksum) dutCrcModel <- mkStandardCrc32(
-        f_FIFOF_to_PipeOut(dataStreamBuf)
+        convertFifoToPipeOut(dataStreamBuf)
     );
     
     Reg#(Bool) isInit <- mkReg(False);

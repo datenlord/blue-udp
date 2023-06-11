@@ -1,5 +1,4 @@
 import Ports :: *;
-import PAClib :: *;
 import FIFOF :: *;
 import RegFile :: *;
 import BRAM :: *;
@@ -8,6 +7,7 @@ import Printf :: *;
 import GetPut :: *;
 
 import Utils :: *;
+import SemiFifo :: *;
 
 // 256-bit fully pipelined
 // 7 - 8 clock latency
@@ -227,7 +227,7 @@ module mkStandardCrc32#(
         $display("Finish computation of one case: %x", finalCrcRes);
     endrule
 
-    return f_FIFOF_to_PipeOut(outputBuf);
+    return convertFifoToPipeOut(outputBuf);
 endmodule
 
 interface StandardCrc32Syn;
@@ -239,7 +239,7 @@ endinterface
 module mkStandardCrc32Syn(StandardCrc32Syn);
     FIFOF#(DataStream) dataStreamInBuf <- mkFIFOF;
     PipeOut#(Crc32Checksum) standardCrc32 <- mkStandardCrc32(
-        f_FIFOF_to_PipeOut(dataStreamInBuf)
+        convertFifoToPipeOut(dataStreamInBuf)
     );
 
     interface Put dataStreamIn;

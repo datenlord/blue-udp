@@ -1,9 +1,9 @@
 import Randomizable :: *;
 import Vector :: *;
 import GetPut :: *;
-import PAClib :: *;
 
 import Ports :: *;
+import SemiFifo :: *;
 import UdpTransmitter :: *;
 import EthernetTypes :: *;
 import Utils :: *;

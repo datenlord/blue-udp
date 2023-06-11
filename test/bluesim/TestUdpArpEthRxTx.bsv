@@ -3,17 +3,17 @@ import GetPut :: *;
 import ClientServer :: *;
 import FIFOF :: *;
 import Randomizable :: *;
-import PAClib :: *;
 
 import UdpArpEthRxTx :: *;
 import Ports :: *;
 import EthernetTypes :: *;
 import TestUtils :: *;
 import Utils :: *;
+import SemiFifo :: *;
 import PrimUtils :: *;
 
-typedef 32 TEST_CASE_NUM;
-typedef 3000 MAX_CYCLE;
+typedef 128 TEST_CASE_NUM;
+typedef 30000 MAX_CYCLE;
 typedef 16 DST_DEVICE_NUM;
 typedef 8 MAX_CHANNEL_DELAY;
 typedef 128 REF_OUTPUT_BUF_SIZE;
@@ -33,13 +33,21 @@ module mkTestUdpArpEthRxTx(Empty);
     UdpArpEthRxTx dstUdp <- mkUdpArpEthRxTx;
     Reg#(UdpConfig) dstUdpConfigReg <- mkRegU;
     Reg#(UdpConfig) srcUdpConfigReg <- mkRegU;
-    RandomDelay#(AxiStream, MAX_CHANNEL_DELAY) srcToDstDelayBuf <- mkRandomDelay;
-    RandomDelay#(AxiStream, MAX_CHANNEL_DELAY) dstToSrcDelayBuf <- mkRandomDelay;
+    RandomDelay#(AxiStream512, MAX_CHANNEL_DELAY) srcToDstDelayBuf <- mkRandomDelay;
+    RandomDelay#(AxiStream512, MAX_CHANNEL_DELAY) dstToSrcDelayBuf <- mkRandomDelay;
     
-    mkConnection(toGet(srcUdp.axiStreamOutTx), srcToDstDelayBuf.request);
+    rule srcToDelayBuf;
+        let data = srcUdp.axiStreamOutTx.first;
+        srcUdp.axiStreamOutTx.deq;
+        srcToDstDelayBuf.request.put(data);
+    endrule
     mkConnection(srcToDstDelayBuf.response, dstUdp.axiStreamInRx);
 
-    mkConnection(toGet(dstUdp.axiStreamOutTx), dstToSrcDelayBuf.request);
+    rule dstToDelayBuf;
+        let data = dstUdp.axiStreamOutTx.first;
+        dstUdp.axiStreamOutTx.deq;
+        dstToSrcDelayBuf.request.put(data);
+    endrule
     mkConnection(dstToSrcDelayBuf.response, srcUdp.axiStreamInRx);
 
 
@@ -105,7 +113,7 @@ module mkTestUdpArpEthRxTx(Empty);
         $display("\nCycle %d -----------------------------------",cycle);
     endrule
 
-    FIFOF#(UdpMetaData) refMetaBuf <- mkSizedFIFOF(valueOf(REF_OUTPUT_BUF_SIZE));
+    FIFOF#(UdpIpMetaData) refMetaBuf <- mkSizedFIFOF(valueOf(REF_OUTPUT_BUF_SIZE));
     FIFOF#(DataStream) refDataBuf <- mkSizedFIFOF(valueOf(REF_OUTPUT_BUF_SIZE));
     Reg#(InputGenState) inputGenState <- mkReg(META);
     Reg#(UdpLength) dataLenReg <- mkReg(0);
@@ -124,14 +132,14 @@ module mkTestUdpArpEthRxTx(Empty);
             let dstPort <- dstPortRand.next;
             let srcPort <- srcPortRand.next;
 
-            UdpMetaData metaData = UdpMetaData{
+            UdpIpMetaData metaData = UdpIpMetaData{
                 dataLen: dataLen,
                 ipAddr: dstIpAddr,
                 dstPort: dstPort,
                 srcPort: srcPort
             };
             dataLenReg <= dataLen;
-            srcUdp.udpMetaDataInTx.put(metaData);
+            srcUdp.udpIpMetaDataInTx.put(metaData);
             
             metaData.ipAddr = srcUdpConfigReg.ipAddr;
             refMetaBuf.enq(metaData);
@@ -172,8 +180,8 @@ module mkTestUdpArpEthRxTx(Empty);
     Reg#(TestCaseCount) getCaseCount <- mkReg(0);
     Reg#(FragmentCount) getFragCount <- mkReg(0);
     rule checkMetaDataFromDst;
-        let dutMeta = dstUdp.udpMetaDataOutRx.first;
-        dstUdp.udpMetaDataOutRx.deq;
+        let dutMeta = dstUdp.udpIpMetaDataOutRx.first;
+        dstUdp.udpIpMetaDataOutRx.deq;
         let refMeta = refMetaBuf.first; 
         refMetaBuf.deq;
         $display("DstUdp: receive MetaData of test case %d",getCaseCount);

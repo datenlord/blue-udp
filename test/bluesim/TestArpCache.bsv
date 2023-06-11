@@ -2,10 +2,10 @@ import FIFOF :: *;
 import Randomizable :: *;
 import Connectable :: *;
 import Vector :: *;
-import PAClib :: *;
 import ClientServer :: *;
 import GetPut :: *;
 
+import SemiFifo :: *;
 import ArpCache :: *;
 import TestUtils :: *;
 import PrimUtils :: *;
