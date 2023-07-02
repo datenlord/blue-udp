@@ -25,7 +25,7 @@ module mkMacStreamGenerator#(
     endrule
 
     PipeOut#(EthHeader) headerStream = convertFifoToPipeOut(ethHeaderBuf);
-    DataStreamPipeOut macStreamOut <- mkDataStreamInsert(udpIpStreamIn, headerStream);
+    DataStreamPipeOut macStreamOut <- mkDataStreamInsert(HOLD, SWAP, udpIpStreamIn, headerStream);
     return macStreamOut;
 
 endmodule
@@ -43,9 +43,6 @@ interface MacMetaDataAndUdpIpStream;
     interface DataStreamPipeOut  udpIpStreamOut;
 endinterface
 
-typedef enum{
-    HEAD, PASS, THROW
-} ExtState deriving(Bits, Eq);
 
 module mkMacStreamExtractor#(
     DataStreamPipeOut macStreamIn,
@@ -53,12 +50,12 @@ module mkMacStreamExtractor#(
 )(MacMetaDataAndUdpIpStream);
     
     FIFOF#(MacMetaData) macMetaDataOutBuf <- mkFIFOF;
-    FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
-    Reg#(ExtState) extState <- mkReg(HEAD);
+    FIFOF#(DataStream) udpIpStreamOutBuf <- mkFIFOF;
+    Reg#(Bool) throwUdpIpStream <- mkReg(False);
 
     DataStreamExtract#(EthHeader) macExtractor <- mkDataStreamExtract(macStreamIn);
 
-    rule doCheck if (extState == HEAD);
+    rule doCheck;
         let header = macExtractor.extractDataOut.first; 
         macExtractor.extractDataOut.deq;
         let checkRes = checkMac(header, udpConfig);
@@ -68,32 +65,26 @@ module mkMacStreamExtractor#(
                 ethType: header.ethType
             };
             macMetaDataOutBuf.enq(macMeta);
-            extState <= PASS;
+            throwUdpIpStream <= False;
             $display("Mac Extractor Mac Addr Check: Pass");
         end
         else begin
-            extState <= THROW;
+            throwUdpIpStream <= True;
             $display("Mac Extractor Mac Addr Check: Fail");
         end
     endrule
 
-    rule doPass if (extState == PASS);
+    rule doPass if (!throwUdpIpStream);
         let udpIpStream = macExtractor.dataStreamOut.first; 
         macExtractor.dataStreamOut.deq;
-        dataStreamOutBuf.enq(udpIpStream);
-        if (udpIpStream.isLast) begin
-            extState <= HEAD;
-        end
+        udpIpStreamOutBuf.enq(udpIpStream);
     endrule
 
-    rule doThrow if (extState == THROW);
+    rule doThrow if (throwUdpIpStream);
         let udpIpStream = macExtractor.dataStreamOut.first;
         macExtractor.dataStreamOut.deq;
-        if (udpIpStream.isLast) begin
-            extState <= HEAD;
-        end
     endrule
 
-    interface PipeOut udpIpStreamOut = convertFifoToPipeOut(dataStreamOutBuf);
+    interface PipeOut udpIpStreamOut = convertFifoToPipeOut(udpIpStreamOutBuf);
     interface PipeOut macMetaDataOut = convertFifoToPipeOut(macMetaDataOutBuf);
 endmodule

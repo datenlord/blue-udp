@@ -2,10 +2,11 @@ import logging
 import os
 import random
 
-from scapy.all import *
-
 import cocotb_test.simulator
 import cocotb
+
+import scapy.all
+
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge
 from cocotb.regression import TestFactory
@@ -27,7 +28,7 @@ MacMetaBus, MacMetaTransaction, MacMetaSource, MacMetaSink, MacMetaMonitor = def
 )
         
 
-class UdpEthRxTester:
+class UdpIpEthRxTester:
     def __init__(self, dut):
         self.dut = dut
         
@@ -169,9 +170,9 @@ class UdpEthRxTester:
         await check_data_stream
 
 @cocotb.test(timeout_time=500000, timeout_unit="ns")
-async def runUdpEthRxTester(dut):
+async def runUdpIpEthRxTester(dut):
     
-    tester = UdpEthRxTester(dut)
+    tester = UdpIpEthRxTester(dut)
     await tester.gen_clock()
     await tester.gen_reset()
     await tester.config()
@@ -182,8 +183,8 @@ async def runUdpEthRxTester(dut):
     tester.log.info(f"Pass all {tester.cases_num} successfully")
 
 
-def test_UdpEthRx():
-    toplevel = "mkRawUdpEthRx"
+def test_UdpIpEthRx():
+    toplevel = "mkRawUdpIpEthRx"
     module = os.path.splitext(os.path.basename(__file__))[0]
     test_dir = os.path.abspath(os.path.dirname(__file__))
     sim_build = os.path.join(test_dir, "build")
@@ -199,6 +200,6 @@ def test_UdpEthRx():
     )
 
 if __name__ == "__main__":
-    test_UdpEthRx()
+    test_UdpIpEthRx()
 
 

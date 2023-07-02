@@ -80,7 +80,7 @@ class UdpArpEthRxTxTester:
         await RisingEdge(self.dut.clk)
         
     async def config(self):
-        udpConfig = UdpConfigTransation();
+        udpConfig = UdpConfigTransation()
         udpConfig.mac_addr = int.from_bytes(mac2str(self.local_mac), 'big')
         udpConfig.ip_addr  = atol(self.local_ip)
         udpConfig.net_mask = atol(self.net_mask)

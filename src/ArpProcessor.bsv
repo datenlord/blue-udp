@@ -11,14 +11,15 @@ import ArpCache :: *;
 interface ArpProcessor;
     interface DataStreamPipeOut arpStreamOut;
     interface MacMetaDataPipeOut macMetaDataOut;
+    interface Put#(UdpConfig) udpConfig;
 endinterface
 
 
 module mkArpProcessor#(
     DataStreamPipeOut arpStreamIn,
-    UdpIpMetaDataPipeOut metaDataIn,
-    UdpConfig udpConfig
+    UdpIpMetaDataPipeOut udpIpMetaDataIn
 )(ArpProcessor);
+    Reg#(UdpConfig) udpConfigReg <- mkRegU;
     FIFOF#(ArpFrame) arpReplyBuf <- mkFIFOF;
     FIFOF#(ArpFrame) arpReqBuf <- mkFIFOF;
     FIFOF#(ArpFrame) arpFrameOutBuf <- mkFIFOF;
@@ -27,29 +28,29 @@ module mkArpProcessor#(
     FIFOF#(DataStream) paddingOutBuf <- mkFIFOF;
 
     ArpCache arpCache <- mkArpCache;
-    DataStreamExtract#(ArpFrame) arpExtractor <- mkDataStreamExtract(arpStreamIn);
-    DataStreamPipeOut arpGenerator <- mkDataStreamInsert(
+    DataStreamExtract#(ArpFrame) arpFrameAndPadding <- mkDataStreamExtract(arpStreamIn);
+    DataStreamPipeOut arpStream <- mkDataStreamInsert(
         convertFifoToPipeOut(paddingOutBuf),
         convertFifoToPipeOut(arpFrameOutBuf)
     );
 
     rule doCacheReq;
-        let ipAddr = metaDataIn.first.ipAddr;
-        metaDataIn.deq;
+        let ipAddr = udpIpMetaDataIn.first.ipAddr;
+        udpIpMetaDataIn.deq;
         // check whether host and target are in the same gateway
-        if( !isInGateWay(udpConfig.netMask, udpConfig.ipAddr, ipAddr)) begin
-            ipAddr = udpConfig.gateWay;
+        if (!isInGateWay(udpConfigReg.netMask, udpConfigReg.ipAddr, ipAddr)) begin
+            ipAddr = udpConfigReg.gateWay;
         end
         arpCache.cacheServer.request.put(ipAddr);
     endrule
     
     rule throwPadding;
-        arpExtractor.dataStreamOut.deq;
+        arpFrameAndPadding.dataStreamOut.deq;
     endrule
 
     rule forkArpFrameIn;
-        let arpFrame = arpExtractor.extractDataOut.first;
-        arpExtractor.extractDataOut.deq;
+        let arpFrame = arpFrameAndPadding.extractDataOut.first;
+        arpFrameAndPadding.extractDataOut.deq;
         arpCache.arpClient.response.put(
             ArpResp{
                 ipAddr: arpFrame.arpSpa,
@@ -59,7 +60,7 @@ module mkArpProcessor#(
 
         // do Arp reply when receiving matched arp req
         let isArpReq = arpFrame.arpOper == fromInteger(valueOf(ARP_OPER_REQ));
-        let isIpMatch = arpFrame.arpTpa == udpConfig.ipAddr;
+        let isIpMatch = arpFrame.arpTpa == udpConfigReg.ipAddr;
         if (isArpReq && isIpMatch) begin
             arpReplyBuf.enq(
                 ArpFrame{
@@ -68,8 +69,8 @@ module mkArpProcessor#(
                     arpHLen: fromInteger(valueOf(ARP_HLEN_MAC)),
                     arpPLen: fromInteger(valueOf(ARP_PLEN_IP)),
                     arpOper: fromInteger(valueOf(ARP_OPER_REPLY)),
-                    arpSha: udpConfig.macAddr,
-                    arpSpa: udpConfig.ipAddr,
+                    arpSha: udpConfigReg.macAddr,
+                    arpSpa: udpConfigReg.ipAddr,
                     arpTha: arpFrame.arpSha,
                     arpTpa: arpFrame.arpSpa
                 }
@@ -87,8 +88,8 @@ module mkArpProcessor#(
                 arpHLen: fromInteger(valueOf(ARP_HLEN_MAC)),
                 arpPLen: fromInteger(valueOf(ARP_PLEN_IP)),
                 arpOper: fromInteger(valueOf(ARP_OPER_REQ)),
-                arpSha: udpConfig.macAddr,
-                arpSpa: udpConfig.ipAddr,
+                arpSha: udpConfigReg.macAddr,
+                arpSpa: udpConfigReg.ipAddr,
                 arpTha: 0,
                 arpTpa: targetIpAddr
             }
@@ -150,7 +151,12 @@ module mkArpProcessor#(
     endrule
 
 
-    interface PipeOut arpStreamOut = arpGenerator;
+    interface PipeOut arpStreamOut = arpStream;
     interface PipeOut macMetaDataOut = convertFifoToPipeOut(macMetaOutBuf);
+    interface Put udpConfig;
+        method Action put(UdpConfig conf);
+            udpConfigReg <= conf;
+        endmethod
+    endinterface
 
 endmodule

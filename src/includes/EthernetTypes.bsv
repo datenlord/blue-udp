@@ -6,21 +6,11 @@ typedef 32 ETH_FCS_WIDTH;
 typedef Bit#(ETH_MAC_ADDR_WIDTH) EthMacAddr;
 typedef Bit#(ETH_TYPE_WIDTH    ) EthType;
 typedef Bit#(ETH_FCS_WIDTH     ) EthFcs;
-typedef struct{
+typedef struct {
     EthMacAddr dstMacAddr;
     EthMacAddr srcMacAddr;
     EthType    ethType;
 } EthHeader deriving( Bits, FShow, Eq, Bounded);
-
-// instance Bits#(EthHeader, ETH_HDR_WIDTH );
-//     function Bit#(ETH_HDR_WIDTH) pack(EthHeader x);
-//         return {x.ethType, x.srcMacAddr, x.dstMacAddr};
-//     endfunction
-
-//     function EthHeader unpack( Bit#(ETH_HDR_WIDTH) x);
-//         return EthHeader{ dstMacAddr:x[47:0], srcMacAddr:x[95:48], ethType:x[111:96]};
-//     endfunction
-// endinstance
 
 typedef 2048 ETH_TYPE_IP; // TYPE = 0x0800
 typedef 2054 ETH_TYPE_ARP;// TYPE = 0x0806
@@ -50,7 +40,7 @@ typedef Bit#(IP_TTL_WIDTH     ) IpTTL;
 typedef Bit#(IP_PROTOCOL_WIDTH) IpProtocol;
 typedef Bit#(IP_CHECKSUM_WIDTH) IpCheckSum;
 typedef Bit#(IP_ADDR_WIDTH    ) IpAddr;
-typedef struct{
+typedef struct {
     IpVersion  ipVersion;
     IpIHL      ipIHL;
     IpDS       ipDS;
@@ -64,23 +54,6 @@ typedef struct{
     IpAddr     srcIpAddr;
     IpAddr     dstIpAddr;
 } IpHeader deriving( Bits, FShow, Eq, Bounded);
-
-// instance Bits#(IpHeader, IP_HDR_WIDTH);
-//     function Bit#(IP_HDR_WIDTH) pack(IpHeader x);
-//         return {
-//             x.dstIpAddr, x.srcIpAddr, x.ipChecksum, x.ipProtocol, x.ipTTL,
-//             x.ipOffset[12:5], x.ipFlag, x.ipOffset[4:0], x.ipID, x.ipTL, x.ipDS, x.ipVersion, x.ipIHL
-//         };
-//     endfunction
-
-//     function IpHeader unpack(Bit#(IP_HDR_WIDTH) x);
-//         return IpHeader{
-//             ipVersion:x[7:4], ipIHL:x[3:0], ipDS:x[15:8], ipTL:x[31:16], ipID:x[47:32],
-//             ipFlag:x[50:48], ipOffset:x[63: 48], ipTTL:x[71:64], ipProtocol:x[79:72],
-//             ipChecksum:x[95:80], srcIpAddr:x[127:96], dstIpAddr:x[159:128]
-//         };
-//     endfunction
-// endinstance
 
 typedef 4  IP_VERSION_VAL;         // VERSION = 0x4
 typedef 5  IP_IHL_VAL;             // IHL = 0x5
@@ -99,21 +72,12 @@ typedef 16 UDP_CHECKSUM_WIDTH;
 typedef Bit#( UDP_PORT_WIDTH     ) UdpPort;
 typedef Bit#( UDP_LENGTH_WIDTH   ) UdpLength;
 typedef Bit#( UDP_CHECKSUM_WIDTH ) UdpCheckSum;
-typedef struct{
+typedef struct {
     UdpPort     srcPort;
     UdpPort     dstPort;
     UdpLength   length;
     UdpCheckSum checksum;
 } UdpHeader deriving( Bits, FShow, Eq, Bounded);
-// instance Bits#(UdpHeader, UDP_HDR_WIDTH);
-//     function Bit#(UDP_HDR_WIDTH) pack(UdpHeader x);
-//         return {x.checksum, x.length, x.dstPort, x.srcPort};
-//     endfunction
-    
-//     function UdpHeader unpack( Bit#(UDP_HDR_WIDTH) x);
-//         return UdpHeader{ srcPort:x[15:0], dstPort:x[31:16], length:x[47:32], checksum:x[63:48]};
-//     endfunction
-// endinstance
 
 
 //////////////// 
@@ -124,7 +88,7 @@ typedef TAdd#(IP_HDR_BYTE_WIDTH, UDP_HDR_BYTE_WIDTH) IP_UDP_HDR_BYTE_WIDTH;
 typedef TAdd#(ETH_HDR_BYTE_WIDTH, IP_UDP_HDR_BYTE_WIDTH) TOTAL_HDR_BYTE_WIDTH;
 
 typedef TDiv#(ETH_HDR_BYTE_WIDTH,2) ETH_HDR_WORD_WIDTH; // 7 words
-typedef TDiv#(IP_HDR_BYTE_WIDTH ,2) IP_HDR_WORD_WIDTH;  // 10 words
+typedef 10 IP_HDR_WORD_WIDTH;  // 10 words
 typedef TDiv#(UDP_HDR_BYTE_WIDTH,2) UDP_HDR_WORD_WIDTH; // 4 words
 
 
@@ -143,44 +107,18 @@ typedef TSub#(ETH_DATA_MIN_SIZE, IP_HDR_BYTE_WIDTH) UDP_MIN_SIZE;
 typedef TSub#(UDP_MAX_SIZE, UDP_HDR_BYTE_WIDTH) DATA_MAX_SIZE; // 1472 bytes
 typedef TSub#(UDP_MIN_SIZE, UDP_HDR_BYTE_WIDTH) DATA_MIN_SIZE; // 18 bytes
 
-typedef struct{
+typedef struct {
     IpHeader ipHeader;
     UdpHeader udpHeader;
 } UdpIpHeader deriving(Bits, Eq, FShow, Bounded);
 
-// instance Bits#(IpUdpHeader, IP_UDP_HDR_WIDTH);
-//     function Bit#(IP_UDP_HDR_WIDTH) pack(IpUdpHeader x);
-//         return {pack(x.udpHeader), pack(x.ipHeader)};
-//     endfunction
-    
-//     function IpUdpHeader unpack(Bit#(IP_UDP_HDR_WIDTH) x);
-//         return IpUdpHeader{
-//             ipHeader:  unpack(x[159:0]),
-//             udpHeader: unpack(x[223:160])
-//         };
-//     endfunction
-// endinstance
 
-
-typedef struct{
+typedef struct {
     EthHeader ethHeader;
     IpHeader  ipHeader;
     UdpHeader udpHeader;
-} TotalHeader deriving( Bits, FShow, Eq, Bounded);
+} TotalHeader deriving(Bits, FShow, Eq, Bounded);
 
-// instance Bits#(TotalHeader, TOTAL_HDR_WIDTH);
-//     function Bit#(TOTAL_HDR_WIDTH) pack(TotalHeader x);
-//         return { pack(x.udpHeader), pack(x.ipHeader), pack(x.ethHeader) };
-//     endfunction
-    
-//     function TotalHeader unpack( Bit#(TOTAL_HDR_WIDTH) x);
-//         return TotalHeader{
-//             ethHeader: unpack(x[111:0]),
-//             ipHeader:  unpack(x[271:112]),
-//             udpHeader: unpack(x[335:272])
-//         };
-//     endfunction
-// endinstance
 
 ///// ARP Protocol
 typedef 16 ARP_HTYPE_WIDTH;
@@ -219,26 +157,6 @@ typedef 14 ARP_FRAME_WORD_WIDTH;
 typedef TMul#(ARP_FRAME_BYTE_WIDTH, 8) ARP_FRAME_WIDTH;
 typedef TSub#(ETH_DATA_MIN_SIZE, ARP_FRAME_BYTE_WIDTH) ARP_PAD_BYTE_WIDTH;
 
-// instance Bits#(ArpFrame, ARP_FRAME_WIDTH);
-//     function Bit#(ARP_FRAME_WIDTH) pack(ArpFrame x);
-//         return {x.arpTpa, x.arpTha, x.arpSpa, x.arpSha, x.arpOper, x.arpPLen, x.arpHLen, x.arpPType, x.arpHType};
-//     endfunction
-    
-//     function ArpFrame unpack(Bit#(ARP_FRAME_WIDTH) x);
-//         return ArpFrame{
-//             arpHType: x[15: 0],
-//             arpPType: x[31:16],
-//             arpHLen:  x[39:32],
-//             arpPLen:  x[47:40],
-//             arpOper:  x[63:48],
-//             arpSha:  x[111:64],
-//             arpSpa:  x[143:112],
-//             arpTha:  x[191:144],
-//             arpTpa:  x[223:192]
-//         };
-//     endfunction
-// endinstance
-
 typedef 1 ARP_HTYPE_ETH;   // for ethernet hardware type = 1
 typedef 2048 ARP_PTYPE_IP; // for ip protocol type = 0x0800
 typedef 6 ARP_HLEN_MAC;
@@ -253,5 +171,50 @@ typedef 32 IP_GATE_WAY_WIDTH;
 typedef Bit#(IP_GATE_WAY_WIDTH) IpGateWay;
 
 
+// RoCEv2 Header
+typedef  3 RDMA_TRANS_WIDTH;
+typedef  5 RDMA_OPCODE_WIDTH;
+typedef  1 RDMA_MIGREQ_WIDTH;
+typedef  2 RDMA_PAD_WIDTH;
+typedef  4 RDMA_VERSION_WIDTH;
+typedef 16 RDMA_PKEY_WIDTH;
+typedef  1 RDMA_FECN_WIDTH;
+typedef  1 RDMA_BECN_WIDTH;
+typedef  6 RDMA_RESV6_WIDTH;
+typedef 24 RDMA_DQPN_WIDTH;
+typedef  7 RDMA_RESV7_WIDTH;
+typedef 24 RDMA_PSN_WIDTH;
+// Used to calculate ICRC defined in RoCEv2
+typedef 64 DUMMY_BITS_WIDTH;
+
+typedef Bit#(RDMA_TRANS_WIDTH)  RdmaTransType;
+typedef Bit#(RDMA_OPCODE_WIDTH) RdmaOpCode;
+typedef Bit#(RDMA_MIGREQ_WIDTH) RdmaMigReq;
+typedef Bit#(RDMA_PAD_WIDTH)    RdmaPad;
+typedef Bit#(RDMA_VERSION_WIDTH)RdmaVersion;
+typedef Bit#(RDMA_PKEY_WIDTH)   RdmaPKey;
+typedef Bit#(RDMA_FECN_WIDTH)   RdmaFecn;
+typedef Bit#(RDMA_BECN_WIDTH)   RdmaBecn;
+typedef Bit#(RDMA_RESV6_WIDTH)  RdmaResv6;
+typedef Bit#(RDMA_DQPN_WIDTH)   RdmaDqpn;
+typedef Bit#(RDMA_RESV7_WIDTH)  RdmaResv7;
+typedef Bit#(RDMA_PSN_WIDTH)    RdmaPsn;
+
+typedef struct {
+    RdmaTransType trans;
+    RdmaOpCode    opcode;
+    Bool          solicited;
+    RdmaMigReq    migReq;
+    RdmaPad       padCnt;
+    RdmaVersion   version;
+    RdmaPKey      pkey;
+    RdmaFecn      fecn; // Not used in RoCEv2
+    RdmaBecn      becn; // Not used in RoCEv2
+    RdmaResv6     resv6;
+    RdmaDqpn       dqpn;
+    Bool          ackReq;
+    RdmaResv7     resv7;
+    RdmaPsn       psn;
+} BTH deriving(Bits, Bounded, FShow);
 
 

@@ -10,7 +10,7 @@ import Utils :: *;
 import SemiFifo :: *;
 import AxiStreamTypes :: *;
 
-interface UdpEthTx;
+interface UdpIpEthTx;
     interface Put#(UdpConfig) udpConfig;
     interface Put#(UdpIpMetaData) udpIpMetaDataIn;
     interface Put#(MacMetaData) macMetaDataIn;
@@ -19,7 +19,7 @@ interface UdpEthTx;
 endinterface
 
 (* synthesize *)
-module mkUdpEthTx (UdpEthTx);
+module mkUdpIpEthTx (UdpIpEthTx);
     FIFOF#( DataStream) dataStreamInBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataInBuf <- mkFIFOF;
     FIFOF#(MacMetaData) macMetaDataInBuf <- mkFIFOF;
@@ -28,6 +28,7 @@ module mkUdpEthTx (UdpEthTx);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
     
     DataStreamPipeOut ipUdpStream <- mkUdpIpStreamGenerator(
+        genUdpIpHeader,
         convertFifoToPipeOut(udpIpMetaDataInBuf),
         convertFifoToPipeOut(dataStreamInBuf),
         udpConfigVal
@@ -71,7 +72,7 @@ module mkUdpEthTx (UdpEthTx);
 endmodule
 
 
-interface RawUdpEthTx;
+interface RawUdpIpEthTx;
     (* prefix = "s_udp_config" *)
     interface RawUdpConfigBusSlave rawUdpConfig;
     (* prefix = "s_udp_meta" *)
@@ -85,15 +86,15 @@ interface RawUdpEthTx;
     interface RawAxiStreamMaster#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamOut;
 endinterface
 
-module mkRawUdpEthTx(RawUdpEthTx);
-    UdpEthTx udpEthTx <- mkUdpEthTx;
+module mkRawUdpIpEthTx(RawUdpIpEthTx);
+    UdpIpEthTx udpIpEthTx <- mkUdpIpEthTx;
 
-    let rawUdpConfigBus <- mkRawUdpConfigBusSlave(udpEthTx.udpConfig);
-    let rawUdpIpMetaDataBus <- mkRawUdpIpMetaDataBusSlave(udpEthTx.udpIpMetaDataIn);
-    let rawMacMetaDataBus <- mkRawMacMetaDataBusSlave(udpEthTx.macMetaDataIn);
-    let rawDataStreamBus <- mkRawDataStreamBusSlave(udpEthTx.dataStreamIn);
+    let rawUdpConfigBus <- mkRawUdpConfigBusSlave(udpIpEthTx.udpConfig);
+    let rawUdpIpMetaDataBus <- mkRawUdpIpMetaDataBusSlave(udpIpEthTx.udpIpMetaDataIn);
+    let rawMacMetaDataBus <- mkRawMacMetaDataBusSlave(udpIpEthTx.macMetaDataIn);
+    let rawDataStreamBus <- mkRawDataStreamBusSlave(udpIpEthTx.dataStreamIn);
     
-    let rawAxiStreamBus <- mkPipeOutToRawAxiStreamMaster(udpEthTx.axiStreamOut);
+    let rawAxiStreamBus <- mkPipeOutToRawAxiStreamMaster(udpIpEthTx.axiStreamOut);
 
     interface rawUdpConfig = rawUdpConfigBus;
     interface rawUdpIpMetaDataIn = rawUdpIpMetaDataBus;

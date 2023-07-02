@@ -29,7 +29,7 @@ set device [get_parts xcvu9p-flga2104-2L-e]; # xcvu9p_CIV-flga2577-2-e; #
 set_part $device
 report_property $device -file $out_dir/pre_synth_dev_prop.rpt
 
-synth_design -top $top_module -retiming
+synth_design -top $top_module -retiming;# -mode out_of_context
 write_checkpoint -force $out_dir/post_synth.dcp
 # Generated XDC file should be less than 1MB, otherwise too many constraints.
 write_xdc -force -exclude_physical $out_dir/post_synth.xdc

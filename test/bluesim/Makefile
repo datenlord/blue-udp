@@ -5,8 +5,8 @@ LOCALSRCDIR = $(ROOT_DIR)/src:$(ROOT_DIR)/src/includes
 LIBSRCDIR = $(ROOT_DIR)/lib/blue-wrapper/src
 
 
-TESTFILE ?= TestUdpArpEthRxTx.bsv
-TOP ?= mkTestUdpArpEthRxTx
+TESTFILE ?= TestDataStreamAppend.bsv
+TOP ?= mkTestDataStreamAppend
 
 SIMEXE = $(BUILDDIR)/$(TOP).exe
 

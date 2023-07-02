@@ -1,7 +1,12 @@
-import GetPut :: *;
 import FIFOF :: *;
+import GetPut :: *;
+import Vector :: *;
 import ClientServer :: *;
 import Randomizable :: *;
+
+import Ports :: *;
+import Utils :: *;
+import SemiFifo :: *;
 
 typedef Server#(
     dType, dType
@@ -42,4 +47,54 @@ module mkRandomDelay(RandomDelay#(dType, delay))
         endmethod
     endinterface
 
+endmodule
+
+
+module mkDataStreamSender#(
+    String instanceName,
+    PipeOut#(Bit#(maxRawByteNumWidth)) rawByteNumIn,
+    PipeOut#(Bit#(maxRawDataWidth)) rawDataIn
+)(DataStreamPipeOut) 
+    provisos(
+        Mul#(maxRawByteNum, BYTE_WIDTH, maxRawDataWidth),
+        Mul#(DATA_BUS_BYTE_WIDTH, maxFragNum, maxRawByteNum),
+        NumAlias#(TLog#(TAdd#(maxRawByteNum, 1)), maxRawByteNumWidth),
+        NumAlias#(TLog#(maxFragNum), maxFragNumWidth)
+    );
+    Reg#(Bit#(maxRawByteNumWidth)) rawByteCounter <- mkReg(0);
+    Reg#(Bit#(maxFragNumWidth)) fragCounter <- mkReg(0);
+    FIFOF#(DataStream) outputBuf <- mkFIFOF;
+
+    rule doFragment;
+        let rawData = rawDataIn.first;
+        Vector#(maxFragNum, Data) rawDataVec = unpack(rawData);
+        let rawByteNum = rawByteNumIn.first;
+
+        DataStream dataStream = DataStream {
+            data: rawDataVec[fragCounter],
+            byteEn: setAllBits,
+            isFirst: fragCounter == 0,
+            isLast: False
+        };
+
+        let nextRawByteCountVal = rawByteCounter + fromInteger(valueOf(DATA_BUS_BYTE_WIDTH));
+        if (nextRawByteCountVal >= rawByteNum) begin
+            let extraByteNum = nextRawByteCountVal - rawByteNum;
+            dataStream.byteEn = dataStream.byteEn >> extraByteNum;
+            dataStream.isLast = True;
+            fragCounter <= 0;
+            rawByteCounter <= 0;
+            rawDataIn.deq;
+            rawByteNumIn.deq;
+        end
+        else begin
+            fragCounter <= fragCounter + 1;
+            rawByteCounter <= nextRawByteCountVal;
+        end
+
+        outputBuf.enq(dataStream);
+        $display("%s: send %8d fragment %s", instanceName, fragCounter, fshow(dataStream));
+    endrule
+    
+    return convertFifoToPipeOut(outputBuf);
 endmodule

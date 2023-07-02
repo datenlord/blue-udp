@@ -12,7 +12,7 @@ import Utils::*;
 import AxiStreamTypes :: *;
 import BusConversion :: *;
 
-interface UdpEthRx;
+interface UdpIpEthRx;
     interface Put#(UdpConfig) udpConfig;
     
     interface Put#(AxiStream512) axiStreamIn;
@@ -23,7 +23,7 @@ interface UdpEthRx;
 endinterface
 
 (* synthesize *)
-module mkUdpEthRx (UdpEthRx);
+module mkUdpIpEthRx (UdpIpEthRx);
     FIFOF#(AxiStream512) axiStreamInBuf <- mkFIFOF;
     
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
@@ -61,7 +61,7 @@ module mkUdpEthRx (UdpEthRx);
 endmodule
 
 
-interface RawUdpEthRx;
+interface RawUdpIpEthRx;
     (* prefix = "s_udp_config" *) 
     interface RawUdpConfigBusSlave rawUdpConfig;
     (* prefix = "s_axis" *) 
@@ -75,14 +75,14 @@ interface RawUdpEthRx;
     interface RawDataStreamBusMaster rawDataStreamOut;
 endinterface
 
-module mkRawUdpEthRx(RawUdpEthRx);
-    UdpEthRx udpEthRx <- mkUdpEthRx;
+module mkRawUdpIpEthRx(RawUdpIpEthRx);
+    UdpIpEthRx udpIpEthRx <- mkUdpIpEthRx;
 
-    let rawUdpConfigBus <- mkRawUdpConfigBusSlave(udpEthRx.udpConfig);
-    let rawMacMetaDataBus <- mkRawMacMetaDataBusMaster(udpEthRx.macMetaDataOut);
-    let rawUdpIpMetaDataBus <- mkRawUdpIpMetaDataBusMaster(udpEthRx.udpIpMetaDataOut);
-    let rawDataStreamBus <- mkRawDataStreamBusMaster(udpEthRx.dataStreamOut);
-    let rawAxiStreamBus <- mkPutToRawAxiStreamSlave(udpEthRx.axiStreamIn, CF);
+    let rawUdpConfigBus <- mkRawUdpConfigBusSlave(udpIpEthRx.udpConfig);
+    let rawMacMetaDataBus <- mkRawMacMetaDataBusMaster(udpIpEthRx.macMetaDataOut);
+    let rawUdpIpMetaDataBus <- mkRawUdpIpMetaDataBusMaster(udpIpEthRx.udpIpMetaDataOut);
+    let rawDataStreamBus <- mkRawDataStreamBusMaster(udpIpEthRx.dataStreamOut);
+    let rawAxiStreamBus <- mkPutToRawAxiStreamSlave(udpIpEthRx.axiStreamIn, CF);
 
     interface rawUdpConfig = rawUdpConfigBus;
     interface rawAxiStreamIn = rawAxiStreamBus;
