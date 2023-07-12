@@ -92,33 +92,7 @@ function UdpIpHeader genUdpIpHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpI
     return udpIpHeader;
 endfunction
 
-function UdpIpHeader genUdpIpHeaderForRoCE(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId);
-    let udpIpHeader = genUdpIpHeader(meta, udpConfig, ipId);
-
-    let crc32ByteWidth = valueOf(CRC32_BYTE_WIDTH);
-    let udpLen = udpIpHeader.udpHeader.length;
-    udpIpHeader.udpHeader.length = udpLen + fromInteger(crc32ByteWidth);
-    let ipLen = udpIpHeader.ipHeader.ipTL;
-    udpIpHeader.ipHeader.ipTL = ipLen + fromInteger(crc32ByteWidth);
-
-    return udpIpHeader;
-endfunction
-
-function UdpIpHeader genUdpIpHeaderForICrc(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId);
-
-    let udpIpHeader = genUdpIpHeaderForRoCE(meta, udpConfig, ipId);
-
-    udpIpHeader.ipHeader.ipDS = setAllBits;
-    udpIpHeader.ipHeader.ipTTL = setAllBits;
-    udpIpHeader.ipHeader.ipChecksum = setAllBits;
-
-    udpIpHeader.udpHeader.checksum = setAllBits;
-
-    return udpIpHeader;
-endfunction
-
-
-module mkUdpIpStreamGenerator#(
+module mkUdpIpStream#(
     function UdpIpHeader genHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId),
     UdpIpMetaDataPipeOut udpIpMetaDataIn,
     DataStreamPipeOut dataStreamIn,
@@ -149,13 +123,13 @@ module mkUdpIpStreamGenerator#(
     endrule
 
     PipeOut#(UdpIpHeader) udpIpHdrStream = convertFifoToPipeOut(udpIpHeaderBuf);
-    DataStreamPipeOut udpIpStreamOut <- mkDataStreamInsert(HOLD, SWAP, dataStreamIn, udpIpHdrStream);
+    DataStreamPipeOut udpIpStreamOut <- mkAppendDataStreamHead(HOLD, SWAP, dataStreamIn, udpIpHdrStream);
 
     return udpIpStreamOut;
 endmodule
 
 
-function UdpIpMetaData extractMetaData(UdpIpHeader hdr);
+function UdpIpMetaData extractUdpIpMetaData(UdpIpHeader hdr);
     UdpLength dataLen = hdr.udpHeader.length - fromInteger(valueOf(UDP_HDR_BYTE_WIDTH));
     UdpIpMetaData meta = UdpIpMetaData {
         dataLen: dataLen,
@@ -186,8 +160,8 @@ interface UdpIpMetaDataAndDataStream;
     interface DataStreamPipeOut dataStreamOut;
 endinterface
 
-
-module mkUdpIpStreamExtractor#(
+module mkUdpIpMetaDataAndDataStream#(
+    function UdpIpMetaData extractMetaData(UdpIpHeader hdr),
     DataStreamPipeOut udpIpStreamIn,
     UdpConfig udpConfig
 )(UdpIpMetaDataAndDataStream);
@@ -199,7 +173,7 @@ module mkUdpIpStreamExtractor#(
     Reg#(Bool) interCheckRes <- mkReg(False);
     Reg#(Maybe#(Bool)) checkRes <- mkReg(Invalid);
     
-    DataStreamExtract#(UdpIpHeader) udpIpExtractor <- mkDataStreamExtract(udpIpStreamIn);
+    ExtractDataStream#(UdpIpHeader) udpIpExtractor <- mkExtractDataStreamHead(udpIpStreamIn);
     mkConnection(udpIpExtractor.dataStreamOut, interDataStreamBuf);
 
     rule doCheckSumReq;
@@ -216,6 +190,7 @@ module mkUdpIpStreamExtractor#(
         let checkSum <- checkSumServer.response.get();
         let passCheck = (checkSum == 0) && interCheckRes;
         checkRes <= tagged Valid passCheck;
+        $display("UdpIpStreamExtractor: Check Pass ");
     endrule
 
     rule passMetaData if (isValid(checkRes));
@@ -242,61 +217,5 @@ module mkUdpIpStreamExtractor#(
 
     interface PipeOut dataStreamOut = convertFifoToPipeOut(dataStreamOutBuf);
     interface PipeOut udpIpMetaDataOut = convertFifoToPipeOut(udpIpMetaDataOutBuf);
-endmodule
-
-
-module mkUdpIpStreamForICrc#(
-    UdpIpMetaDataPipeOut udpIpMetaDataIn,
-    DataStreamPipeOut dataStreamIn,
-    UdpConfig udpConfig
-)(DataStreamPipeOut);
-    Reg#(Bool) isFirstReg <- mkReg(True);
-    Reg#(IpID) ipIdCounter <- mkReg(0);
-    FIFOF#(DataStream) dataStreamBuf <- mkFIFOF;
-    FIFOF#(UdpIpHeader) udpIpHeaderBuf <- mkFIFOF;
-    FIFOF#(Bit#(DUMMY_BITS_WIDTH)) dummyBitsBuf <- mkFIFOF;
-
-    rule genDataStream;
-        let dataStream = dataStreamIn.first;
-        dataStreamIn.deq;
-        if (isFirstReg) begin
-            let swappedData = swapEndian(dataStream.data);
-            BTH bth = unpack(truncateLSB(swappedData));
-            bth.fecn = setAllBits;
-            bth.becn = setAllBits;
-            bth.resv6 = setAllBits;
-            Data maskedData = {pack(bth), truncate(swappedData)};
-            dataStream.data = swapEndian(maskedData);
-        end
-        dataStreamBuf.enq(dataStream);
-        isFirstReg <= dataStream.isLast;
-    endrule
-
-    rule genUdpIpHeader;
-        let metaData = udpIpMetaDataIn.first;
-        udpIpMetaDataIn.deq;
-        UdpIpHeader udpIpHeader = genUdpIpHeaderForICrc(metaData, udpConfig, 1);
-        udpIpHeaderBuf.enq(udpIpHeader);
-        ipIdCounter <= ipIdCounter + 1;
-        $display("IpUdpGen: genHeader of %d frame", ipIdCounter);
-    endrule
-
-    rule genDummyBits;
-        dummyBitsBuf.enq(setAllBits);
-    endrule
-
-    DataStreamPipeOut udpIpStream <- mkDataStreamInsert(
-        HOLD,
-        SWAP,
-        convertFifoToPipeOut(dataStreamBuf),
-        convertFifoToPipeOut(udpIpHeaderBuf)
-    );
-    DataStreamPipeOut dummyBitsAndUdpIpStream <- mkDataStreamInsert(
-        HOLD,
-        SWAP,
-        udpIpStream,
-        convertFifoToPipeOut(dummyBitsBuf)
-    );
-    return dummyBitsAndUdpIpStream;
 endmodule
 

@@ -7,7 +7,7 @@ import Utils :: *;
 import SemiFifo :: *;
 
 
-module mkMacStreamGenerator#(
+module mkMacStream#(
     DataStreamPipeOut  udpIpStreamIn,
     MacMetaDataPipeOut macMetaDataIn,
     UdpConfig udpConfig
@@ -25,13 +25,13 @@ module mkMacStreamGenerator#(
     endrule
 
     PipeOut#(EthHeader) headerStream = convertFifoToPipeOut(ethHeaderBuf);
-    DataStreamPipeOut macStreamOut <- mkDataStreamInsert(HOLD, SWAP, udpIpStreamIn, headerStream);
+    DataStreamPipeOut macStreamOut <- mkAppendDataStreamHead(HOLD, SWAP, udpIpStreamIn, headerStream);
     return macStreamOut;
 
 endmodule
 
 
-function Bool checkMac(EthHeader hdr, UdpConfig udpConfig);
+function Bool checkMacHeader(EthHeader hdr, UdpConfig udpConfig);
     // To be modified
     let arpMatch = hdr.ethType == fromInteger(valueOf(ETH_TYPE_ARP));
     let ipMatch = (hdr.ethType == fromInteger(valueOf(ETH_TYPE_IP))) && (hdr.dstMacAddr == udpConfig.macAddr);
@@ -44,7 +44,7 @@ interface MacMetaDataAndUdpIpStream;
 endinterface
 
 
-module mkMacStreamExtractor#(
+module mkMacMetaDataAndUdpIpStream#(
     DataStreamPipeOut macStreamIn,
     UdpConfig udpConfig
 )(MacMetaDataAndUdpIpStream);
@@ -53,12 +53,12 @@ module mkMacStreamExtractor#(
     FIFOF#(DataStream) udpIpStreamOutBuf <- mkFIFOF;
     Reg#(Bool) throwUdpIpStream <- mkReg(False);
 
-    DataStreamExtract#(EthHeader) macExtractor <- mkDataStreamExtract(macStreamIn);
+    ExtractDataStream#(EthHeader) macExtractor <- mkExtractDataStreamHead(macStreamIn);
 
     rule doCheck;
         let header = macExtractor.extractDataOut.first; 
         macExtractor.extractDataOut.deq;
-        let checkRes = checkMac(header, udpConfig);
+        let checkRes = checkMacHeader(header, udpConfig);
         if (checkRes) begin
             let macMeta = MacMetaData{
                 macAddr: header.srcMacAddr,

@@ -16,8 +16,8 @@ from cocotbext.axi.stream import define_stream
 IP_ADDR_LEN = 4
 MAC_ADDR_LEN = 6
 UDP_PORT_LEN = 2
-MIN_PAYLOAD_LEN = 46
-MAX_PAYLOAD_LEN = 512
+MIN_PAYLOAD_LEN = 1024
+MAX_PAYLOAD_LEN = 2048
 CASES_NUM = 32
 
 UdpConfigBus, UdpConfigTransation, UdpConfigSource, UdpConfigSink, UdpConfigMonitor = define_stream(
@@ -140,7 +140,7 @@ class RdmaUdpIpEthTxTester:
             assert raw(dut_packet)==raw(ref_packet), f"Test Case {case_idx} Fail"
 
 
-@cocotb.test(timeout_time=100000, timeout_unit="ns")
+@cocotb.test(timeout_time=500000, timeout_unit="ns")
 async def runRdmaUdpIpEthTxTester(dut):
     
     tester = RdmaUdpIpEthTxTester(dut, CASES_NUM, MIN_PAYLOAD_LEN, MAX_PAYLOAD_LEN)
@@ -167,6 +167,7 @@ def test_RdmaUdpIpEthTx():
         verilog_sources = verilog_sources,
         python_search = test_dir,
         sim_build = sim_build,
+        work_dir = test_dir,
         timescale="1ns/1ps"
     )
 

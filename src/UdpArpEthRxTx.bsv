@@ -60,7 +60,7 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
     );
 
     // Tx datapath
-    DataStreamPipeOut ipUdpStreamTx <- mkUdpIpStreamGenerator(
+    DataStreamPipeOut ipUdpStreamTx <- mkUdpIpStream(
         genUdpIpHeader,
         convertFifoToPipeOut(udpMetaDataTxBuf),
         convertFifoToPipeOut(dataStreamInTxBuf),
@@ -108,19 +108,19 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
 
     endrule
 
-    DataStreamPipeOut macStreamTx <- mkMacStreamGenerator(
+    DataStreamPipeOut macStreamTx <- mkMacStream(
         convertFifoToPipeOut(macPayloadTxBuf), 
         convertFifoToPipeOut(macMetaDataTxBuf), 
         udpConfigVal
     );
-    AxiStream512PipeOut macAxiStreamOut <- mkDataStreamToAxiStream(macStreamTx);
+    AxiStream512PipeOut macAxiStreamOut <- mkDataStreamToAxiStream512(macStreamTx);
 
     // Rx Datapath
-    DataStreamPipeOut macStreamRx <- mkAxiStreamToDataStream(
+    DataStreamPipeOut macStreamRx <- mkAxiStream512ToDataStream(
         convertFifoToPipeOut(axiStreamInRxBuf)
     );
 
-    MacMetaDataAndUdpIpStream macMetaAndUdpIpStream <- mkMacStreamExtractor(
+    MacMetaDataAndUdpIpStream macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
         macStreamRx, 
         udpConfigVal
     );
@@ -163,7 +163,8 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
         end
     endrule
 
-    UdpIpMetaDataAndDataStream udpIpMetaDataAndDataStream <- mkUdpIpStreamExtractor(
+    UdpIpMetaDataAndDataStream udpIpMetaDataAndDataStream <- mkUdpIpMetaDataAndDataStream(
+        extractUdpIpMetaData,
         convertFifoToPipeOut(ipUdpStreamRxBuf), 
         udpConfigVal
     );

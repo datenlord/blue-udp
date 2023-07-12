@@ -55,6 +55,8 @@ typedef TDiv#(AXIS_TDATA_WIDTH, BYTE_WIDTH) AXIS_TKEEP_WIDTH;
 typedef 1 AXIS_TUSER_WIDTH;
 
 typedef AxiStream#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) AxiStream512;
+typedef AxiStream#(DATA_BUS_BYTE_WIDTH, AXIS_TUSER_WIDTH) AxiStream256;
+typedef PipeOut#(AxiStream256) AxiStream256PipeOut;
 typedef PipeOut#(AxiStream512) AxiStream512PipeOut;
 
 //4k Cache

@@ -1,10 +1,15 @@
 import Ports :: *;
 import Vector :: *;
 import FIFOF :: *;
+import Connectable :: *;
+import BRAMFIFO :: *;
 
 import SemiFifo :: *;
 import PrimUtils :: *;
 import EthernetTypes :: *;
+
+import CrcDefines :: *;
+import CrcAxiStream :: *;
 import AxiStreamTypes :: *;
 
 function PipeOut#(anytype) muxPipeOut2(
@@ -214,20 +219,6 @@ function Bool isAllOnes(Bit#(nSz) bits);
     return ret;
 endfunction
 
-// function Bit#(width) byteRightShifter(Bit#(width) dataIn, Bit#(TLog#(TAdd#(byteNum, 1))) shiftAmt) 
-//     provisos(Mul#(BYTE_WIDTH, byteNum, width));
-//     Vector#(byteNum, Byte) dataInVec = unpack(dataIn);
-//     dataInVec = shiftOutFrom0(0, dataInVec, shiftAmt);
-//     return pack(dataInVec);
-// endfunction
-
-// function Bit#(width) byteLeftShifter(Bit#(width) dataIn, Bit#(TLog#(TAdd#(byteNum, 1))) shiftAmt) 
-//     provisos(Mul#(BYTE_WIDTH, byteNum, width));
-//     Vector#(byteNum, Byte) dataInVec = unpack(dataIn);
-//     dataInVec = shiftOutFromN(0, dataInVec, shiftAmt);
-//     return pack(dataInVec);
-// endfunction
-
 function Bit#(width) byteRightShift(Bit#(width) dataIn, Bit#(shiftAmtWidth) shiftAmt) 
     provisos(Mul#(BYTE_WIDTH, byteNum, width));
     Vector#(byteNum, Byte) dataInVec = unpack(dataIn);
@@ -279,6 +270,28 @@ function Bit#(TLog#(oneHotWidth)) convertOneHotToIndex(Vector#(oneHotWidth, Bool
     return index;
 endfunction
 
+function AxiStream256PipeOut convertDataStreamToAxiStream256(DataStreamPipeOut stream);
+    return (
+        interface AxiStream256PipeOut;
+            method AxiStream256 first();
+                return AxiStream256 {
+                    tData: stream.first.data,
+                    tKeep: stream.first.byteEn,
+                    tUser: 0,
+                    tLast: stream.first.isLast
+                };
+            endmethod
+                 
+            method Action deq();
+                stream.deq;
+            endmethod
+           
+            method Bool notEmpty();
+                return stream.notEmpty;
+            endmethod
+        endinterface
+     );
+endfunction
 
 typedef enum {
     SWAP, HOLD
@@ -286,9 +299,9 @@ typedef enum {
 
 typedef enum {
     INSERT, PASS, CLEAN
-} InsertState deriving(Bits, Eq, FShow);
+} AppendState deriving(Bits, Eq, FShow);
 // Insert dType into the head of DataStream
-module mkDataStreamInsert#(
+module mkAppendDataStreamHead#(
     IsSwapEndian swapDataStream,
     IsSwapEndian swapInsertData,
     DataStreamPipeOut dataStreamIn,
@@ -302,7 +315,7 @@ provisos(
 );
     
     FIFOF#(DataStream) outputBuf <- mkFIFOF;
-    Reg#(InsertState) state <- mkReg(INSERT);
+    Reg#(AppendState) state <- mkReg(INSERT);
     Reg#(Bit#(dWidth)) residueBuf <- mkRegU;
     Reg#(Bit#(dByteWidth)) residueByteEnBuf <- mkRegU;
 
@@ -377,94 +390,11 @@ provisos(
 
 endmodule
 
-interface DataStreamExtract#(type eType);
-    interface PipeOut#(eType) extractDataOut;
-    interface DataStreamPipeOut dataStreamOut;
-endinterface
+// typedef enum{
+//     PASS, CLEAN
+// } AppendState deriving(Bits, Eq, FShow);
 
-typedef enum{
-    EXTRACT, PASS, CLEAN
-} ExtractState deriving(Bits, Eq, FShow);
-
-module mkDataStreamExtract#(
-    DataStreamPipeOut dataStreamIn
-)(DataStreamExtract#(eType)) 
-provisos(
-    Bits#(eType, eWidth),
-    Add#(eWidth, rWidth, DATA_BUS_WIDTH),
-    Mul#(eByteWidth, BYTE_WIDTH, eWidth),
-    Add#(eByteWidth, rByteWidth, DATA_BUS_BYTE_WIDTH)
-);
-
-    FIFOF#(eType) extractDataBuf <- mkFIFOF;
-    FIFOF#(DataStream) dataStreamBuf <- mkFIFOF;
-    Reg#(ExtractState) state <- mkReg(EXTRACT);
-    Reg#(Bool) isFirstReg <- mkReg(False);
-    Reg#(Bit#(rWidth)) residueBuf <- mkRegU;
-    Reg#(Bit#(rByteWidth)) residueByteEnBuf <- mkRegU;
-
-    rule doExtraction if (state == EXTRACT);
-        let dataStream = dataStreamIn.first; 
-        dataStreamIn.deq;
-
-        SepDataStream#(eWidth, eByteWidth) sepData = seperateDataStream(dataStream);
-        residueBuf <= sepData.highData;
-        residueByteEnBuf <= sepData.highByteEn;
-        extractDataBuf.enq(unpack(swapEndian(sepData.lowData))); // change to little endian
-        if (dataStream.isLast) begin
-            if (sepData.highByteEn != 0) state <= CLEAN;
-        end
-        else begin
-            state <= PASS;
-        end
-        isFirstReg <= True;
-    endrule
-
-    rule doPass if (state == PASS);
-        let dataStream = dataStreamIn.first; 
-        dataStreamIn.deq;
-
-        SepDataStream#(eWidth, eByteWidth) sepData = seperateDataStream(dataStream);
-        dataStream.data = {sepData.lowData, residueBuf};
-        dataStream.byteEn = {sepData.lowByteEn, residueByteEnBuf};
-        dataStream.isFirst = isFirstReg;
-        residueBuf <= sepData.highData;
-        residueByteEnBuf <= sepData.highByteEn;
-
-        if (dataStream.isLast) begin
-            if (sepData.highByteEn != 0) begin
-                state <= CLEAN;
-                dataStream.isLast = False;
-            end
-            else begin
-                state <= EXTRACT;
-            end
-        end
-
-        dataStreamBuf.enq(dataStream);
-        isFirstReg <= False;
-    endrule
-
-    rule doClean if (state == CLEAN);
-        DataStream dataStream = DataStream{
-            isFirst: isFirstReg,
-            isLast: True,
-            data: zeroExtend(residueBuf),
-            byteEn: zeroExtend(residueByteEnBuf)
-        };
-        dataStreamBuf.enq(dataStream);
-        state <= EXTRACT;
-    endrule
-
-    interface PipeOut extractDataOut = convertFifoToPipeOut(extractDataBuf);
-    interface PipeOut dataStreamOut = convertFifoToPipeOut(dataStreamBuf);
-endmodule
-
-typedef enum{
-    PASS, CLEAN
-} AppendState deriving(Bits, Eq, FShow);
-
-module mkDataStreamAppend#(
+module mkAppendDataStreamTail#(
     IsSwapEndian swapDataStream,
     IsSwapEndian swapAppendData,
     DataStreamPipeOut dataStreamIn,
@@ -545,7 +475,105 @@ provisos(
 endmodule
 
 
-module mkDataStreamToAxiStream#(DataStreamPipeOut dataStreamIn)(AxiStream512PipeOut);
+interface ExtractDataStream#(type dType);
+    interface PipeOut#(dType) extractDataOut;
+    interface DataStreamPipeOut dataStreamOut;
+endinterface
+
+typedef enum{
+    EXTRACT, PASS, CLEAN
+} ExtractState deriving(Bits, Eq, FShow);
+
+module mkExtractDataStreamHead#(
+    DataStreamPipeOut dataStreamIn
+)(ExtractDataStream#(dType)) provisos(
+    Bits#(dType, dWidth),
+    Add#(dWidth, rWidth, DATA_BUS_WIDTH),
+    Mul#(dByteWidth, BYTE_WIDTH, dWidth),
+    Add#(dByteWidth, rByteWidth, DATA_BUS_BYTE_WIDTH)
+);
+
+    FIFOF#(dType) extractDataBuf <- mkFIFOF;
+    FIFOF#(DataStream) dataStreamBuf <- mkFIFOF;
+    Reg#(ExtractState) state <- mkReg(EXTRACT);
+    Reg#(Bool) isFirstReg <- mkReg(False);
+    Reg#(Bit#(rWidth)) residueBuf <- mkRegU;
+    Reg#(Bit#(rByteWidth)) residueByteEnBuf <- mkRegU;
+
+    rule doExtraction if (state == EXTRACT);
+        let dataStream = dataStreamIn.first; 
+        dataStreamIn.deq;
+
+        SepDataStream#(dWidth, dByteWidth) sepData = seperateDataStream(dataStream);
+        residueBuf <= sepData.highData;
+        residueByteEnBuf <= sepData.highByteEn;
+        extractDataBuf.enq(unpack(swapEndian(sepData.lowData))); // change to little endian
+        if (dataStream.isLast) begin
+            if (sepData.highByteEn != 0) state <= CLEAN;
+        end
+        else begin
+            state <= PASS;
+        end
+        isFirstReg <= True;
+    endrule
+
+    rule doPass if (state == PASS);
+        let dataStream = dataStreamIn.first; 
+        dataStreamIn.deq;
+
+        SepDataStream#(dWidth, dByteWidth) sepData = seperateDataStream(dataStream);
+        dataStream.data = {sepData.lowData, residueBuf};
+        dataStream.byteEn = {sepData.lowByteEn, residueByteEnBuf};
+        dataStream.isFirst = isFirstReg;
+        residueBuf <= sepData.highData;
+        residueByteEnBuf <= sepData.highByteEn;
+
+        if (dataStream.isLast) begin
+            if (sepData.highByteEn != 0) begin
+                state <= CLEAN;
+                dataStream.isLast = False;
+            end
+            else begin
+                state <= EXTRACT;
+            end
+        end
+
+        dataStreamBuf.enq(dataStream);
+        isFirstReg <= False;
+    endrule
+
+    rule doClean if (state == CLEAN);
+        DataStream dataStream = DataStream{
+            isFirst: isFirstReg,
+            isLast: True,
+            data: zeroExtend(residueBuf),
+            byteEn: zeroExtend(residueByteEnBuf)
+        };
+        dataStreamBuf.enq(dataStream);
+        state <= EXTRACT;
+    endrule
+
+    interface PipeOut extractDataOut = convertFifoToPipeOut(extractDataBuf);
+    interface PipeOut dataStreamOut = convertFifoToPipeOut(dataStreamBuf);
+endmodule
+
+// ToDo: 
+// module mkExtractDataStreamTail#(
+//     DataStreamPipeOut dataStreamIn,
+//     PipeOut#(Bit#(streamLenWidth)) streamLengthIn
+// )(ExtractDataStream#(dType)) provisos(
+//     NumAlias#(TLog#(DATA_BUS_BYTE_WIDTH), frameLenWidth),
+//     Bits#(dType, dWidth),
+//     Add#(dWidth, rWidth, DATA_BUS_WIDTH),
+//     Mul#(dByteWidth, BYTE_WIDTH, dWidth),
+//     Add#(dByteWidth, rByteWidth, DATA_BUS_BYTE_WIDTH),
+//     Add#(frameLenWidth, , streamLenWidth)
+// );
+
+// endmodule
+
+
+module mkDataStreamToAxiStream512#(DataStreamPipeOut dataStreamIn)(AxiStream512PipeOut);
     Reg#(Data) dataBuf <- mkRegU;
     Reg#(ByteEn) byteEnBuf <- mkRegU;
     Reg#(Bool) bufValid <- mkReg(False);
@@ -588,7 +616,7 @@ module mkDataStreamToAxiStream#(DataStreamPipeOut dataStreamIn)(AxiStream512Pipe
     return convertFifoToPipeOut(axiStreamOutBuf);
 endmodule
 
-module mkAxiStreamToDataStream#(AxiStream512PipeOut axiStreamIn)(DataStreamPipeOut);
+module mkAxiStream512ToDataStream#(AxiStream512PipeOut axiStreamIn)(DataStreamPipeOut);
     Reg#(Bool) isFirstReg <- mkReg(True);
     Reg#(Maybe#(DataStream)) extraDataStreamBuf <- mkReg(Invalid);
 
@@ -630,6 +658,57 @@ module mkAxiStreamToDataStream#(AxiStream512PipeOut axiStreamIn)(DataStreamPipeO
 
     return convertFifoToPipeOut(dataStreamOutBuf);
 
+endmodule
+
+
+module mkCrc32AxiStream256PipeOut#(
+    CrcMode crcMode,
+    AxiStream256PipeOut crcReq
+)(PipeOut#(Crc32Checksum));
+    CrcConfig#(CRC32_WIDTH) conf = CrcConfig {
+        polynominal: fromInteger(valueOf(CRC32_IEEE_POLY)),
+        initVal    : fromInteger(valueOf(CRC32_IEEE_INIT_VAL)),
+        finalXor   : fromInteger(valueOf(CRC32_IEEE_FINAL_XOR)),
+        revInput   : BIT_ORDER_REVERSE,
+        revOutput  : BIT_ORDER_REVERSE,
+        memFilePrefix: "crc_tab",
+        crcMode    : crcMode
+    };
+    let crcResp <- mkCrcAxiStreamPipeOut(conf, crcReq);
+    return crcResp;
+endmodule
+
+module mkSizedBramFifoToPipeOut#(
+    Integer depth, 
+    PipeOut#(dType) pipe
+)(PipeOut#(dType)) provisos(Bits#(dType, dSize), Add#(1, a__, dSize), FShow#(dType));
+
+    FIFOF#(dType) fifo <- mkSizedBRAMFIFOF(depth);
+    rule doEnq;
+        if (fifo.notFull) begin
+            fifo.enq(pipe.first);
+            pipe.deq;
+            $display("BramFifo enq ", fshow(pipe.first));
+        end
+        else begin
+            $display("BramFifo is Full");
+        end
+    endrule
+    return convertFifoToPipeOut(fifo);
+endmodule
+
+module mkSizedFifoToPipeOut#(
+    Integer depth, 
+    PipeOut#(dType) pipe
+)(PipeOut#(dType)) provisos(Bits#(dType, dSize), Add#(1, a__, dSize));
+
+    FIFOF#(dType) fifo <- mkSizedFIFOF(depth);
+    rule doEnq;
+        fifo.enq(pipe.first);
+        pipe.deq;
+    endrule
+
+    return convertFifoToPipeOut(fifo);
 endmodule
 
 

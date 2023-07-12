@@ -93,7 +93,7 @@ module mkDataStreamSender#(
         end
 
         outputBuf.enq(dataStream);
-        $display("%s: send %8d fragment %s", instanceName, fragCounter, fshow(dataStream));
+        $display("%s: send %8d fragment ", instanceName, fragCounter, fshow(dataStream));
     endrule
     
     return convertFifoToPipeOut(outputBuf);

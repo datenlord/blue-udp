@@ -211,10 +211,21 @@ typedef struct {
     RdmaFecn      fecn; // Not used in RoCEv2
     RdmaBecn      becn; // Not used in RoCEv2
     RdmaResv6     resv6;
-    RdmaDqpn       dqpn;
+    RdmaDqpn      dqpn;
     Bool          ackReq;
     RdmaResv7     resv7;
     RdmaPsn       psn;
 } BTH deriving(Bits, Bounded, FShow);
 
+typedef 96 BTH_WIDTH;
+typedef 12 BTH_BYTE_WIDTH;
 
+typedef struct {
+    IpHeader  ipHeader;
+    UdpHeader udpHeader;
+    BTH       bth;
+} BTHUdpIpHeader deriving(Bits, Bounded, FShow);
+
+typedef TAdd#(UDP_HDR_BYTE_WIDTH, IP_HDR_BYTE_WIDTH) UDP_IP_HDR_BYTE_WIDTH;
+typedef TAdd#(UDP_IP_HDR_BYTE_WIDTH, BTH_BYTE_WIDTH) BTH_UDP_IP_BYTE_WIDTH;
+typedef TMul#(BTH_UDP_IP_BYTE_WIDTH, 8) BTH_UDP_IP_WIDTH;

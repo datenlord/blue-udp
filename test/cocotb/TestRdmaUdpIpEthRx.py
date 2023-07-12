@@ -6,6 +6,7 @@ import cocotb_test.simulator
 import cocotb
 
 from scapy.all import *;
+from scapy.contrib.roce import *
 
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge
@@ -32,9 +33,9 @@ IP_ADDR_LEN = 4
 MAC_ADDR_LEN = 6
 MIN_PAYLOAD_LEN = 2048
 MAX_PAYLOAD_LEN = 4096
-CASES_NUM = 128
+CASES_NUM = 32
 
-class UdpIpEthRxTester:
+class RdmaUdpIpEthRxTester:
     def __init__(self, dut, cases_num, min_payload_len, max_payload_len):
         self.dut = dut
         
@@ -83,6 +84,8 @@ class UdpIpEthRxTester:
         await self.udp_config_src.send(udpConfig)
         
     def gen_random_packet(self):
+        bind_layers(UDP, BTH)
+
         src_mac = random.randbytes(MAC_ADDR_LEN)
         src_ip = random.randbytes(IP_ADDR_LEN)
         sport = random.randbytes(UDP_PORT_LEN)
@@ -95,6 +98,7 @@ class UdpIpEthRxTester:
         src_ip_int = int.from_bytes(src_ip, 'big')
         header = header / IP(dst=ltoa(dst_ip_int), src=ltoa(src_ip_int))
         header = header / UDP(dport=int.from_bytes(dport, 'big'), sport=int.from_bytes(sport, 'big'), chksum=0)
+        header = header / BTH()
         packet = Ether(raw(header/Raw(payload)))
         
         return packet
@@ -125,7 +129,7 @@ class UdpIpEthRxTester:
             udp_meta_trans.dst_port = packet[UDP].dport
             udp_meta_trans.src_port = packet[UDP].sport
 
-            payload = raw(packet[UDP].payload)
+            payload = raw(packet[UDP].payload)[:-4]
             udp_meta_trans.data_len = len(payload)
             self.ref_udp_meta_buf.put(udp_meta_trans)
             self.ref_data_stream_buf.put(payload)
@@ -177,10 +181,10 @@ class UdpIpEthRxTester:
         check_data_stream = await cocotb.start(self.check_data_stream())
         await check_data_stream
 
-@cocotb.test(timeout_time=100000, timeout_unit="ns")
-async def runUdpIpEthRxTester(dut):
+@cocotb.test(timeout_time=500000, timeout_unit="ns")
+async def runRdmaUdpIpEthRxTester(dut):
     
-    tester = UdpIpEthRxTester(dut, CASES_NUM, MIN_PAYLOAD_LEN, MAX_PAYLOAD_LEN)
+    tester = RdmaUdpIpEthRxTester(dut, CASES_NUM, MIN_PAYLOAD_LEN, MAX_PAYLOAD_LEN)
     await tester.gen_clock()
     await tester.gen_reset()
     await tester.config()
@@ -191,8 +195,8 @@ async def runUdpIpEthRxTester(dut):
     tester.log.info(f"Pass all {tester.cases_num} successfully")
 
 
-def test_UdpIpEthRx():
-    toplevel = "mkRawUdpIpEthRx"
+def test_RdmaUdpIpEthRx():
+    toplevel = "mkRawRdmaUdpIpEthRx"
     module = os.path.splitext(os.path.basename(__file__))[0]
     test_dir = os.path.abspath(os.path.dirname(__file__))
     sim_build = os.path.join(test_dir, "build")
@@ -204,10 +208,11 @@ def test_UdpIpEthRx():
         verilog_sources = verilog_sources,
         python_search = test_dir,
         sim_build = sim_build,
-        timescale="1ns/1ps"
+        timescale="1ns/1ps",
+        work_dir=test_dir
     )
 
 if __name__ == "__main__":
-    test_UdpIpEthRx()
+    test_RdmaUdpIpEthRx()
 
 

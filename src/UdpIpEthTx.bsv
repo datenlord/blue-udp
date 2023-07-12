@@ -1,12 +1,13 @@
 import GetPut :: *;
 import FIFOF :: *;
 
-import UdpIpLayer :: *;
-import MacLayer :: *;
 import Ports :: *;
+import Utils :: *;
+import MacLayer :: *;
+import UdpIpLayer :: *;
 import PortConversion :: *;
 import EthernetTypes :: *;
-import Utils :: *;
+
 import SemiFifo :: *;
 import AxiStreamTypes :: *;
 
@@ -19,7 +20,7 @@ interface UdpIpEthTx;
 endinterface
 
 (* synthesize *)
-module mkUdpIpEthTx (UdpIpEthTx);
+module mkUdpIpEthTx(UdpIpEthTx);
     FIFOF#( DataStream) dataStreamInBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataInBuf <- mkFIFOF;
     FIFOF#(MacMetaData) macMetaDataInBuf <- mkFIFOF;
@@ -27,20 +28,20 @@ module mkUdpIpEthTx (UdpIpEthTx);
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
     
-    DataStreamPipeOut ipUdpStream <- mkUdpIpStreamGenerator(
+    DataStreamPipeOut ipUdpStream <- mkUdpIpStream(
         genUdpIpHeader,
         convertFifoToPipeOut(udpIpMetaDataInBuf),
         convertFifoToPipeOut(dataStreamInBuf),
         udpConfigVal
     );
 
-    DataStreamPipeOut macStream <- mkMacStreamGenerator(
+    DataStreamPipeOut macStream <- mkMacStream(
         ipUdpStream, 
         convertFifoToPipeOut(macMetaDataInBuf), 
         udpConfigVal
     );
 
-    AxiStream512PipeOut macAxiStream <- mkDataStreamToAxiStream(
+    AxiStream512PipeOut macAxiStream <- mkDataStreamToAxiStream512(
         macStream
     );
 

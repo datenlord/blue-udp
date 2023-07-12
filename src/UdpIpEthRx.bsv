@@ -1,14 +1,15 @@
-import GetPut::*;
-import FIFOF::*;
+import FIFOF :: *;
+import GetPut :: *;
 import Connectable :: *;
 
-import SemiFifo :: *;
-import UdpIpLayer::*;
-import MacLayer::*;
-import Ports::*;
+import Ports :: *;
+import Utils :: *;
+import MacLayer :: *;
+import UdpIpLayer :: *;
 import PortConversion :: *;
-import EthernetTypes::*;
-import Utils::*;
+import EthernetTypes :: *;
+
+import SemiFifo :: *;
 import AxiStreamTypes :: *;
 import BusConversion :: *;
 
@@ -29,16 +30,17 @@ module mkUdpIpEthRx (UdpIpEthRx);
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
 
-    DataStreamPipeOut macStream <- mkAxiStreamToDataStream(
+    DataStreamPipeOut macStream <- mkAxiStream512ToDataStream(
         convertFifoToPipeOut(axiStreamInBuf)
     );
 
-    MacMetaDataAndUdpIpStream macMetaAndUdpIpStream <- mkMacStreamExtractor(
+    MacMetaDataAndUdpIpStream macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
         macStream, 
         udpConfigVal
     );
 
-    UdpIpMetaDataAndDataStream udpIpMetaAndDataStream <- mkUdpIpStreamExtractor(
+    UdpIpMetaDataAndDataStream udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStream(
+        extractUdpIpMetaData,
         macMetaAndUdpIpStream.udpIpStreamOut, 
         udpConfigVal
     );

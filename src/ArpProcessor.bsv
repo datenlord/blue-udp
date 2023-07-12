@@ -28,8 +28,10 @@ module mkArpProcessor#(
     FIFOF#(DataStream) paddingOutBuf <- mkFIFOF;
 
     ArpCache arpCache <- mkArpCache;
-    DataStreamExtract#(ArpFrame) arpFrameAndPadding <- mkDataStreamExtract(arpStreamIn);
-    DataStreamPipeOut arpStream <- mkDataStreamInsert(
+    ExtractDataStream#(ArpFrame) arpFrameAndPadding <- mkExtractDataStreamHead(arpStreamIn);
+    DataStreamPipeOut arpStream <- mkAppendDataStreamHead(
+        HOLD,
+        SWAP,
         convertFifoToPipeOut(paddingOutBuf),
         convertFifoToPipeOut(arpFrameOutBuf)
     );
