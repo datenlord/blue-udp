@@ -9,7 +9,7 @@ LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
 PWD = $(shell pwd)
 VLOGDIR = generated
 OUTPUTDIR = output_ooc
-ONLYSYNTH = 1
+ONLYSYNTH = 0
 CLK = main_clock
 
 TARGET = RdmaUdpArpEthRxTx

@@ -7,11 +7,11 @@ import SemiFifo :: *;
 import PrimUtils :: *;
 import TestUtils :: *;
 import EthernetTypes :: *;
-import RdmaUdpIpEthRx :: *;
+import UdpIpLayerForRdma :: *;
 
 typedef 16 CYCLE_COUNT_WIDTH;
 typedef 16 CASE_COUNT_WIDTH;
-typedef 20000 MAX_CYCLE_NUM;
+typedef 2000 MAX_CYCLE_NUM;
 
 typedef 6 MAX_FRAGMENT_NUM;
 typedef TMul#(MAX_FRAGMENT_NUM, DATA_BUS_WIDTH) MAX_RAW_DATA_WIDTH;

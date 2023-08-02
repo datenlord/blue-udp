@@ -151,16 +151,6 @@ module mkUdpIpStreamForRdma#(
 endmodule
 
 
-typedef 4096 RDMA_PACKET_SIZE;
-typedef    2 RDMA_PACKET_NUM;
-typedef TMul#(RDMA_PACKET_SIZE, RDMA_PACKET_NUM) RDMA_BUF_SIZE;
-typedef TDiv#(RDMA_BUF_SIZE, DATA_BUS_BYTE_WIDTH) RDMA_BUF_DEPTH;
-
-typedef enum {
-    ICRC_IDLE,
-    ICRC_PASS,
-    ICRC_FAIL
-} ICrcCheckState deriving(Bits, Eq, FShow);
 
 function UdpIpMetaData extractUdpIpMetaDataForRoCE(UdpIpHeader hdr);
     let meta = extractUdpIpMetaData(hdr);
@@ -222,61 +212,74 @@ module mkRemoveICrcFromDataStream#(
     Add#(frameLenWidth, frameNumWidth, streamLenWidth)
 );
     Integer crc32ByteWidth = valueOf(CRC32_BYTE_WIDTH);
-    
-    Reg#(Bool) isGetStreamLen <- mkReg(False);
-    Reg#(Bool) isGetLastFrame <- mkReg(False);
-    Reg#(Bit#(frameNumWidth)) lastFrameIdx <- mkRegU;
-    Reg#(Bit#(frameNumWidth)) frameCounter <- mkRegU;
-    Reg#(Bit#(shiftAmtWidth)) frameShiftAmt <- mkRegU;
+    // +Reg +Cnt
+    Reg#(Bool) isGetStreamLenReg <- mkReg(False);
+    Reg#(Bool) isICrcInterFrameReg <- mkRegU;
+    Reg#(Bit#(shiftAmtWidth)) frameShiftAmtReg <- mkRegU;
+    Reg#(DataStream) foreDataStreamReg <- mkRegU;
 
     FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
 
-    rule getStreamLen if (!isGetStreamLen);
+    rule getStreamLen if (!isGetStreamLenReg);
         let streamLen = streamLenIn.first;
         streamLenIn.deq;
         Bit#(frameLenWidth) lastFrameLen = truncate(streamLen);
-        if (lastFrameLen == 0) begin
-            lastFrameIdx <= truncateLSB(streamLen) - 1;
-            frameShiftAmt <= fromInteger(crc32ByteWidth);
-        end
-        else if (lastFrameLen > fromInteger(crc32ByteWidth)) begin
-            lastFrameIdx <= truncateLSB(streamLen);
-            frameShiftAmt <= fromInteger(crc32ByteWidth);
-            $display("Remove ICRC shiftAmt=%d", frameShiftAmt);
+        
+        if (lastFrameLen > fromInteger(crc32ByteWidth) || lastFrameLen == 0) begin
+            isICrcInterFrameReg <= False;
+            frameShiftAmtReg <= fromInteger(crc32ByteWidth);
+            //$display("Remove ICRC shiftAmt=%d", frameShiftAmtReg);
         end
         else begin
-            lastFrameIdx <= truncateLSB(streamLen) - 1;
-            frameShiftAmt <= truncate(fromInteger(crc32ByteWidth) - lastFrameLen);
+            isICrcInterFrameReg <= True;
+            frameShiftAmtReg <= truncate(fromInteger(crc32ByteWidth) - lastFrameLen);
         end
-        isGetStreamLen <= True;
-        isGetLastFrame <= False;
-        frameCounter <= 0;
+        isGetStreamLenReg <= True;
     endrule
 
-    rule passDataStream if (isGetStreamLen);
+    rule passDataStream if (isGetStreamLenReg);
         let dataStream = dataStreamIn.first;
         dataStreamIn.deq;
-
-        if (dataStream.isLast) begin
-            isGetStreamLen <= False;
-        end
-
-        if (frameCounter == lastFrameIdx) begin
-            let byteEn = dataStream.byteEn >> frameShiftAmt;
-            dataStream.byteEn = byteEn;
-            dataStream.data = bitMask(dataStream.data, byteEn);
-            dataStream.isLast = True;
-            isGetLastFrame <= True;
-        end
-
-        if (!isGetLastFrame) begin
-            frameCounter <= frameCounter + 1;
+        
+        if (!isICrcInterFrameReg) begin
+            if (dataStream.isLast) begin
+                let byteEn = dataStream.byteEn >> frameShiftAmtReg;
+                dataStream.byteEn = byteEn;
+                dataStream.data = bitMask(dataStream.data, byteEn);
+            end
             dataStreamOutBuf.enq(dataStream);
+        end
+        else begin
+            foreDataStreamReg <= dataStream;
+            let foreDataStream = foreDataStreamReg;
+            if (dataStream.isLast) begin
+                let byteEn = foreDataStream.byteEn >> frameShiftAmtReg;
+                foreDataStream.byteEn = byteEn;
+                foreDataStream.data = bitMask(foreDataStream.data, byteEn);
+                foreDataStream.isLast = True;
+            end
+            if (!dataStream.isFirst) begin
+                dataStreamOutBuf.enq(foreDataStream);
+            end
+        end
+        if (dataStream.isLast) begin
+            isGetStreamLenReg <= False;
         end
     endrule
 
     return convertFifoToPipeOut(dataStreamOutBuf);
 endmodule
+
+typedef 4096 RDMA_PACKET_MAX_SIZE;
+typedef 3 RDMA_META_BUF_SIZE;
+typedef TDiv#(RDMA_PACKET_MAX_SIZE, DATA_BUS_BYTE_WIDTH) RDMA_PACKET_MAX_FRAME;
+typedef TAdd#(RDMA_PACKET_MAX_FRAME, 16) RDMA_PAYLOAD_BUF_SIZE;
+
+typedef enum {
+    ICRC_IDLE,
+    ICRC_META,
+    ICRC_PAYLOAD
+} ICrcCheckState deriving(Bits, Eq, FShow);
 
 module mkUdpIpMetaDataAndDataStreamForRdma#(
     DataStreamPipeOut udpIpStreamIn,
@@ -319,7 +322,7 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
     endrule
 
     let udpIpMetaDataBuffered <- mkSizedFifoToPipeOut(
-        valueOf(RDMA_PACKET_NUM),
+        valueOf(RDMA_META_BUF_SIZE),
         convertFifoToPipeOut(udpIpMetaDataBuf)
     );
 
@@ -329,47 +332,46 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
     );
 
     DataStreamPipeOut dataStreamBuffered <- mkSizedBramFifoToPipeOut(
-        valueOf(RDMA_BUF_DEPTH),
+        valueOf(RDMA_PAYLOAD_BUF_SIZE),
         dataStreamWithOutICrc
     );
 
-    Reg#(ICrcCheckState) iCrcCheckState <- mkReg(ICRC_IDLE);
+    Reg#(Bool) isPassICrcCheck <- mkReg(False);
+    Reg#(ICrcCheckState) iCrcCheckStateReg <- mkReg(ICRC_IDLE);
     FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataOutBuf <- mkFIFOF;
     rule doCrcCheck;
-        case(iCrcCheckState) matches
+        case(iCrcCheckStateReg) matches
             ICRC_IDLE: begin
                 let crcChecksum = crc32Stream.first;
                 crc32Stream.deq;
-                let udpIpMetaData = udpIpMetaDataBuffered.first;
-                udpIpMetaDataBuffered.deq;
-                let dataStream = dataStreamBuffered.first;
-                dataStreamBuffered.deq;
                 $display("RdmaUdpIpEthRx gets iCRC result");
                 if (crcChecksum == 0) begin
-                    udpIpMetaDataOutBuf.enq(udpIpMetaData);
-                    dataStreamOutBuf.enq(dataStream);
-                    iCrcCheckState <= ICRC_PASS;
+                    isPassICrcCheck <= True;
                     $display("Pass ICRC check");
                 end
                 else begin
-                    iCrcCheckState <= ICRC_FAIL;
+                    isPassICrcCheck <= False;
                     $display("FAIL ICRC check");
                 end
+                iCrcCheckStateReg <= ICRC_META;
             end
-            ICRC_PASS: begin
-                let dataStream = dataStreamBuffered.first;
-                dataStreamOutBuf.enq(dataStream);
-                dataStreamBuffered.deq;
-                if (dataStream.isLast) begin
-                    iCrcCheckState <= ICRC_IDLE;
+            ICRC_META: begin
+                let udpIpMetaData = udpIpMetaDataBuffered.first;
+                udpIpMetaDataBuffered.deq;
+                if (isPassICrcCheck) begin
+                    udpIpMetaDataOutBuf.enq(udpIpMetaData);
                 end
+                iCrcCheckStateReg <= ICRC_PAYLOAD;
             end
-            ICRC_FAIL: begin
+            ICRC_PAYLOAD: begin
                 let dataStream = dataStreamBuffered.first;
                 dataStreamBuffered.deq;
+                if (isPassICrcCheck) begin
+                    dataStreamOutBuf.enq(dataStream);
+                end
                 if (dataStream.isLast) begin
-                    iCrcCheckState <= ICRC_IDLE;
+                    iCrcCheckStateReg <= ICRC_IDLE;
                 end
             end
         endcase

@@ -38,10 +38,10 @@ typedef Bit#(CACHE_AGE_WIDTH) CacheAge;
 typedef Bit#(CACHE_INDEX_WIDTH) CacheIndex;
 typedef Bit#(CACHE_WAY_INDEX_WIDTH) CacheWayIndex;
 
-typedef RFile#(CACHE_INDEX_WIDTH, CacheData) CacheDataWay;
+typedef RFileBram#(CacheIndex, CacheData) CacheDataWay;
 typedef Vector#(CACHE_WAY_NUM, CacheDataWay) CacheDataSet;
 
-typedef RFile#(CACHE_INDEX_WIDTH, Maybe#(CacheTag)) CacheTagWay;
+typedef RFileBram#(CacheIndex, Maybe#(CacheTag)) CacheTagWay;
 typedef Vector#(CACHE_WAY_NUM, CacheTagWay) CacheTagSet;
 
 typedef RFile#(CACHE_INDEX_WIDTH, CacheAge) CacheAgeWay;
@@ -57,29 +57,6 @@ endfunction
 
 function CacheIndex getIndex(CacheAddr addr);
     return truncate(addr);
-endfunction
-
-function Bool checkCacheTagMatch(CacheAddr addr, CacheTagWay tagWay);
-    let tag = getTag(addr);
-    let index = getIndex(addr);
-    if (tagWay.rd(index) matches tagged Valid .x &&& x == tag) begin
-        return True;
-    end
-    else begin
-        return False;
-    end
-endfunction
-
-function Maybe#(CacheWayIndex) getHitWayIdx(CacheAddr addr, CacheTagSet tagSet);
-    let tag = getTag(addr);
-    let index = getIndex(addr);
-    Maybe#(CacheWayIndex) wayIdx = tagged Invalid;
-    for (Integer i = 0; i < valueOf(CACHE_WAY_NUM); i = i + 1) begin
-        if (tagSet[i].rd(index) matches tagged Valid .x &&& x == tag) begin
-            wayIdx = tagged Valid fromInteger(i);
-        end
-    end
-    return wayIdx;
 endfunction
 
 function CacheWayIndex getReplaceWayIdx(CacheAge age);
@@ -122,10 +99,10 @@ typedef struct {
 } ArpResp deriving(Bits, Eq, FShow);
 
 typedef struct {
-    CBufIndex#(CACHE_CBUF_SIZE) token;
-    Vector#(CACHE_WAY_NUM, Bool) matchRes;
+    Maybe#(CacheWayIndex) wayIdx;
+    CacheData data;
     CacheAddr addr;
-} TagSearchResult deriving(Bits, Eq, FShow);
+} CheckTagResult deriving(Bits, Eq, FShow);
 
 typedef struct {
     CacheIndex cacheIdx;
@@ -154,8 +131,8 @@ endinterface
 
 module mkArpCache(ArpCache);
     
-    CacheDataSet dataSet <- replicateM(mkCFRFile);
-    CacheTagSet  tagSet <- replicateM(mkCFRFile);
+    CacheDataSet dataSet <- replicateM(mkRFileBram);
+    CacheTagSet  tagSet <- replicateM(mkRFileBram);
     CacheAgeWay  ageWay <- mkCFRFileInit(0);
 
     ContentAddressMem#(
@@ -163,7 +140,8 @@ module mkArpCache(ArpCache);
     ) missReqTable <- mkContentAddressMem;
 
     FIFOF#(CacheAddr) cacheReqBuf <- mkFIFOF;
-    FIFOF#(TagSearchResult) tagSearchResBuf <- mkFIFOF;
+    FIFOF#(CacheAddr) cacheRdBuf <- mkFIFOF;
+    FIFOF#(CheckTagResult) checkTagResBuf <- mkFIFOF;
     FIFOF#(CacheWriteResult) cacheWrBuf <- mkFIFOF;
     FIFOF#(HitMessage) hitBuf <- mkFIFOF;
     FIFOF#(HitMessage) missHitBuf <- mkFIFOF;
@@ -173,39 +151,56 @@ module mkArpCache(ArpCache);
 
     CompletionBuf#(CACHE_CBUF_SIZE, CacheData) respCBuf <- mkCompletionBuf;
 
-    rule doSearchTagArray;
+    rule sendTagAndDataReadReq;
         let addr = cacheReqBuf.first;
         cacheReqBuf.deq;
-        let token <- respCBuf.reserve;
-        let matchRes = map(checkCacheTagMatch(addr), tagSet);
-        TagSearchResult searchRes = TagSearchResult {
-            token: token,
-            matchRes: matchRes,
-            addr: addr
-        };
-        tagSearchResBuf.enq(searchRes);
+        for (Integer i = 0; i < valueOf(CACHE_WAY_NUM); i = i + 1) begin
+            let index = getIndex(addr);
+            dataSet[i].readServer.request.put(index);
+            tagSet[i].readServer.request.put(index);
+        end
+        cacheRdBuf.enq(addr);
     endrule
 
-    function Bool bitOr(Bool a, Bool b) = a || b;
-    function CacheData read(CacheIndex idx, CacheDataWay dataWay) = dataWay.rd(idx);
-    rule doSearchResult;
-        let searchRes = tagSearchResBuf.first;
-        tagSearchResBuf.deq;
+    rule recvTagAndDataReadResp;
+        let addr = cacheRdBuf.first;
+        cacheRdBuf.deq;
+        let tag = getTag(addr);
+        Maybe#(CacheWayIndex) wayIdx = tagged Invalid;
+        CacheData data = 0;
 
-        let matchRes = searchRes.matchRes;
-        let addr = searchRes.addr;
-        let token = searchRes.token;
+        for (Integer i = 0; i < valueOf(CACHE_WAY_NUM); i = i + 1) begin
+            let cacheTag <- tagSet[i].readServer.response.get();
+            let cacheData <- dataSet[i].readServer.response.get();
+            if (cacheTag matches tagged Valid .x &&& x == tag) begin
+                wayIdx = tagged Valid fromInteger(i);
+                data = cacheData;
+            end
+        end
 
-        let hasMatchCacheWay = foldr1(bitOr, matchRes);
-        if (hasMatchCacheWay) begin
+        let checkTagRes = CheckTagResult {
+            wayIdx: wayIdx,
+            data: data,
+            addr: addr
+        };
+        checkTagResBuf.enq(checkTagRes);
+    endrule
+
+
+    rule doCheckTagResult;
+        let checkTagRes = checkTagResBuf.first;
+        checkTagResBuf.deq;
+
+        let token <- respCBuf.reserve();
+        let addr = checkTagRes.addr;
+        let data = checkTagRes.data;
+
+        if (checkTagRes.wayIdx matches tagged Valid .wayIdx) begin
             let cacheIdx = getIndex(addr);
-            let wayIdx = convertOneHotToIndex(matchRes);
-            let cacheDataVec = map(read(cacheIdx), dataSet);
-            let cacheData = cacheDataVec[wayIdx];
             hitBuf.enq(
                 HitMessage{
                     token: token,
-                    data: cacheData,
+                    data: data,
                     index: cacheIdx,
                     wayIndex: wayIdx
                 }
@@ -288,8 +283,8 @@ module mkArpCache(ArpCache);
     rule writeCache;
         let wrRes = cacheWrBuf.first;
         cacheWrBuf.deq;
-        dataSet[wrRes.cacheWayIdx].wr(wrRes.cacheIdx, wrRes.cacheData);
-        tagSet[wrRes.cacheWayIdx].wr(wrRes.cacheIdx, tagged Valid wrRes.cacheTag);
+        dataSet[wrRes.cacheWayIdx].write(wrRes.cacheIdx, wrRes.cacheData);
+        tagSet[wrRes.cacheWayIdx].write(wrRes.cacheIdx, tagged Valid wrRes.cacheTag);
     endrule
 
     interface Server cacheServer;

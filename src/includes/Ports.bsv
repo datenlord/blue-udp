@@ -49,6 +49,11 @@ typedef struct {
 } UdpConfig deriving(Bits, Bounded, Eq, FShow);
 typedef PipeOut#(UdpConfig) UdpConfigPipeOut;
 
+typedef struct {
+    UdpIpMetaData udpIpMetaData;
+    VirtualChannelIndex channelIdx;
+} UdpIpMetaDataAndChannelIdx deriving(Bits, Eq, FShow);
+
 
 typedef 512 AXIS_TDATA_WIDTH;
 typedef TDiv#(AXIS_TDATA_WIDTH, BYTE_WIDTH) AXIS_TKEEP_WIDTH;

@@ -11,13 +11,14 @@ import EthernetTypes :: *;
 
 module mkIpHdrCheckSumServer(Server#(IpHeader, IpCheckSum)) 
     provisos(
-        NumAlias#(TDiv#(IP_HDR_WORD_WIDTH, 2), firstStageOutNum),
-        NumAlias#(TAdd#(IP_CHECKSUM_WIDTH, 1), firstStageOutWidth),
+        NumAlias#(TDiv#(IP_HDR_WORD_WIDTH, 4), firstStageOutNum),
+        NumAlias#(TAdd#(IP_CHECKSUM_WIDTH, 2), firstStageOutWidth),
         NumAlias#(TDiv#(firstStageOutNum, 4), secondStageOutNum),
-        NumAlias#(TAdd#(firstStageOutWidth, 2), secondStageOutWidth),
-        NumAlias#(TMul#(secondStageOutNum, 4), secondStageInNum),
-        NumAlias#(TSub#(secondStageInNum, firstStageOutNum), appendNum)
+        NumAlias#(TAdd#(firstStageOutWidth, 2), secondStageOutWidth)
     );
+
+    function Bit#(TAdd#(width, 1)) add(Bit#(width) a, Bit#(width) b) = zeroExtend(a) + zeroExtend(b);
+    function Bit#(TAdd#(width, 1)) pass(Bit#(width) a) = zeroExtend(a);
 
     FIFOF#(Vector#(firstStageOutNum, Bit#(firstStageOutWidth))) firstStageOutBuf <- mkFIFOF;
     FIFOF#(Vector#(secondStageOutNum, Bit#(secondStageOutWidth))) secondStageOutBuf <- mkFIFOF;
@@ -25,22 +26,17 @@ module mkIpHdrCheckSumServer(Server#(IpHeader, IpCheckSum))
     rule secondStageAdder;
         let firstStageOutVec = firstStageOutBuf.first;
         firstStageOutBuf.deq;
-        Vector#(secondStageInNum, Bit#(firstStageOutWidth)) appendedVec = append(firstStageOutVec, replicate(0));
-        Vector#(secondStageOutNum, Vector#(4, Bit#(firstStageOutWidth))) secondStageInVec;
-        for (Integer i = 0; i < valueOf(secondStageOutNum); i = i + 1) begin
-            secondStageInVec[i] = takeAt(4*i, appendedVec);
-        end
-        secondStageOutBuf.enq(map(combAdderTree, secondStageInVec));
+        let firstStageOutReducedBy2 = mapPairs(add, pass, firstStageOutVec);
+        let firstStageOutReducedBy4 = mapPairs(add, pass, firstStageOutReducedBy2);
+        secondStageOutBuf.enq(firstStageOutReducedBy4);
     endrule
 
     interface Put request;
         method Action put(IpHeader hdr);
             Vector#(IP_HDR_WORD_WIDTH, Word) ipHdrVec = unpack(pack(hdr));
-            Vector#(firstStageOutNum, Vector#(2, Word)) firstStageInVec;
-            for (Integer i = 0; i < valueOf(firstStageOutNum); i = i + 1) begin
-                firstStageInVec[i] = takeAt(2*i, ipHdrVec);
-            end
-            firstStageOutBuf.enq(map(combAdderTree, firstStageInVec));
+            let ipHdrVecReducedBy2 = mapPairs(add, pass, ipHdrVec);
+            let ipHdrVecReducedBy4 = mapPairs(add, pass, ipHdrVecReducedBy2);
+            firstStageOutBuf.enq(ipHdrVecReducedBy4);
         endmethod
     endinterface
 
@@ -48,7 +44,7 @@ module mkIpHdrCheckSumServer(Server#(IpHeader, IpCheckSum))
         method ActionValue#(IpCheckSum) get();
             let secondStageOutVec = secondStageOutBuf.first;
             secondStageOutBuf.deq;
-            let sum = combAdderTree(secondStageOutVec);
+            let sum = secondStageOutVec[0];
             Bit#(TLog#(IP_HDR_WORD_WIDTH)) overFlow = truncateLSB(sum);
             IpCheckSum remainder = truncate(sum);
             IpCheckSum checkSum = remainder + zeroExtend(overFlow);

@@ -4,9 +4,9 @@ include $(SCRIPTS_DIR)/Makefile.base
 LOCALSRCDIR = $(ROOT_DIR)/src:$(ROOT_DIR)/src/includes
 LIBSRCDIR = $(ROOT_DIR)/lib/blue-wrapper/src:$(ROOT_DIR)/lib/blue-crc/src
 
-
-TESTFILE ?= TestRemoveICrcFromDataStream.bsv
-TOP ?= mkTestRemoveICrcFromDataStream
+TARGET ?= ArpCache
+TESTFILE = Test$(TARGET).bsv
+TOP = mkTest$(TARGET)
 
 SIMEXE = $(BUILDDIR)/$(TOP).exe
 

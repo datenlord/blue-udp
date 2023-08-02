@@ -165,7 +165,8 @@ endinstance
 
 instance CombAdderTree#(num, width)
     provisos (
-        Div#(num, 2, firstHalf), Add#(firstHalf, secondHalf, num),
+        Div#(num, 2, firstHalf), 
+        Add#(firstHalf, secondHalf, num),
         Add#(a__, TAdd#(TLog#(firstHalf), width), TAdd#(TLog#(num), width)),
         Add#(b__, TAdd#(TLog#(secondHalf), width), TAdd#(TLog#(num), width)),
         CombAdderTree#(firstHalf, width),

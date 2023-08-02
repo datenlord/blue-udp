@@ -6,7 +6,7 @@ LIB_CRC_DIR = $(ROOT_DIR)/lib/blue-crc/src
 LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper/src
 LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
 
-TARGET = RdmaUdpArpEthRxTx
+TARGET = RdmaUdpIpEthRx
 FILE_PATH = $(ROOT_DIR)/src
 TEST_FILE = Test$(TARGET).py
 DESIGN_FILE ?= $(TARGET).bsv

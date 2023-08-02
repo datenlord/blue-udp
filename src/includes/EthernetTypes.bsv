@@ -2,15 +2,17 @@
 typedef 48 ETH_MAC_ADDR_WIDTH;
 typedef 16 ETH_TYPE_WIDTH;
 typedef 32 ETH_FCS_WIDTH;
+typedef 32 ETH_TAG_WIDTH;
 
 typedef Bit#(ETH_MAC_ADDR_WIDTH) EthMacAddr;
 typedef Bit#(ETH_TYPE_WIDTH    ) EthType;
+typedef Bit#(ETH_TAG_WIDTH     ) EthTag;
 typedef Bit#(ETH_FCS_WIDTH     ) EthFcs;
 typedef struct {
     EthMacAddr dstMacAddr;
     EthMacAddr srcMacAddr;
     EthType    ethType;
-} EthHeader deriving( Bits, FShow, Eq, Bounded);
+} EthHeader deriving(Bits, FShow, Eq, Bounded);
 
 typedef 2048 ETH_TYPE_IP; // TYPE = 0x0800
 typedef 2054 ETH_TYPE_ARP;// TYPE = 0x0806
@@ -171,7 +173,7 @@ typedef 32 IP_GATE_WAY_WIDTH;
 typedef Bit#(IP_GATE_WAY_WIDTH) IpGateWay;
 
 
-// RoCEv2 Header
+///// RoCEv2 Header
 typedef  3 RDMA_TRANS_WIDTH;
 typedef  5 RDMA_OPCODE_WIDTH;
 typedef  1 RDMA_MIGREQ_WIDTH;
@@ -229,3 +231,8 @@ typedef struct {
 typedef TAdd#(UDP_HDR_BYTE_WIDTH, IP_HDR_BYTE_WIDTH) UDP_IP_HDR_BYTE_WIDTH;
 typedef TAdd#(UDP_IP_HDR_BYTE_WIDTH, BTH_BYTE_WIDTH) BTH_UDP_IP_BYTE_WIDTH;
 typedef TMul#(BTH_UDP_IP_BYTE_WIDTH, 8) BTH_UDP_IP_WIDTH;
+
+///// Priority Flow Control
+typedef 8 VIRTUAL_CHANNEL_NUM;
+typedef TLog#(VIRTUAL_CHANNEL_NUM) VIRTUAL_CHANNEL_INDEX_WIDTH;
+typedef Bit#(VIRTUAL_CHANNEL_INDEX_WIDTH) VirtualChannelIndex;
