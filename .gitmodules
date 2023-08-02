@@ -1,3 +1,6 @@
 [submodule "lib/blue-wrapper"]
 	path = lib/blue-wrapper
 	url = https://github.com/wengwz/blue-wrapper.git
+[submodule "lib/blue-crc"]
+	path = lib/blue-crc
+	url = https://github.com/datenlord/blue-crc.git

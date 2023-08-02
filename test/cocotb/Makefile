@@ -5,6 +5,7 @@ LOCALSRCDIR = $(ROOT_DIR)/src:$(ROOT_DIR)/src/includes
 LIB_CRC_DIR = $(ROOT_DIR)/lib/blue-crc/src
 LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper/src
 LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
+CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
 TARGET = RdmaUdpIpEthRx
 FILE_PATH = $(ROOT_DIR)/src
@@ -15,7 +16,7 @@ VLOGDIR = verilog
 VLOG_FILE = $(VLOGDIR)/$(TOP).v
 
 table:
-	python3 $(LIB_CRC_DIR)/gen_crc_tab.py 32 256
+	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_256.json ./
 
 verilog:
 	mkdir -p $(BUILDDIR)

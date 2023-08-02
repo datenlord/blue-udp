@@ -686,14 +686,14 @@ module mkSizedBramFifoToPipeOut#(
 
     FIFOF#(dType) fifo <- mkSizedBRAMFIFOF(depth);
     rule doEnq;
-        if (fifo.notFull) begin
-            fifo.enq(pipe.first);
-            pipe.deq;
-            $display("BramFifo enq ", fshow(pipe.first));
-        end
-        else begin
-            $display("BramFifo is Full");
-        end
+        //if (fifo.notFull) begin
+        fifo.enq(pipe.first);
+        pipe.deq;
+            // $display("BramFifo enq ", fshow(pipe.first));
+        // end
+        // else begin
+        //     $display("BramFifo is Full");
+        // end
     endrule
     return convertFifoToPipeOut(fifo);
 endmodule
