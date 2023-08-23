@@ -19,9 +19,11 @@ typedef 2054 ETH_TYPE_ARP;// TYPE = 0x0806
 
 
 /////////////// IP Layer
-typedef 4  IP_VERSION_WIDTH;
-typedef 4  IP_IHL_WIDTH;
-typedef 8  IP_DS_WIDTH;
+typedef  4 IP_VERSION_WIDTH;
+typedef  4 IP_IHL_WIDTH;
+typedef  8 IP_DS_WIDTH;
+typedef  6 IP_DSCP_WIDTH;
+typedef  2 IP_ECN_WIDTH;
 typedef 16 IP_TL_WIDTH;
 typedef 16 IP_ID_WIDTH;
 typedef 3  IP_FLAGS_WIDTH;
@@ -33,6 +35,8 @@ typedef 32 IP_ADDR_WIDTH;
 
 typedef Bit#(IP_VERSION_WIDTH ) IpVersion;
 typedef Bit#(IP_IHL_WIDTH     ) IpIHL;
+typedef Bit#(IP_DSCP_WIDTH    ) IpDscp;
+typedef Bit#(IP_ECN_WIDTH     ) IpEcn;
 typedef Bit#(IP_DS_WIDTH      ) IpDS;
 typedef Bit#(IP_TL_WIDTH      ) IpTL;
 typedef Bit#(IP_ID_WIDTH      ) IpID;
@@ -45,7 +49,8 @@ typedef Bit#(IP_ADDR_WIDTH    ) IpAddr;
 typedef struct {
     IpVersion  ipVersion;
     IpIHL      ipIHL;
-    IpDS       ipDS;
+    IpDscp     ipDscp;
+    IpEcn      ipEcn;
     IpTL       ipTL;
     IpID       ipID;
     IpFlags    ipFlag;
@@ -60,6 +65,8 @@ typedef struct {
 typedef 4  IP_VERSION_VAL;         // VERSION = 0x4
 typedef 5  IP_IHL_VAL;             // IHL = 0x5
 typedef 0  IP_DS_VAL;              // DS  = 0x0
+typedef 0  IP_DSCP_VAL;
+typedef 0  IP_ECN_VAL;
 typedef 0  IP_FLAGS_VAL;           // FLAGS = 0x0
 typedef 0  IP_OFFSET_VAL;          // FRAGMENT_OFFSET = 0
 typedef 64 IP_TTL_VAL;             // TTL = 0x40
@@ -236,3 +243,5 @@ typedef TMul#(BTH_UDP_IP_BYTE_WIDTH, 8) BTH_UDP_IP_WIDTH;
 typedef 8 VIRTUAL_CHANNEL_NUM;
 typedef TLog#(VIRTUAL_CHANNEL_NUM) VIRTUAL_CHANNEL_INDEX_WIDTH;
 typedef Bit#(VIRTUAL_CHANNEL_INDEX_WIDTH) VirtualChannelIndex;
+typedef 16 PFC_PAUSE_QUANTA_WIDTH;
+typedef Bit#(PFC_PAUSE_QUANTA_WIDTH) PfcPauseQuanta;

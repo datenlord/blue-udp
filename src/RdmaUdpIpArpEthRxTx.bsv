@@ -1,39 +1,24 @@
+
 import GetPut :: *;
 import FIFOF :: *;
 
-import UdpIpLayer :: *;
-import MacLayer :: *;
-import ArpProcessor :: *;
-import ArpCache :: *;
-import Ports :: *;
-import PortConversion :: *;
-import EthernetTypes :: *;
 import Utils :: *;
+import Ports :: *;
+import MacLayer :: *;
+import ArpCache :: *;
+import UdpIpLayer :: *;
+import ArpProcessor :: *;
+import EthernetTypes :: *;
+import UdpIpArpEthRxTx :: *;
+import PortConversion :: *;
+import UdpIpLayerForRdma :: *;
+
 import SemiFifo :: *;
 import AxiStreamTypes :: *;
 import BusConversion :: *;
 
-interface UdpArpEthRxTx;
-    interface Put#(UdpConfig)  udpConfig;
-    
-    // Tx
-    interface Put#(UdpIpMetaData) udpIpMetaDataInTx;
-    interface Put#(DataStream)    dataStreamInTx;
-    interface AxiStream512PipeOut    axiStreamOutTx;
-    
-    // Rx
-    interface Put#(AxiStream512)      axiStreamInRx;
-    interface UdpIpMetaDataPipeOut udpIpMetaDataOutRx;
-    interface DataStreamPipeOut    dataStreamOutRx;
-endinterface
-
-typedef enum{
-    INIT, IP, ARP
-} MuxState deriving(Bits, Eq);
-typedef MuxState DemuxState;
-
 (* synthesize *)
-module mkUdpArpEthRxTx(UdpArpEthRxTx);
+module mkRdmaUdpIpArpEthRxTx(UdpIpArpEthRxTx);
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
 
@@ -60,8 +45,7 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
     );
 
     // Tx datapath
-    DataStreamPipeOut ipUdpStreamTx <- mkUdpIpStream(
-        genUdpIpHeader,
+    DataStreamPipeOut ipUdpStreamTx <- mkUdpIpStreamForRdma(
         convertFifoToPipeOut(udpMetaDataTxBuf),
         convertFifoToPipeOut(dataStreamInTxBuf),
         udpConfigVal
@@ -116,11 +100,11 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
     AxiStream512PipeOut macAxiStreamOut <- mkDataStreamToAxiStream512(macStreamTx);
 
     // Rx Datapath
-    DataStreamPipeOut macStreamRx <- mkAxiStream512ToDataStream(
+    let macStreamRx <- mkAxiStream512ToDataStream(
         convertFifoToPipeOut(axiStreamInRxBuf)
     );
 
-    MacMetaDataAndUdpIpStream macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
+    let macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
         macStreamRx, 
         udpConfigVal
     );
@@ -163,8 +147,7 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
         end
     endrule
 
-    UdpIpMetaDataAndDataStream udpIpMetaDataAndDataStream <- mkUdpIpMetaDataAndDataStream(
-        extractUdpIpMetaData,
+    let udpIpMetaDataAndDataStream <- mkUdpIpMetaDataAndDataStreamForRdma(
         convertFifoToPipeOut(ipUdpStreamRxBuf), 
         udpConfigVal
     );
@@ -206,30 +189,17 @@ module mkUdpArpEthRxTx(UdpArpEthRxTx);
 endmodule
 
 
-interface RawUdpArpEthRxTx;
-    interface RawUdpConfigBusSlave rawUdpConfig;
-    // Tx
-    interface RawUdpIpMetaDataBusSlave rawUdpIpMetaDataInTx;
-    interface RawDataStreamBusSlave    rawDataStreamInTx;
-    interface RawAxiStreamMaster#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamOutTx;
-    // Rx
-    interface RawUdpIpMetaDataBusMaster rawUdpIpMetaDataOutRx;
-    interface RawDataStreamBusMaster    rawDataStreamOutRx;
-    interface RawAxiStreamSlave#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamInRx;
-endinterface
+module mkRawRdmaUdpIpArpEthRxTx(RawUdpIpArpEthRxTx);
+    UdpIpArpEthRxTx rdmaUdpRxTx <- mkRdmaUdpIpArpEthRxTx;
 
+    let rawConfig <- mkRawUdpConfigBusSlave(rdmaUdpRxTx.udpConfig);
+    let rawUdpIpMetaDataTx <- mkRawUdpIpMetaDataBusSlave(rdmaUdpRxTx.udpIpMetaDataInTx);
+    let rawDataStreamTx <- mkRawDataStreamBusSlave(rdmaUdpRxTx.dataStreamInTx);
+    let rawAxiStreamTx <- mkPipeOutToRawAxiStreamMaster(rdmaUdpRxTx.axiStreamOutTx);
 
-module mkRawUdpArpEthRxTx(RawUdpArpEthRxTx);
-    UdpArpEthRxTx udpRxTx <- mkUdpArpEthRxTx;
-
-    let rawConfig <- mkRawUdpConfigBusSlave(udpRxTx.udpConfig);
-    let rawUdpIpMetaDataTx <- mkRawUdpIpMetaDataBusSlave(udpRxTx.udpIpMetaDataInTx);
-    let rawDataStreamTx <- mkRawDataStreamBusSlave(udpRxTx.dataStreamInTx);
-    let rawAxiStreamTx <- mkPipeOutToRawAxiStreamMaster(udpRxTx.axiStreamOutTx);
-
-    let rawUdpIpMetaDataRx <- mkRawUdpIpMetaDataBusMaster(udpRxTx.udpIpMetaDataOutRx);
-    let rawDataStreamRx <- mkRawDataStreamBusMaster(udpRxTx.dataStreamOutRx);
-    let rawAxiStreamRx <- mkPutToRawAxiStreamSlave(udpRxTx.axiStreamInRx, CF);
+    let rawUdpIpMetaDataRx <- mkRawUdpIpMetaDataBusMaster(rdmaUdpRxTx.udpIpMetaDataOutRx);
+    let rawDataStreamRx <- mkRawDataStreamBusMaster(rdmaUdpRxTx.dataStreamOutRx);
+    let rawAxiStreamRx <- mkPutToRawAxiStreamSlave(rdmaUdpRxTx.axiStreamInRx, CF);
 
     interface rawUdpConfig = rawConfig;
 
@@ -241,5 +211,15 @@ module mkRawUdpArpEthRxTx(RawUdpArpEthRxTx);
     interface rawDataStreamOutRx = rawDataStreamRx;
     interface rawAxiStreamInRx = rawAxiStreamRx;
 endmodule
+
+
+
+
+
+
+
+
+
+
 
 

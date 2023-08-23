@@ -13,7 +13,7 @@ OUTPUTDIR = output_ooc
 ONLYSYNTH = 1
 CLK = main_clock
 
-TARGET = RdmaUdpArpEthRxTx
+TARGET = RdmaUdpIpArpEthRxTx
 TARGET_FILE ?= $(ROOT_DIR)/src/$(TARGET).bsv
 TOPMODULE ?= mkRaw$(TARGET)
 export TOP = $(TOPMODULE)

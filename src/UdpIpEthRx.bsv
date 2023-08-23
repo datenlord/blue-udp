@@ -40,9 +40,9 @@ module mkUdpIpEthRx (UdpIpEthRx);
     );
 
     UdpIpMetaDataAndDataStream udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStream(
-        extractUdpIpMetaData,
-        macMetaAndUdpIpStream.udpIpStreamOut, 
-        udpConfigVal
+        udpConfigVal,
+        macMetaAndUdpIpStream.udpIpStreamOut,
+        extractUdpIpMetaData
     );
 
     interface Put udpConfig;

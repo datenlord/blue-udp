@@ -13,12 +13,17 @@ import EthernetTypes :: *;
 typedef enum {
     FLOW_CTRL_STOP,
     FLOW_CTRL_PASS
-} FlowControlState deriving(Bits, Eq, FShow);
-
-typedef struct {
-    VirtualChannelIndex channelIdx;
-    FlowControlState channelState;
 } FlowControlRequest deriving(Bits, Eq, FShow);
+
+typedef Vector#(VIRTUAL_CHANNEL_NUM, Maybe#(FlowControlRequest)) FlowControlReqVec;
+
+function VirtualChannelIndex mapDscpToChannelIdx(IpDscp ipDscp);
+    return truncateLSB(ipDscp);
+endfunction
+
+function IpDscp mapChannelIdxToDscp(VirtualChannelIndex channelIdx);
+    return {channelIdx, 0};
+endfunction
 
 module mkPipeOutFairArbiter#(Vector#(clientNum, PipeOut#(dType)) clients)(PipeOut#(dType))
     provisos(
@@ -68,15 +73,16 @@ interface PriorityFlowControlRx#(
     numeric type pfcThreshold
 );
     // pause and resume request from receiver
-    interface Get#(FlowControlRequest) flowControlReqOut;
+    interface PipeOut#(FlowControlReqVec) flowControlReqVecOut;
     
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataOutVec;
     interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(DataStream)) dataStreamOutVec;
-    interface Put#(UdpIpMetaDataAndChannelIdx) udpIpMetaAndChannelIdxIn;
-    interface Put#(DataStream) dataStreamIn;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataOutVec;
 endinterface
 
-module mkPriorityFlowControlRx(PriorityFlowControlRx#(bufPacketNum, maxPacketFrameNum, pfcThreshold))
+module mkPriorityFlowControlRx#(
+    DataStreamPipeOut dataStreamIn,
+    UdpIpMetaDataPipeOut udpIpMetaDataIn
+)(PriorityFlowControlRx#(bufPacketNum, maxPacketFrameNum, pfcThreshold))
     provisos(
         Add#(pfcThreshold, __a, bufPacketNum),
         Mul#(bufPacketNum, maxPacketFrameNum, bufFrameNum),
@@ -86,22 +92,20 @@ module mkPriorityFlowControlRx(PriorityFlowControlRx#(bufPacketNum, maxPacketFra
     Integer udpIpMetaBufDepth = valueOf(bufPacketNum);
     Integer dataStreamBufDepth = valueOf(bufFrameNum);
     Integer flowCtrlThreshold = valueOf(pfcThreshold);
-    FIFOF#(UdpIpMetaDataAndChannelIdx) udpIpMetaAndChannelIdxInBuf <- mkFIFOF;
-    FIFOF#(DataStream) dataStreamInBuf <- mkFIFOF;
     
-
+    FIFOF#(FlowControlReqVec) flowControlReqVecOutBuf <- mkFIFOF;
     Vector#(VIRTUAL_CHANNEL_NUM, Count#(Bit#(packetCountWidth))) packetNumCountVec <- replicateM(mkCount(0));
-    Vector#(VIRTUAL_CHANNEL_NUM, Reg#(FlowControlState)) flowCtrlStateVec <- replicateM(mkReg(FLOW_CTRL_PASS));
+    Vector#(VIRTUAL_CHANNEL_NUM, Reg#(FlowControlRequest)) flowCtrlStateVec <- replicateM(mkReg(FLOW_CTRL_PASS));
     Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(UdpIpMetaData)) udpIpMetaDataOutBufVec <- replicateM(mkSizedFIFOF(udpIpMetaBufDepth));
     Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(DataStream)) dataStreamOutBufVec <- replicateM(mkSizedBRAMFIFOF(dataStreamBufDepth));
-    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(FlowControlRequest)) flowControlReqBufVec <- replicateM(mkFIFOF);
+    
 
     FIFOF#(VirtualChannelIndex) dataStreamPassIdxBuf <- mkFIFOF;
     rule passUdpIpMetaData;
-        let udpIpMetaAndChannelIdx = udpIpMetaAndChannelIdxInBuf.first;
-        udpIpMetaAndChannelIdxInBuf.deq;
-        let channelIdx = udpIpMetaAndChannelIdx.channelIdx;
-        let udpIpMetaData = udpIpMetaAndChannelIdx.udpIpMetaData;
+        let udpIpMetaData = udpIpMetaDataIn.first;
+        udpIpMetaDataIn.deq;
+        VirtualChannelIndex channelIdx = mapDscpToChannelIdx(udpIpMetaData.ipDscp);
+        udpIpMetaData.ipDscp = 0;
         udpIpMetaDataOutBufVec[channelIdx].enq(udpIpMetaData);
         packetNumCountVec[channelIdx].incr(1);
         dataStreamPassIdxBuf.enq(channelIdx);
@@ -109,45 +113,46 @@ module mkPriorityFlowControlRx(PriorityFlowControlRx#(bufPacketNum, maxPacketFra
 
     rule passDataStream;
         let channelIdx = dataStreamPassIdxBuf.first;
-        let dataStream = dataStreamInBuf.first;
-        dataStreamInBuf.deq;
+        let dataStream = dataStreamIn.first;
+        dataStreamIn.deq;
         dataStreamOutBufVec[channelIdx].enq(dataStream);
         if (dataStream.isLast) begin
             dataStreamPassIdxBuf.deq;
         end
     endrule
 
-    for (Integer i = 0; i < virtualChannelNum; i = i + 1) begin
-        rule genFlowControlReq;
-            let flowControlReq = FlowControlRequest {
-                channelIdx: fromInteger(i),
-                channelState: FLOW_CTRL_STOP
-            };
+    rule genFlowControlReq;
+        FlowControlReqVec flowControlReqVec = replicate(tagged Invalid);
+        Bool hasRequest = False;
+        for (Integer i = 0; i < virtualChannelNum; i = i + 1) begin
             if (packetNumCountVec[i] >= fromInteger(flowCtrlThreshold)) begin
                 if (flowCtrlStateVec[i] == FLOW_CTRL_PASS) begin
-                    flowControlReqBufVec[i].enq(flowControlReq);
+                    flowControlReqVec[i] = tagged Valid FLOW_CTRL_STOP;
                     flowCtrlStateVec[i] <= FLOW_CTRL_STOP;
+                    hasRequest = True;
+                    $display("PriorityFlowControlRx: channel %d send pause request", i);
                 end
             end
             else begin
                 if (flowCtrlStateVec[i] == FLOW_CTRL_STOP) begin
-                    flowControlReq.channelState = FLOW_CTRL_PASS;
-                    flowControlReqBufVec[i].enq(flowControlReq);
+                    flowControlReqVec[i] = tagged Valid FLOW_CTRL_PASS;
                     flowCtrlStateVec[i] <= FLOW_CTRL_PASS;
+                    hasRequest = True;
+                    $display("PriorityFlowControlRx: channel %d send resume request", i);
                 end
             end
-        endrule
-    end
+        end
+        if (hasRequest) begin
+            flowControlReqVecOutBuf.enq(flowControlReqVec);
+        end
+    endrule
 
-    let flowControlReqPipeOut <- mkPipeOutFairArbiter(
-        map(convertFifoToPipeOut, flowControlReqBufVec)
-    );
 
-    Vector#(VIRTUAL_CHANNEL_NUM, Get#(DataStream)) dataStreamPorts = newVector;
-    Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataPorts = newVector;
+    Vector#(VIRTUAL_CHANNEL_NUM, Get#(DataStream)) dataStreamVec = newVector;
+    Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataVec = newVector;
     for (Integer i = 0; i < virtualChannelNum; i = i + 1) begin
-        udpIpMetaDataPorts[i] = toGet(udpIpMetaDataOutBufVec[i]);
-        dataStreamPorts[i] = (
+        udpIpMetaDataVec[i] = toGet(udpIpMetaDataOutBufVec[i]);
+        dataStreamVec[i] = (
             interface Get#(DataStream)
                 method ActionValue#(DataStream) get;
                     let dataStream = dataStreamOutBufVec[i].first;
@@ -161,99 +166,73 @@ module mkPriorityFlowControlRx(PriorityFlowControlRx#(bufPacketNum, maxPacketFra
         );
     end
 
-    interface flowControlReqOut = toGet(flowControlReqPipeOut);
-    interface dataStreamOutVec = dataStreamPorts;
-    interface udpIpMetaDataOutVec = udpIpMetaDataPorts;
-    interface udpIpMetaAndChannelIdxIn = toPut(udpIpMetaAndChannelIdxInBuf);
-    interface dataStreamIn = toPut(dataStreamInBuf);
+    interface flowControlReqVecOut = convertFifoToPipeOut(flowControlReqVecOutBuf);
+    interface dataStreamOutVec = dataStreamVec;
+    interface udpIpMetaDataOutVec = udpIpMetaDataVec;
 endmodule
 
 
-interface PriorityFlowControlTx#(
-    numeric type bufPacketNum, 
-    numeric type maxPacketFrameNum
-);
-    // 
-    interface Put#(FlowControlRequest) flowControlReqIn;
-    //
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Put#(UdpIpMetaData)) udpIpMetaDataInVec;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Put#(DataStream)) dataStreamInVec;
-    
-    interface Get#(UdpIpMetaDataAndChannelIdx) udpIpMetaAndChannelIdxOut;
+interface PriorityFlowControlTx;
+    interface Get#(UdpIpMetaData) udpIpMetaDataOut;
     interface Get#(DataStream) dataStreamOut;
 endinterface
 
-module mkPriorityFlowControlTx(PriorityFlowControlTx#(bufPacketNum, maxPacketFrameNum))
-    provisos(Mul#(bufPacketNum, maxPacketFrameNum, bufFrameNum));
-    Integer udpIpMetaBufDepth = valueOf(bufPacketNum);
-    Integer dataStreamBufDepth = valueOf(bufFrameNum);
+module mkPriorityFlowControlTx#(
+    PipeOut#(FlowControlReqVec) flowControlReqVecIn,
+    Vector#(VIRTUAL_CHANNEL_NUM, DataStreamPipeOut) dataStreamInVec,
+    Vector#(VIRTUAL_CHANNEL_NUM, UdpIpMetaDataPipeOut) udpIpMetaDataInVec
+)(PriorityFlowControlTx);
+
     Integer virtualChannelNum = valueOf(VIRTUAL_CHANNEL_NUM);
 
-    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(DataStream)) dataStreamInBufVec <- replicateM(mkSizedBRAMFIFOF(dataStreamBufDepth));
-    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(UdpIpMetaData)) udpIpMetaDataInBufVec <- replicateM(mkSizedBRAMFIFOF(udpIpMetaBufDepth));
-    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(UdpIpMetaDataAndChannelIdx)) udpIpMetaAndChannelIdxBufVec <- replicateM(mkFIFOF);
-    Vector#(VIRTUAL_CHANNEL_NUM, Reg#(FlowControlState)) channelStateVec <- replicateM(mkReg(FLOW_CTRL_PASS));
+    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(UdpIpMetaData)) udpIpMetaDataInterBufVec <- replicateM(mkFIFOF);
+    Vector#(VIRTUAL_CHANNEL_NUM, Reg#(FlowControlRequest)) channelStateVec <- replicateM(mkReg(FLOW_CTRL_PASS));
     
-    FIFOF#(FlowControlRequest) flowControlReqBufVec <- mkFIFOF;
-    FIFOF#(DataStream) dataStreamOutBufVec <- mkFIFOF;
-    FIFOF#(UdpIpMetaDataAndChannelIdx) udpIpMetaAndChannelIdxOutBuf <- mkFIFOF;
-    
+    FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
     FIFOF#(VirtualChannelIndex) dataStreamPassIdxBuf <- mkFIFOF;
 
-    rule setChannelState;
-        let request = flowControlReqBufVec.first;
-        flowControlReqBufVec.deq;
-        channelStateVec[request.channelIdx] <= request.channelState;
+    rule updateChannelState;
+        let flowCtrlReqVec = flowControlReqVecIn.first;
+        flowControlReqVecIn.deq;
+        for (Integer i = 0; i < virtualChannelNum; i = i + 1) begin
+            if (flowCtrlReqVec[i] matches tagged Valid .newState) begin
+                channelStateVec[i] <= newState;
+                String newStateStr = (newState == FLOW_CTRL_PASS) ? "Pass" : "Pause";
+                $display("PriorityFlowControlTx: Channel %d switch to ", i, newStateStr);
+            end
+        end
     endrule
 
     for (Integer idx = 0; idx < virtualChannelNum; idx = idx + 1) begin
         rule passUdpIpMetaData if (channelStateVec[idx] == FLOW_CTRL_PASS);
-            let udpIpMetaData = udpIpMetaDataInBufVec[idx].first;
-            udpIpMetaDataInBufVec[idx].deq;
-            udpIpMetaAndChannelIdxBufVec[idx].enq(
-                UdpIpMetaDataAndChannelIdx {
-                    udpIpMetaData: udpIpMetaData,
-                    channelIdx: fromInteger(idx)
-                }
-            );
+            let udpIpMetaData = udpIpMetaDataInVec[idx].first;
+            udpIpMetaDataInVec[idx].deq;
+            udpIpMetaData.ipDscp = mapChannelIdxToDscp(fromInteger(idx));
+            udpIpMetaDataInterBufVec[idx].enq(udpIpMetaData);
         endrule
     end
 
-    let udpIpMetaAndChannelIdxPipeOut <- mkPipeOutFairArbiter(
-        map(convertFifoToPipeOut, udpIpMetaAndChannelIdxBufVec)
+    let udpIpMetaDataArbitrated <- mkPipeOutFairArbiter(
+        map(convertFifoToPipeOut, udpIpMetaDataInterBufVec)
     );
-    rule passUdpIpMetaAndChannelIdx;
-        let udpIpMetaAndChannelIdx = udpIpMetaAndChannelIdxPipeOut.first;
-        udpIpMetaAndChannelIdxPipeOut.deq;
-        let channelIdx = udpIpMetaAndChannelIdx.channelIdx;
-        udpIpMetaAndChannelIdxOutBuf.enq(udpIpMetaAndChannelIdx);
-        dataStreamPassIdxBuf.enq(channelIdx);
-    endrule
 
     rule passDataStream;
         let channelIdx = dataStreamPassIdxBuf.first;
-        let dataStream = dataStreamInBufVec[channelIdx].first;
-        dataStreamInBufVec[channelIdx].deq;
-        dataStreamOutBufVec.enq(dataStream);
+        let dataStream = dataStreamInVec[channelIdx].first;
+        dataStreamInVec[channelIdx].deq;
+        dataStreamOutBuf.enq(dataStream);
         if (dataStream.isLast) begin
             dataStreamPassIdxBuf.deq;
         end
     endrule
 
-    Vector#(VIRTUAL_CHANNEL_NUM, Put#(DataStream)) dataStreamPorts = newVector;
-    Vector#(VIRTUAL_CHANNEL_NUM, Put#(UdpIpMetaData)) udpIpMetaDataPorts = newVector;
-    for (Integer i = 0; i < virtualChannelNum; i = i + 1) begin
-        dataStreamPorts[i] = toPut(dataStreamInBufVec[i]);
-        udpIpMetaDataPorts[i] = toPut(udpIpMetaDataInBufVec[i]);
-    end
-    
-    interface flowControlReqIn = toPut(flowControlReqBufVec);
-    interface dataStreamInVec = dataStreamPorts;
-    interface udpIpMetaDataInVec = udpIpMetaDataPorts;
-    interface udpIpMetaAndChannelIdxOut = toGet(udpIpMetaAndChannelIdxOutBuf);
-    interface dataStreamOut = toGet(dataStreamOutBufVec);
+    interface Get udpIpMetaDataOut;
+        method ActionValue#(UdpIpMetaData) get();
+            let udpIpMetaData = udpIpMetaDataArbitrated.first;
+            udpIpMetaDataArbitrated.deq;
+            dataStreamPassIdxBuf.enq(mapDscpToChannelIdx(udpIpMetaData.ipDscp));
+            return udpIpMetaData;
+        endmethod
+    endinterface
+    interface dataStreamOut = toGet(dataStreamOutBuf);
 endmodule
-
-
-
-

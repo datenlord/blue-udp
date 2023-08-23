@@ -9,6 +9,7 @@ import Ports :: *;
 import SemiFifo :: *;
 import EthernetTypes :: *;
 
+
 module mkIpHdrCheckSumServer(Server#(IpHeader, IpCheckSum)) 
     provisos(
         NumAlias#(TDiv#(IP_HDR_WORD_WIDTH, 4), firstStageOutNum),
@@ -53,35 +54,35 @@ module mkIpHdrCheckSumServer(Server#(IpHeader, IpCheckSum))
     endinterface
 endmodule
 
-function UdpIpHeader genUdpIpHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId);
-
-    UdpLength udpLen = meta.dataLen + fromInteger(valueOf(UDP_HDR_BYTE_WIDTH));
+function UdpIpHeader genUdpIpHeader(UdpIpMetaData metaData, UdpConfig udpConfig, IpID ipId);
+    // Calculate packet length
+    UdpLength udpLen = metaData.dataLen + fromInteger(valueOf(UDP_HDR_BYTE_WIDTH));
     IpTL ipLen = udpLen + fromInteger(valueOf(IP_HDR_BYTE_WIDTH));
     // generate ipHeader
     IpHeader ipHeader = IpHeader {
-        ipVersion: fromInteger(valueOf(IP_VERSION_VAL)),
-        ipIHL:     fromInteger(valueOf(IP_IHL_VAL)),
-        ipDS:      fromInteger(valueOf(IP_DS_VAL)),
-        ipTL:      ipLen,
-        ipID:      ipId,
-        ipFlag:    fromInteger(valueOf(IP_FLAGS_VAL)),
-        ipOffset:  fromInteger(valueOf(IP_OFFSET_VAL)),
-        ipTTL:     fromInteger(valueOf(IP_TTL_VAL)),
-        ipProtocol:fromInteger(valueOf(IP_PROTOCOL_VAL)),
-        ipChecksum:0,
-        srcIpAddr :udpConfig.ipAddr,
-        dstIpAddr :meta.ipAddr
+        ipVersion : fromInteger(valueOf(IP_VERSION_VAL)),
+        ipIHL     : fromInteger(valueOf(IP_IHL_VAL)),
+        ipDscp    : metaData.ipDscp,
+        ipEcn     : metaData.ipEcn,
+        ipTL      : ipLen,
+        ipID      : ipId,
+        ipFlag    : fromInteger(valueOf(IP_FLAGS_VAL)),
+        ipOffset  : fromInteger(valueOf(IP_OFFSET_VAL)),
+        ipTTL     : fromInteger(valueOf(IP_TTL_VAL)),
+        ipProtocol: fromInteger(valueOf(IP_PROTOCOL_VAL)),
+        ipChecksum: 0,
+        srcIpAddr : udpConfig.ipAddr,
+        dstIpAddr : metaData.ipAddr
     };
-
     // generate udpHeader
-    UdpHeader udpHeader = UdpHeader{
-        srcPort: meta.srcPort,
-        dstPort: meta.dstPort,
-        length:  udpLen,
-        checksum:0
+    UdpHeader udpHeader = UdpHeader {
+        srcPort : metaData.srcPort,
+        dstPort : metaData.dstPort,
+        length  : udpLen,
+        checksum: 0
     };
-
-    UdpIpHeader udpIpHeader = UdpIpHeader{
+    // generate udpIpHeader
+    UdpIpHeader udpIpHeader = UdpIpHeader {
         ipHeader: ipHeader,
         udpHeader: udpHeader
     };
@@ -89,11 +90,12 @@ function UdpIpHeader genUdpIpHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpI
 endfunction
 
 module mkUdpIpStream#(
-    function UdpIpHeader genHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId),
-    UdpIpMetaDataPipeOut udpIpMetaDataIn,
+    UdpConfig udpConfig,
     DataStreamPipeOut dataStreamIn,
-    UdpConfig udpConfig
+    UdpIpMetaDataPipeOut udpIpMetaDataIn,
+    function UdpIpHeader genHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId)
 )(DataStreamPipeOut);
+    IpID defaultIpId = 1;
 
     Reg#(IpID) ipIdCounter <- mkReg(0);
     FIFOF#(UdpIpHeader) interUdpIpHeaderBuf <- mkFIFOF;
@@ -103,7 +105,7 @@ module mkUdpIpStream#(
     rule doCheckSumReq;
         let metaData = udpIpMetaDataIn.first; 
         udpIpMetaDataIn.deq;
-        UdpIpHeader udpIpHeader = genHeader(metaData, udpConfig, 1);
+        UdpIpHeader udpIpHeader = genHeader(metaData, udpConfig, defaultIpId);
         interUdpIpHeaderBuf.enq(udpIpHeader);
         checkSumServer.request.put(udpIpHeader.ipHeader);
     endrule
@@ -127,18 +129,20 @@ endmodule
 
 function UdpIpMetaData extractUdpIpMetaData(UdpIpHeader hdr);
     UdpLength dataLen = hdr.udpHeader.length - fromInteger(valueOf(UDP_HDR_BYTE_WIDTH));
-    UdpIpMetaData meta = UdpIpMetaData {
+    UdpIpMetaData metaData = UdpIpMetaData {
         dataLen: dataLen,
         ipAddr : hdr.ipHeader.srcIpAddr,
+        ipDscp : hdr.ipHeader.ipDscp,
+        ipEcn  : hdr.ipHeader.ipEcn,
         dstPort: hdr.udpHeader.dstPort,
         srcPort: hdr.udpHeader.srcPort
     };
-    return meta;
+    return metaData;
 endfunction
 
-function Bool checkUdpIp(UdpIpHeader hdr, UdpConfig udpConfig);
-    // To be modified!!!
-    Vector#(IP_HDR_WORD_WIDTH, Word) ipHdrVec = unpack(pack(hdr.ipHeader));
+function Bool checkUdpIpHeader(UdpIpHeader hdr, UdpConfig udpConfig);
+    // TODO: To be modified!!!
+    //Vector#(IP_HDR_WORD_WIDTH, Word) ipHdrVec = unpack(pack(hdr.ipHeader));
     // let ipChecksum = getCheckSum(ipHdrVec);
 
     // Skip checksum of udp header
@@ -157,9 +161,9 @@ interface UdpIpMetaDataAndDataStream;
 endinterface
 
 module mkUdpIpMetaDataAndDataStream#(
-    function UdpIpMetaData extractMetaData(UdpIpHeader hdr),
+    UdpConfig udpConfig,
     DataStreamPipeOut udpIpStreamIn,
-    UdpConfig udpConfig
+    function UdpIpMetaData extractMetaData(UdpIpHeader hdr)
 )(UdpIpMetaDataAndDataStream);
     FIFOF#(DataStream) interDataStreamBuf <- mkFIFOF;
     FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
@@ -175,7 +179,7 @@ module mkUdpIpMetaDataAndDataStream#(
     rule doCheckSumReq;
         let udpIpHeader = udpIpExtractor.extractDataOut.first; 
         udpIpExtractor.extractDataOut.deq;
-        let checkRes = checkUdpIp(udpIpHeader, udpConfig);
+        let checkRes = checkUdpIpHeader(udpIpHeader, udpConfig);
         checkSumServer.request.put(udpIpHeader.ipHeader);
         interCheckRes <= checkRes;
         let metaData = extractMetaData(udpIpHeader);
@@ -214,4 +218,5 @@ module mkUdpIpMetaDataAndDataStream#(
     interface PipeOut dataStreamOut = convertFifoToPipeOut(dataStreamOutBuf);
     interface PipeOut udpIpMetaDataOut = convertFifoToPipeOut(udpIpMetaDataOutBuf);
 endmodule
+
 

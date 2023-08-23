@@ -26,10 +26,11 @@ typedef struct {
 } DataStream deriving(Bits, Bounded, Eq, FShow);
 typedef PipeOut#(DataStream) DataStreamPipeOut;
 
-
 typedef struct {
     UdpLength  dataLen;
     IpAddr     ipAddr;
+    IpDscp     ipDscp;
+    IpEcn      ipEcn;
     UdpPort    dstPort;
     UdpPort    srcPort;
 } UdpIpMetaData deriving(Bits, Bounded, Eq, FShow);
@@ -49,11 +50,6 @@ typedef struct {
 } UdpConfig deriving(Bits, Bounded, Eq, FShow);
 typedef PipeOut#(UdpConfig) UdpConfigPipeOut;
 
-typedef struct {
-    UdpIpMetaData udpIpMetaData;
-    VirtualChannelIndex channelIdx;
-} UdpIpMetaDataAndChannelIdx deriving(Bits, Eq, FShow);
-
 
 typedef 512 AXIS_TDATA_WIDTH;
 typedef TDiv#(AXIS_TDATA_WIDTH, BYTE_WIDTH) AXIS_TKEEP_WIDTH;
@@ -63,5 +59,7 @@ typedef AxiStream#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) AxiStream512;
 typedef AxiStream#(DATA_BUS_BYTE_WIDTH, AXIS_TUSER_WIDTH) AxiStream256;
 typedef PipeOut#(AxiStream256) AxiStream256PipeOut;
 typedef PipeOut#(AxiStream512) AxiStream512PipeOut;
+typedef PipeIn#(AxiStream256) AxiStream256PipeIn;
+typedef PipeIn#(AxiStream512) AxiStream512PipeIn;
 
 //4k Cache

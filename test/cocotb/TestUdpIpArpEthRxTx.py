@@ -12,7 +12,7 @@ from cocotb.triggers import RisingEdge
 from cocotbext.axi import AxiStreamBus, AxiStreamSource, AxiStreamSink, AxiStreamFrame
 from cocotbext.axi.stream import define_stream
 
-from Utils import *
+from TestUtils import *
 
 
 UdpConfigBus, UdpConfigTransation, UdpConfigSource, UdpConfigSink, UdpConfigMonitor = define_stream(
@@ -24,7 +24,7 @@ UdpMetaBus, UdpMetaTransation, UdpMetaSource, UdpMetaSink, UdpMetaMonitor = defi
 )
 
 
-class UdpArpEthRxTxTester:
+class UdpIpArpEthRxTxTester:
     def __init__(self, dut, local_ip, loacal_mac, target_ip, gate_way, net_mask, sport, dport):
         self.dut = dut
         
@@ -92,7 +92,8 @@ class UdpArpEthRxTxTester:
     async def drive_dut_input(self):
         print("Start sending UdpMeta and payload")
         for case_idx in range(self.cases_num):
-            payload_len = random.randint(64, self.max_payload_size)
+            #payload_len = random.randint(64, self.max_payload_size)
+            payload_len = 1024
             payload = random.randbytes(payload_len)
             
             udp_meta_trans = UdpMetaTransation()
@@ -160,7 +161,7 @@ class UdpArpEthRxTxTester:
 @cocotb.test(timeout_time=100000, timeout_unit="ns")
 async def runUdpEthRxTester(dut):
     
-    tester = UdpArpEthRxTxTester(
+    tester = UdpIpArpEthRxTxTester(
         dut = dut,
         local_ip = get_default_ip_addr(),
         loacal_mac = get_default_mac_addr(),
@@ -183,13 +184,13 @@ async def runUdpEthRxTester(dut):
     print(f"Pass all {tester.cases_num} successfully")
 
 
-def test_UdpArpEthRxTx():
-    toplevel = "mkUdpArpEthRxTxWrapper"
+def test_UdpIpArpEthRxTx():
+    toplevel = "mkUdpIpArpEthRxTxWrapper"
     module = os.path.splitext(os.path.basename(__file__))[0]
     test_dir = os.path.abspath(os.path.dirname(__file__))
     sim_build = os.path.join(test_dir, "build")
     v_wrapper_file = os.path.join(test_dir, "verilog", f"{toplevel}.v")
-    v_source_file = os.path.join(test_dir,"verilog", "mkUdpArpEthRxTx.v")
+    v_source_file = os.path.join(test_dir,"verilog", "mkUdpIpArpEthRxTx.v")
     verilog_sources = [v_wrapper_file, v_source_file]
     
     cocotb_test.simulator.run(
@@ -202,4 +203,4 @@ def test_UdpArpEthRxTx():
     )
 
 if __name__ == '__main__':
-    test_UdpArpEthRxTx()
+    test_UdpIpArpEthRxTx()

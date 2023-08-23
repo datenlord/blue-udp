@@ -4,7 +4,7 @@ import ClientServer :: *;
 import FIFOF :: *;
 import Randomizable :: *;
 
-import UdpArpEthRxTx :: *;
+import UdpIpArpEthRxTx :: *;
 import Ports :: *;
 import EthernetTypes :: *;
 import TestUtils :: *;
@@ -28,9 +28,9 @@ typedef enum {
 } InputGenState deriving(Bits, Eq);
 
 (* synthesize *)
-module mkTestUdpArpEthRxTx(Empty);
-    UdpArpEthRxTx srcUdp <- mkUdpArpEthRxTx;
-    UdpArpEthRxTx dstUdp <- mkUdpArpEthRxTx;
+module mkTestUdpIpArpEthRxTx(Empty);
+    UdpIpArpEthRxTx srcUdp <- mkUdpIpArpEthRxTx;
+    UdpIpArpEthRxTx dstUdp <- mkUdpIpArpEthRxTx;
     Reg#(UdpConfig) dstUdpConfigReg <- mkRegU;
     Reg#(UdpConfig) srcUdpConfigReg <- mkRegU;
     RandomDelay#(AxiStream512, MAX_CHANNEL_DELAY) srcToDstDelayBuf <- mkRandomDelay;

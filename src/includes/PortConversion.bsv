@@ -12,6 +12,8 @@ interface RawUdpIpMetaDataBusSlave;
     method Action validData(
         (* port = "valid"    *) Bool valid,
         (* port = "ip_addr"  *) IpAddr ipAddr,
+        (* port = "ip_dscp"  *) IpDscp ipDscp,
+        (* port = "ip_ecn"   *) IpEcn ipEcn,
         (* port = "dst_port" *) UdpPort dstPort,
         (* port = "src_port" *) UdpPort srcPort,
         (* port = "data_len" *) UdpLength dataLen
@@ -24,6 +26,8 @@ endinterface
 interface RawUdpIpMetaDataBusMaster;
     (* result = "valid"    *) method Bool valid;
     (* result = "ip_addr"  *) method IpAddr ipAddr;
+    (* result = "ip_dscp"  *) method IpDscp ipDscp;
+    (* result = "ip_ecn"   *) method IpEcn ipEcn;
     (* result = "dst_port" *) method UdpPort dstPort;
     (* result = "src_port" *) method UdpPort srcPort;
     (* result = "data_len" *) method UdpLength dataLen;
@@ -102,6 +106,8 @@ module mkRawUdpIpMetaDataBusMaster#(UdpIpMetaDataPipeOut pipeIn)(RawUdpIpMetaDat
     
     method Bool valid = rawBus.valid;
     method IpAddr ipAddr = rawBus.data.ipAddr;
+    method IpDscp ipDscp = rawBus.data.ipDscp;
+    method IpEcn  ipEcn  = rawBus.data.ipEcn;
     method UdpPort dstPort = rawBus.data.dstPort;
     method UdpPort srcPort = rawBus.data.srcPort;
     method UdpLength dataLen = rawBus.data.dataLen;
@@ -116,14 +122,18 @@ module mkRawUdpIpMetaDataBusSlave#(Put#(UdpIpMetaData) put)(RawUdpIpMetaDataBusS
     RawBusSlave#(UdpIpMetaData) rawBus <- mkPutToRawBusSlave(put, CF);
     
     method Action validData(
-        Bool valid, 
-        IpAddr ipAddr, 
-        UdpPort dstPort, 
-        UdpPort srcPort, 
+        Bool valid,
+        IpAddr ipAddr,
+        IpDscp ipDscp,
+        IpEcn  ipEcn,
+        UdpPort dstPort,
+        UdpPort srcPort,
         UdpLength dataLen
     );
         UdpIpMetaData metaData = UdpIpMetaData {
             ipAddr: ipAddr,
+            ipDscp: ipDscp,
+            ipEcn: ipEcn,
             dstPort: dstPort,
             srcPort: srcPort,
             dataLen: dataLen

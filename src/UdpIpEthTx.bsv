@@ -21,18 +21,18 @@ endinterface
 
 (* synthesize *)
 module mkUdpIpEthTx(UdpIpEthTx);
-    FIFOF#( DataStream) dataStreamInBuf <- mkFIFOF;
+    FIFOF#(   DataStream) dataStreamInBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataInBuf <- mkFIFOF;
-    FIFOF#(MacMetaData) macMetaDataInBuf <- mkFIFOF;
+    FIFOF#(  MacMetaData) macMetaDataInBuf <- mkFIFOF;
     
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
     
     DataStreamPipeOut ipUdpStream <- mkUdpIpStream(
-        genUdpIpHeader,
-        convertFifoToPipeOut(udpIpMetaDataInBuf),
+        udpConfigVal,
         convertFifoToPipeOut(dataStreamInBuf),
-        udpConfigVal
+        convertFifoToPipeOut(udpIpMetaDataInBuf),
+        genUdpIpHeader
     );
 
     DataStreamPipeOut macStream <- mkMacStream(

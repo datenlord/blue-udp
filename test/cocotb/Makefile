@@ -25,7 +25,7 @@ verilog:
 	echo "" > $(VLOG_FILE)
 	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(TOP) $(TOP) | grep -i '\.v' | xargs -I {} cat {} >> $(VLOG_FILE)
 
-cocotb: verilog table
+cocotb: verilog #table
 	python3 $(TEST_FILE)
 
 clean:

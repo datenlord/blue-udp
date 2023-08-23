@@ -81,6 +81,7 @@ module mkDataStreamSender#(
         if (nextRawByteCountVal >= rawByteNum) begin
             let extraByteNum = nextRawByteCountVal - rawByteNum;
             dataStream.byteEn = dataStream.byteEn >> extraByteNum;
+            dataStream.data = bitMask(dataStream.data, dataStream.byteEn);
             dataStream.isLast = True;
             fragCounter <= 0;
             rawByteCounter <= 0;

@@ -1,24 +1,45 @@
-
-import GetPut :: *;
 import FIFOF :: *;
+import GetPut :: *;
+import Clocks :: *;
+import BRAMFIFO :: *;
+import Connectable :: *;
 
 import Utils :: *;
 import Ports :: *;
-import MacLayer :: *;
 import ArpCache :: *;
+import MacLayer :: *;
 import UdpIpLayer :: *;
 import ArpProcessor :: *;
 import EthernetTypes :: *;
-import UdpArpEthRxTx :: *;
 import PortConversion :: *;
-import UdpIpLayerForRdma :: *;
+import PriorityFlowControl :: *;
+import XilinxCmacRxTxWrapper :: *;
 
 import SemiFifo :: *;
 import AxiStreamTypes :: *;
 import BusConversion :: *;
 
+interface UdpIpArpEthRxTx;
+    interface Put#(UdpConfig)  udpConfig;
+    
+    // Tx
+    interface Put#(UdpIpMetaData) udpIpMetaDataInTx;
+    interface Put#(DataStream)    dataStreamInTx;
+    interface AxiStream512PipeOut axiStreamOutTx;
+    
+    // Rx
+    interface Put#(AxiStream512)   axiStreamInRx;
+    interface UdpIpMetaDataPipeOut udpIpMetaDataOutRx;
+    interface DataStreamPipeOut    dataStreamOutRx;
+endinterface
+
+typedef enum{
+    INIT, IP, ARP
+} MuxState deriving(Bits, Eq);
+typedef MuxState DemuxState;
+
 (* synthesize *)
-module mkRdmaUdpArpEthRxTx(UdpArpEthRxTx);
+module mkUdpIpArpEthRxTx(UdpIpArpEthRxTx);
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
 
@@ -45,10 +66,11 @@ module mkRdmaUdpArpEthRxTx(UdpArpEthRxTx);
     );
 
     // Tx datapath
-    DataStreamPipeOut ipUdpStreamTx <- mkUdpIpStreamForRdma(
-        convertFifoToPipeOut(udpMetaDataTxBuf),
+    DataStreamPipeOut ipUdpStreamTx <- mkUdpIpStream(
+        udpConfigVal,
         convertFifoToPipeOut(dataStreamInTxBuf),
-        udpConfigVal
+        convertFifoToPipeOut(udpMetaDataTxBuf),
+        genUdpIpHeader
     );
 
     rule doMux;
@@ -100,11 +122,11 @@ module mkRdmaUdpArpEthRxTx(UdpArpEthRxTx);
     AxiStream512PipeOut macAxiStreamOut <- mkDataStreamToAxiStream512(macStreamTx);
 
     // Rx Datapath
-    let macStreamRx <- mkAxiStream512ToDataStream(
+    DataStreamPipeOut macStreamRx <- mkAxiStream512ToDataStream(
         convertFifoToPipeOut(axiStreamInRxBuf)
     );
 
-    let macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
+    MacMetaDataAndUdpIpStream macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
         macStreamRx, 
         udpConfigVal
     );
@@ -147,9 +169,10 @@ module mkRdmaUdpArpEthRxTx(UdpArpEthRxTx);
         end
     endrule
 
-    let udpIpMetaDataAndDataStream <- mkUdpIpMetaDataAndDataStreamForRdma(
-        convertFifoToPipeOut(ipUdpStreamRxBuf), 
-        udpConfigVal
+    UdpIpMetaDataAndDataStream udpIpMetaDataAndDataStream <- mkUdpIpMetaDataAndDataStream(
+        udpConfigVal,
+        convertFifoToPipeOut(ipUdpStreamRxBuf),
+        extractUdpIpMetaData
     );
 
 
@@ -189,17 +212,30 @@ module mkRdmaUdpArpEthRxTx(UdpArpEthRxTx);
 endmodule
 
 
-module mkRawRdmaUdpArpEthRxTx(RawUdpArpEthRxTx);
-    UdpArpEthRxTx rdmaUdpRxTx <- mkRdmaUdpArpEthRxTx;
+interface RawUdpIpArpEthRxTx;
+    interface RawUdpConfigBusSlave rawUdpConfig;
+    // Tx
+    interface RawUdpIpMetaDataBusSlave rawUdpIpMetaDataInTx;
+    interface RawDataStreamBusSlave    rawDataStreamInTx;
+    interface RawAxiStreamMaster#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamOutTx;
+    // Rx
+    interface RawUdpIpMetaDataBusMaster rawUdpIpMetaDataOutRx;
+    interface RawDataStreamBusMaster    rawDataStreamOutRx;
+    interface RawAxiStreamSlave#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamInRx;
+endinterface
 
-    let rawConfig <- mkRawUdpConfigBusSlave(rdmaUdpRxTx.udpConfig);
-    let rawUdpIpMetaDataTx <- mkRawUdpIpMetaDataBusSlave(rdmaUdpRxTx.udpIpMetaDataInTx);
-    let rawDataStreamTx <- mkRawDataStreamBusSlave(rdmaUdpRxTx.dataStreamInTx);
-    let rawAxiStreamTx <- mkPipeOutToRawAxiStreamMaster(rdmaUdpRxTx.axiStreamOutTx);
 
-    let rawUdpIpMetaDataRx <- mkRawUdpIpMetaDataBusMaster(rdmaUdpRxTx.udpIpMetaDataOutRx);
-    let rawDataStreamRx <- mkRawDataStreamBusMaster(rdmaUdpRxTx.dataStreamOutRx);
-    let rawAxiStreamRx <- mkPutToRawAxiStreamSlave(rdmaUdpRxTx.axiStreamInRx, CF);
+module mkRawUdpIpArpEthRxTx(RawUdpIpArpEthRxTx);
+    UdpIpArpEthRxTx udpRxTx <- mkUdpIpArpEthRxTx;
+
+    let rawConfig <- mkRawUdpConfigBusSlave(udpRxTx.udpConfig);
+    let rawUdpIpMetaDataTx <- mkRawUdpIpMetaDataBusSlave(udpRxTx.udpIpMetaDataInTx);
+    let rawDataStreamTx <- mkRawDataStreamBusSlave(udpRxTx.dataStreamInTx);
+    let rawAxiStreamTx <- mkPipeOutToRawAxiStreamMaster(udpRxTx.axiStreamOutTx);
+
+    let rawUdpIpMetaDataRx <- mkRawUdpIpMetaDataBusMaster(udpRxTx.udpIpMetaDataOutRx);
+    let rawDataStreamRx <- mkRawDataStreamBusMaster(udpRxTx.dataStreamOutRx);
+    let rawAxiStreamRx <- mkPutToRawAxiStreamSlave(udpRxTx.axiStreamInRx, CF);
 
     interface rawUdpConfig = rawConfig;
 
@@ -212,13 +248,78 @@ module mkRawRdmaUdpArpEthRxTx(RawUdpArpEthRxTx);
     interface rawAxiStreamInRx = rawAxiStreamRx;
 endmodule
 
+// UdpIpArpEthRxTx module with wrapper of Xilinx 100Gb CMAC IP
+interface UdpIpArpEthCmacRxTx;
+    // Interface with CMAC IP
+    (* prefix = "" *)
+    interface XilinxCmacRxTxWrapper cmacRxTxWrapper;
+    
+    // Configuration Interface
+    interface Put#(UdpConfig)  udpConfig;
+    
+    // Tx
+    interface Put#(UdpIpMetaData) udpIpMetaDataInTx;
+    interface Put#(DataStream)    dataStreamInTx;
+
+    // Rx
+    interface UdpIpMetaDataPipeOut udpIpMetaDataOutRx;
+    interface DataStreamPipeOut    dataStreamOutRx;
+endinterface
+
+module mkUdpIpArpEthCmacRxTx#(
+    Bool isCmacTxWaitRxAligned,
+    Integer syncBramBufDepth
+)(
+    Clock cmacRxTxClk,
+    Reset cmacRxReset,
+    Reset cmacTxReset,
+    UdpIpArpEthCmacRxTx ifc
+);
+    let isEnableFlowControl = False;
+    let currentClock <- exposeCurrentClock;
+    let currentReset <- exposeCurrentReset;
+    SyncFIFOIfc#(AxiStream512) txSyncBuf <- mkSyncBRAMFIFO(
+        syncBramBufDepth,
+        currentClock,
+        currentReset,
+        cmacRxTxClk,
+        cmacTxReset
+    );
+
+    SyncFIFOIfc#(AxiStream512) rxSyncBuf <- mkSyncBRAMFIFO(
+        syncBramBufDepth,
+        cmacRxTxClk,
+        cmacRxReset,
+        currentClock,
+        currentReset
+    );
+
+    PipeOut#(FlowControlReqVec) txFlowCtrlReqVec <- mkDummyPipeOut;
+    PipeIn#(FlowControlReqVec) rxFlowCtrlReqVec <- mkDummyPipeIn;
+    let cmacWrapper <- mkXilinxCmacRxTxWrapper(
+        isEnableFlowControl,
+        isCmacTxWaitRxAligned,
+        convertSyncFifoToPipeOut(txSyncBuf),
+        convertSyncFifoToPipeIn(rxSyncBuf),
+        txFlowCtrlReqVec,
+        rxFlowCtrlReqVec,
+        cmacRxReset,
+        cmacTxReset,
+        clocked_by cmacRxTxClk
+    );
+
+    let udpIpArpEthRxTx <- mkUdpIpArpEthRxTx;
+    mkConnection(convertSyncFifoToPipeIn(txSyncBuf), udpIpArpEthRxTx.axiStreamOutTx);
+    mkConnection(toGet(convertSyncFifoToPipeOut(rxSyncBuf)), udpIpArpEthRxTx.axiStreamInRx);
 
 
-
-
-
-
-
+    interface cmacRxTxWrapper = cmacWrapper;
+    interface udpConfig = udpIpArpEthRxTx.udpConfig;
+    interface udpIpMetaDataInTx = udpIpArpEthRxTx.udpIpMetaDataInTx;
+    interface dataStreamInTx = udpIpArpEthRxTx.dataStreamInTx;
+    interface udpIpMetaDataOutRx = udpIpArpEthRxTx.udpIpMetaDataOutRx;
+    interface dataStreamOutRx = udpIpArpEthRxTx.dataStreamOutRx;
+endmodule
 
 
 

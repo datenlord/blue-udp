@@ -15,25 +15,11 @@ from cocotb.regression import TestFactory
 from cocotbext.axi import AxiStreamBus, AxiStreamSource, AxiStreamSink, AxiStreamFrame
 from cocotbext.axi.stream import define_stream
 
+from TestUtils import *
 
-UdpConfigBus, UdpConfigTransation, UdpConfigSource, UdpConfigSink, UdpConfigMonitor = define_stream(
-    "UdpConfig", signals=["valid", "ready", "mac_addr", "ip_addr", "net_mask", "gate_way"]
-)
-
-UdpMetaBus, UdpMetaTransation, UdpMetaSource, UdpMetaSink, UdpMetaMonitor = define_stream(
-    "UdpMeta", signals=["valid", "ready", "ip_addr", "dst_port", "src_port", "data_len"]
-)
-
-MacMetaBus, MacMetaTransaction, MacMetaSource, MacMetaSink, MacMetaMonitor = define_stream(
-    "MacMeta", signals=["valid", "ready", "mac_addr", "eth_type"]
-)
-        
-UDP_PORT_LEN = 2
-IP_ADDR_LEN = 4
-MAC_ADDR_LEN = 6
-MIN_PAYLOAD_LEN = 2048
-MAX_PAYLOAD_LEN = 4096
-CASES_NUM = 32
+MIN_PAYLOAD_LEN = 46
+MAX_PAYLOAD_LEN = 2048
+CASES_NUM = 1024
 
 class RdmaUdpIpEthRxTester:
     def __init__(self, dut, cases_num, min_payload_len, max_payload_len):
@@ -55,8 +41,8 @@ class RdmaUdpIpEthRxTester:
         self.axi_stream_src = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_axis"), self.clock, self.resetn, False)
         
         self.data_stream_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_data_stream"), self.clock, self.resetn, False)
-        self.udp_meta_sink = UdpMetaSink(UdpMetaBus.from_prefix(dut, "m_udp_meta"), self.clock, self.resetn, False)
-        self.mac_meta_sink = MacMetaSink(MacMetaBus.from_prefix(dut, "m_mac_meta"), self.clock, self.resetn, False)
+        self.udp_ip_meta_sink = UdpIpMetaDataSink(UdpIpMetaDataBus.from_prefix(dut, "m_udp_meta"), self.clock, self.resetn, False)
+        self.mac_meta_sink = MacMetaDataSink(MacMetaDataBus.from_prefix(dut, "m_mac_meta"), self.clock, self.resetn, False)
         
     async def gen_clock(self):
         await cocotb.start(Clock(self.clock, 10, 'ns').start())
@@ -72,10 +58,10 @@ class RdmaUdpIpEthRxTester:
         await RisingEdge(self.clock)
         
     async def config(self):
-        self.local_mac = random.randbytes(MAC_ADDR_LEN)
-        self.local_ip  = random.randbytes(IP_ADDR_LEN)
-        self.net_mask = random.randbytes(IP_ADDR_LEN)
-        self.gate_way = random.randbytes(IP_ADDR_LEN)
+        self.local_mac = random.randbytes(MAC_ADDR_BYTE_NUM)
+        self.local_ip  = random.randbytes(IP_ADDR_BYTE_NUM)
+        self.net_mask = random.randbytes(IP_ADDR_BYTE_NUM)
+        self.gate_way = random.randbytes(IP_ADDR_BYTE_NUM)
         udpConfig = UdpConfigTransation()
         udpConfig.mac_addr = int.from_bytes(self.local_mac, 'big')
         udpConfig.ip_addr  = int.from_bytes(self.local_ip, 'big')
@@ -86,10 +72,10 @@ class RdmaUdpIpEthRxTester:
     def gen_random_packet(self):
         bind_layers(UDP, BTH)
 
-        src_mac = random.randbytes(MAC_ADDR_LEN)
-        src_ip = random.randbytes(IP_ADDR_LEN)
-        sport = random.randbytes(UDP_PORT_LEN)
-        dport = random.randbytes(UDP_PORT_LEN)
+        src_mac = random.randbytes(MAC_ADDR_BYTE_NUM)
+        src_ip = random.randbytes(IP_ADDR_BYTE_NUM)
+        sport = random.randbytes(UDP_PORT_BYTE_NUM)
+        dport = random.randbytes(UDP_PORT_BYTE_NUM)
         payload_size = random.randint(self.min_payload_len, self.max_payload_len - 1)
         payload = random.randbytes(payload_size)
         
@@ -102,16 +88,6 @@ class RdmaUdpIpEthRxTester:
         packet = Ether(raw(header/Raw(payload)))
         
         return packet
-    
-    def is_udp_meta_equal(self, dut, ref):
-        is_equal = (dut.ip_addr == ref.ip_addr)
-        is_equal = is_equal & (dut.dst_port == ref.dst_port)
-        is_equal = is_equal & (dut.src_port == ref.src_port)
-        is_equal = is_equal & (dut.data_len == ref.data_len)
-        return is_equal
-    
-    def is_mac_meta_equal(self, dut, ref):
-        return (dut.mac_addr == ref.mac_addr) & (dut.eth_type == ref.eth_type)
 
     async def drive_dut_input(self):
         for case_idx in range(self.cases_num):
@@ -119,12 +95,12 @@ class RdmaUdpIpEthRxTester:
             axi_frame = AxiStreamFrame(tdata=raw(packet))
             await self.axi_stream_src.send(axi_frame)
             
-            mac_meta_trans = MacMetaTransaction()
+            mac_meta_trans = MacMetaDataTransaction()
             mac_meta_trans.mac_addr = int.from_bytes(mac2str(packet[Ether].src), 'big')
             mac_meta_trans.eth_type = packet[Ether].type
             self.ref_mac_meta_buf.put(mac_meta_trans)
             
-            udp_meta_trans = UdpMetaTransation()
+            udp_meta_trans = UdpIpMetaDataTransation()
             udp_meta_trans.ip_addr = atol(packet[IP].src)
             udp_meta_trans.dst_port = packet[UDP].dport
             udp_meta_trans.src_port = packet[UDP].sport
@@ -139,26 +115,26 @@ class RdmaUdpIpEthRxTester:
     async def check_mac_meta(self):
         self.mac_meta_sink.clear()
         for case_idx in range(self.cases_num):
-            dut_mac_meta = await self.mac_meta_sink.recv()
-            ref_mac_meta = self.ref_mac_meta_buf.get()
-            equal = self.is_mac_meta_equal(dut_mac_meta, ref_mac_meta)
+            dut_meta = await self.mac_meta_sink.recv()
+            ref_meta = self.ref_mac_meta_buf.get()
+            equal = is_mac_meta_equal(dut_meta, ref_meta)
             if not equal:
-                print("Dut Mac Meta: ", dut_mac_meta)
-                print("Ref Mac Meta: ", ref_mac_meta)
-            assert equal, f"Test Case {case_idx}: check mac meta failed"
-            self.log.info(f"Test Case {case_idx}: Pass mac meta check")
+                print("Dut MacMetaData: ", dut_meta)
+                print("Ref MacMetaData: ", ref_meta)
+            assert equal, f"Test Case {case_idx}: check MacMetaData failed"
+            self.log.info(f"Test Case {case_idx}: Pass MacMetaData check")
     
-    async def check_udp_meta(self):
-        self.udp_meta_sink.clear()
+    async def check_udp_ip_meta(self):
+        self.udp_ip_meta_sink.clear()
         for case_idx in range(self.cases_num):
-            dut_udp_meta = await self.udp_meta_sink.recv()
-            ref_udp_meta = self.ref_udp_meta_buf.get()
-            equal = self.is_udp_meta_equal(dut_udp_meta, ref_udp_meta)
+            dut_meta = await self.udp_ip_meta_sink.recv()
+            ref_meta = self.ref_udp_meta_buf.get()
+            equal = is_udp_ip_meta_equal(dut_meta, ref_meta)
             if not equal:
-                print("Dut Udp Meta: ", dut_udp_meta)
-                print("Ref Udp Meta: ", ref_udp_meta)
-            assert equal, f"Test Case {case_idx}: check udp meta failed"
-            self.log.info(f"Test Case {case_idx}: Pass udp meta check")
+                print("Dut UdpIpMetaData: ", dut_meta)
+                print("Ref UdpIpMetaData: ", ref_meta)
+            assert equal, f"Test Case {case_idx}: check UdpIpMetaData failed"
+            self.log.info(f"Test Case {case_idx}: Pass UdpIpMetaData check")
 
     async def check_data_stream(self):
         for case_idx in range(self.cases_num):
@@ -166,22 +142,22 @@ class RdmaUdpIpEthRxTester:
             dut_data_stream = bytes(dut_data_stream.tdata)
             ref_data_stream = self.ref_data_stream_buf.get()
             if(dut_data_stream != ref_data_stream):
-                print(f"Dut Data Stream Size {len(dut_data_stream)}")
-                print("Dut Data Stream: ", dut_data_stream.hex('-'))
-                print(f"Ref Data Stream Size {len(ref_data_stream)}")
-                print("Ref Data Stream: ", ref_data_stream.hex('-'))
-                print(f"Test Case {case_idx}: check data stream failed")
+                print(f"Dut DataStream Size {len(dut_data_stream)}")
+                print("Dut DataStream: ", dut_data_stream.hex('-'))
+                print(f"Ref DataStream Size {len(ref_data_stream)}")
+                print("Ref DataStream: ", ref_data_stream.hex('-'))
+                print(f"Test Case {case_idx}: check DataStream failed")
             
             assert dut_data_stream == ref_data_stream    
-            self.log.info(f"Test Case {case_idx}: Pass data stream check")
+            self.log.info(f"Test Case {case_idx}: Pass DataStream check")
     
     async def check_dut_output(self):
         check_mac_meta = await cocotb.start(self.check_mac_meta())
-        check_udp_meta = await cocotb.start(self.check_udp_meta())
+        check_udp_ip_meta = await cocotb.start(self.check_udp_ip_meta())
         check_data_stream = await cocotb.start(self.check_data_stream())
         await check_data_stream
 
-@cocotb.test(timeout_time=500000, timeout_unit="ns")
+@cocotb.test(timeout_time=1000000000, timeout_unit="ns")
 async def runRdmaUdpIpEthRxTester(dut):
     
     tester = RdmaUdpIpEthRxTester(dut, CASES_NUM, MIN_PAYLOAD_LEN, MAX_PAYLOAD_LEN)
@@ -192,7 +168,7 @@ async def runRdmaUdpIpEthRxTester(dut):
     check_thread = cocotb.start_soon(tester.check_dut_output())
     tester.log.info("Start testing!")
     await check_thread
-    tester.log.info(f"Pass all {tester.cases_num} successfully")
+    tester.log.info(f"Pass all {tester.cases_num} testcases successfully")
 
 
 def test_RdmaUdpIpEthRx():

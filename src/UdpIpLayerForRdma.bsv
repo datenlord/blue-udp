@@ -9,8 +9,8 @@ import SemiFifo :: *;
 import CrcDefines :: *;
 import AxiStreamTypes :: *;
 
-function UdpIpHeader genUdpIpHeaderForRoCE(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId);
-    let udpIpHeader = genUdpIpHeader(meta, udpConfig, ipId);
+function UdpIpHeader genUdpIpHeaderForRoCE(UdpIpMetaData metaData, UdpConfig udpConfig, IpID ipId);
+    let udpIpHeader = genUdpIpHeader(metaData, udpConfig, ipId);
 
     let crc32ByteWidth = valueOf(CRC32_BYTE_WIDTH);
     let udpLen = udpIpHeader.udpHeader.length;
@@ -21,11 +21,11 @@ function UdpIpHeader genUdpIpHeaderForRoCE(UdpIpMetaData meta, UdpConfig udpConf
     return udpIpHeader;
 endfunction
 
-function UdpIpHeader genUdpIpHeaderForICrc(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId);
+function UdpIpHeader genUdpIpHeaderForICrc(UdpIpMetaData metaData, UdpConfig udpConfig, IpID ipId);
+    let udpIpHeader = genUdpIpHeaderForRoCE(metaData, udpConfig, ipId);
 
-    let udpIpHeader = genUdpIpHeaderForRoCE(meta, udpConfig, ipId);
-
-    udpIpHeader.ipHeader.ipDS = setAllBits;
+    udpIpHeader.ipHeader.ipDscp = setAllBits;
+    udpIpHeader.ipHeader.ipEcn = setAllBits;
     udpIpHeader.ipHeader.ipTTL = setAllBits;
     udpIpHeader.ipHeader.ipChecksum = setAllBits;
 
@@ -35,7 +35,7 @@ function UdpIpHeader genUdpIpHeaderForICrc(UdpIpMetaData meta, UdpConfig udpConf
 endfunction
 
 
-module mkUdpIpStreamForICrcGen#(
+module mkUdpIpStreamForGenICrc#(
     UdpIpMetaDataPipeOut udpIpMetaDataIn,
     DataStreamPipeOut dataStreamIn,
     UdpConfig udpConfig
@@ -122,13 +122,13 @@ module mkUdpIpStreamForRdma#(
     endrule
 
     DataStreamPipeOut udpIpStream <- mkUdpIpStream(
-        genUdpIpHeaderForRoCE,
-        convertFifoToPipeOut(udpIpMetaDataBuf),
+        udpConfig,
         convertFifoToPipeOut(dataStreamBuf),
-        udpConfig
+        convertFifoToPipeOut(udpIpMetaDataBuf),
+        genUdpIpHeaderForRoCE
     );
 
-    DataStreamPipeOut udpIpStreamForICrc <- mkUdpIpStreamForICrcGen(
+    DataStreamPipeOut udpIpStreamForICrc <- mkUdpIpStreamForGenICrc(
         convertFifoToPipeOut(udpIpMetaDataCrcBuf),
         convertFifoToPipeOut(dataStreamCrcBuf),
         udpConfig
@@ -149,7 +149,6 @@ module mkUdpIpStreamForRdma#(
 
     return udpIpStreamWithICrc;
 endmodule
-
 
 
 function UdpIpMetaData extractUdpIpMetaDataForRoCE(UdpIpHeader hdr);
@@ -189,7 +188,8 @@ module mkUdpIpStreamForICrcCheck#(
             bthUdpIpHdr.bth.becn = setAllBits;
             bthUdpIpHdr.bth.resv6 = setAllBits;
             bthUdpIpHdr.udpHeader.checksum = setAllBits;
-            bthUdpIpHdr.ipHeader.ipDS = setAllBits;
+            bthUdpIpHdr.ipHeader.ipDscp = setAllBits;
+            bthUdpIpHdr.ipHeader.ipEcn = setAllBits;
             bthUdpIpHdr.ipHeader.ipTTL = setAllBits;
             bthUdpIpHdr.ipHeader.ipChecksum = setAllBits;
             tData = {pack(bthUdpIpHdr), truncate(tData)};
@@ -306,9 +306,9 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
     );
 
     UdpIpMetaDataAndDataStream udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStream(
-        extractUdpIpMetaDataForRoCE,
+        udpConfig,
         convertFifoToPipeOut(udpIpStreamBuf),
-        udpConfig
+        extractUdpIpMetaDataForRoCE
     );
 
     FIFOF#(UdpLength) dataStreamLengthBuf <- mkFIFOF;
@@ -379,5 +379,4 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
 
     interface PipeOut udpIpMetaDataOut = convertFifoToPipeOut(udpIpMetaDataOutBuf);
     interface PipeOut dataStreamOut = convertFifoToPipeOut(dataStreamOutBuf);
-
 endmodule

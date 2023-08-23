@@ -712,4 +712,57 @@ module mkSizedFifoToPipeOut#(
     return convertFifoToPipeOut(fifo);
 endmodule
 
+interface Counter#(type countType);
+    method countType _read;
+    method Action incr(countType amt);
+    method Action decr(countType amt);
+    method Action clear;
+endinterface
+
+interface MultiPortCounter#(numeric type portNum, type countType);
+    interface Vector#(portNum, Counter#(countType)) countPorts;
+endinterface
+
+module  mkMultiPortCounter#(countType initVal)(MultiPortCounter#(portNum, countType))
+    provisos(Arith#(countType), Bits#(countType, countSize));
+
+    Reg#(countType) countReg <- mkReg(initVal);
+    Vector#(portNum, Wire#(countType)) incrementVec <- replicateM(mkDWire(0));
+    Vector#(portNum, Wire#(countType)) decrementVec <- replicateM(mkDWire(0));
+    let isClear <- mkPulseWireOR;
+
+    rule updateCounterValue;
+        countType totalIncr = 0, totalDecr = 0;
+        for (Integer i = 0; i < valueOf(portNum); i = i + 1) begin
+            totalIncr = totalIncr + incrementVec[i];
+            totalDecr = totalDecr + decrementVec[i];
+        end
+        if (isClear) begin
+            countReg <= 0;
+        end
+        else begin
+            countReg <= countReg + totalIncr - totalDecr;
+        end
+    endrule
+
+    Vector#(portNum, Counter#(countType)) ports = newVector;
+    for (Integer i = 0; i < valueOf(portNum); i = i + 1) begin
+        ports[i] = (
+            interface Counter;
+                method countType _read = countReg;
+                method Action incr(countType amt);
+                    incrementVec[i] <= amt;
+                endmethod
+                method Action decr(countType amt);
+                    decrementVec[i] <= amt;
+                endmethod
+                method Action clear;
+                    isClear.send;
+                endmethod
+            endinterface
+        );
+    end
+    interface countPorts = ports;
+endmodule
+
 

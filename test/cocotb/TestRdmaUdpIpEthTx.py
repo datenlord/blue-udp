@@ -13,24 +13,12 @@ from cocotb.triggers import RisingEdge
 from cocotbext.axi import AxiStreamBus, AxiStreamSource, AxiStreamSink, AxiStreamFrame
 from cocotbext.axi.stream import define_stream
 
-IP_ADDR_LEN = 4
-MAC_ADDR_LEN = 6
-UDP_PORT_LEN = 2
-MIN_PAYLOAD_LEN = 1024
+from TestUtils import *
+
+MIN_PAYLOAD_LEN = 46
 MAX_PAYLOAD_LEN = 2048
-CASES_NUM = 32
+CASES_NUM = 1024
 
-UdpConfigBus, UdpConfigTransation, UdpConfigSource, UdpConfigSink, UdpConfigMonitor = define_stream(
-    "UdpConfig", signals=["valid", "ready", "mac_addr", "ip_addr", "net_mask", "gate_way"]
-)
-
-UdpIpMetaBus, UdpIpMetaTransation, UdpIpMetaSource, UdpIpMetaSink, UdpIpMetaMonitor = define_stream(
-    "UdpIpMeta", signals=["valid", "ready", "ip_addr", "dst_port", "src_port", "data_len"]
-)
-
-MacMetaBus, MacMetaTransaction, MacMetaSource, MacMetaSink, MacMetaMonitor = define_stream(
-    "MacMeta", signals=["valid", "ready", "mac_addr", "eth_type"]
-)
 
 class RdmaUdpIpEthTxTester:
     def __init__(self, dut, cases_num, min_payload_len, max_payload_len):
@@ -43,15 +31,15 @@ class RdmaUdpIpEthTxTester:
         self.min_payload_len = min_payload_len
         self.max_payload_len = max_payload_len
         self.ref_buffer = Queue(maxsize = self.cases_num)
-        self.local_ip = random.randbytes(IP_ADDR_LEN)
-        self.local_mac = random.randbytes(MAC_ADDR_LEN)
+        self.local_ip = random.randbytes(IP_ADDR_BYTE_NUM)
+        self.local_mac = random.randbytes(MAC_ADDR_BYTE_NUM)
         
         self.clock = dut.CLK
         self.resetn = dut.RST_N
 
         self.udp_config_src = UdpConfigSource(UdpConfigBus.from_prefix(dut, "s_udp_config"), self.clock, self.resetn, False)
-        self.udp_meta_src = UdpIpMetaSource(UdpIpMetaBus.from_prefix(dut, "s_udp_meta"), self.clock, self.resetn, False)
-        self.mac_meta_src = MacMetaSource(MacMetaBus.from_prefix(dut, "s_mac_meta"), self.clock, self.resetn, False)
+        self.udp_ip_meta_src = UdpIpMetaDataSource(UdpIpMetaDataBus.from_prefix(dut, "s_udp_meta"), self.clock, self.resetn, False)
+        self.mac_meta_src = MacMetaDataSource(MacMetaDataBus.from_prefix(dut, "s_mac_meta"), self.clock, self.resetn, False)
         
         self.data_stream_src = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s_data_stream"), self.clock, self.resetn, False)
         self.axi_stream_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m_axis"), self.clock, self.resetn, False)
@@ -71,8 +59,8 @@ class RdmaUdpIpEthTxTester:
         udp_config_trans = UdpConfigTransation()
         udp_config_trans.ip_addr  = int.from_bytes(self.local_ip, 'big')
         udp_config_trans.mac_addr = int.from_bytes(self.local_mac, 'big')
-        udp_config_trans.net_mask = int.from_bytes(random.randbytes(IP_ADDR_LEN), 'big')
-        udp_config_trans.gate_way = int.from_bytes(random.randbytes(IP_ADDR_LEN), 'big')
+        udp_config_trans.net_mask = int.from_bytes(random.randbytes(IP_ADDR_BYTE_NUM), 'big')
+        udp_config_trans.gate_way = int.from_bytes(random.randbytes(IP_ADDR_BYTE_NUM), 'big')
         print(f"Udp Config: src_mac = {str2mac(self.local_mac)} src_ip = {ltoa(udp_config_trans.ip_addr)}")
         await self.udp_config_src.send(udp_config_trans)
         
@@ -80,17 +68,19 @@ class RdmaUdpIpEthTxTester:
     async def send(self, pkt):
         payload = raw(pkt[UDP].payload)[:-4]
         
-        udp_meta = UdpIpMetaTransation()
-        udp_meta.ip_addr  = atol(pkt[IP].dst)
-        udp_meta.dst_port = pkt[UDP].dport
-        udp_meta.src_port = pkt[UDP].sport
-        udp_meta.data_len = len(payload)
+        udp_ip_meta = UdpIpMetaDataTransation()
+        udp_ip_meta.ip_addr  = atol(pkt[IP].dst)
+        udp_ip_meta.ip_dscp  = 0
+        udp_ip_meta.ip_ecn   = 0
+        udp_ip_meta.dst_port = pkt[UDP].dport
+        udp_ip_meta.src_port = pkt[UDP].sport
+        udp_ip_meta.data_len = len(payload)
         
-        mac_meta = MacMetaTransaction()
+        mac_meta = MacMetaDataTransaction()
         mac_meta.mac_addr = int.from_bytes(mac2str(pkt[Ether].dst), 'big')
         mac_meta.eth_type = pkt[Ether].type
         
-        await self.udp_meta_src.send(udp_meta)
+        await self.udp_ip_meta_src.send(udp_ip_meta)
         await self.mac_meta_src.send(mac_meta)
         frame = AxiStreamFrame()
         frame.tdata = payload
@@ -103,11 +93,11 @@ class RdmaUdpIpEthTxTester:
     def gen_random_pkt(self):
         bind_layers(UDP, BTH)
         
-        dst_mac = random.randbytes(MAC_ADDR_LEN)
-        dst_ip_int = int.from_bytes(random.randbytes(IP_ADDR_LEN), 'big')
+        dst_mac = random.randbytes(MAC_ADDR_BYTE_NUM)
+        dst_ip_int = int.from_bytes(random.randbytes(IP_ADDR_BYTE_NUM), 'big')
         src_ip_int = int.from_bytes(self.local_ip, 'big')
-        dst_port_int = int.from_bytes(random.randbytes(UDP_PORT_LEN), 'big')
-        src_port_int = int.from_bytes(random.randbytes(UDP_PORT_LEN), 'big')
+        dst_port_int = int.from_bytes(random.randbytes(UDP_PORT_BYTE_NUM), 'big')
+        src_port_int = int.from_bytes(random.randbytes(UDP_PORT_BYTE_NUM), 'big')
         header = Ether(dst=str2mac(dst_mac), src=str2mac(self.local_mac))
         header = header / IP(dst=ltoa(dst_ip_int), src=ltoa(src_ip_int))
         header = header / UDP(dport=dst_port_int, sport=src_port_int, chksum=0)
@@ -140,7 +130,7 @@ class RdmaUdpIpEthTxTester:
             assert raw(dut_packet)==raw(ref_packet), f"Test Case {case_idx} Fail"
 
 
-@cocotb.test(timeout_time=500000, timeout_unit="ns")
+@cocotb.test(timeout_time=1000000000, timeout_unit="ns")
 async def runRdmaUdpIpEthTxTester(dut):
     
     tester = RdmaUdpIpEthTxTester(dut, CASES_NUM, MIN_PAYLOAD_LEN, MAX_PAYLOAD_LEN)
@@ -151,7 +141,7 @@ async def runRdmaUdpIpEthTxTester(dut):
     check_thread = cocotb.start_soon(tester.check_dut_output())
     print("Start testing!")
     await check_thread
-    print(f"Pass all {tester.cases_num} successfully")
+    print(f"Pass all {tester.cases_num} testcases successfully")
 
 
 def test_RdmaUdpIpEthTx():

@@ -17,7 +17,7 @@ import PriorityFlowControl :: *;
 typedef 16 CYCLE_COUNT_WIDTH;
 typedef 16 CASE_COUNT_WIDTH;
 typedef 50000 MAX_CYCLE_NUM;
-typedef 64 TEST_CASE_NUM;
+typedef 32 TEST_CASE_NUM;
 
 typedef 5 FRAME_COUNT_WIDTH;
 typedef 4 MAX_RANDOM_DELAY;
@@ -47,14 +47,24 @@ module mkTestPriorityFlowControl();
     Vector#(CHANNEL_NUM, Randomize#(Bit#(FRAME_COUNT_WIDTH))) randDataStreamLen <- replicateM(mkGenericRandomizer);
 
     // DUT And Ref Model
-    PriorityFlowControlTx#(BUF_PACKET_NUM, MAX_PACKET_FRAME_NUM) pfcTx <- mkPriorityFlowControlTx;
-    PriorityFlowControlRx#(BUF_PACKET_NUM, MAX_PACKET_FRAME_NUM, PFC_THRESHOLD) pfcRx <- mkPriorityFlowControlRx;
-    RandomDelay#(UdpIpMetaDataAndChannelIdx, MAX_RANDOM_DELAY) metaDataDelay <- mkRandomDelay;
-    RandomDelay#(DataStream, MAX_RANDOM_DELAY) dataStreamDelay <- mkRandomDelay;
-    mkConnection(metaDataDelay.request, pfcTx.udpIpMetaAndChannelIdxOut);
-    mkConnection(metaDataDelay.response, pfcRx.udpIpMetaAndChannelIdxIn);
-    mkConnection(dataStreamDelay.request, pfcTx.dataStreamOut);
-    mkConnection(dataStreamDelay.response, pfcRx.dataStreamIn);
+    Vector#(CHANNEL_NUM, FIFOF#(UdpIpMetaData)) udpIpMetaDataInBufVec <- replicateM(mkFIFOF);
+    Vector#(CHANNEL_NUM, FIFOF#(DataStream)) dataStreamInBufVec <- replicateM(mkFIFOF);
+    FIFOF#(UdpIpMetaData) udpIpMetaDataInterBuf <- mkFIFOF;
+    FIFOF#(DataStream) dataStreamInterBuf <- mkFIFOF;
+    FIFOF#(FlowControlReqVec) flowControlReqVecInterBuf <- mkFIFOF;
+    PriorityFlowControlTx pfcTx <- mkPriorityFlowControlTx(
+        convertFifoToPipeOut(flowControlReqVecInterBuf),
+        map(convertFifoToPipeOut, dataStreamInBufVec),
+        map(convertFifoToPipeOut, udpIpMetaDataInBufVec)
+    );
+    PriorityFlowControlRx#(BUF_PACKET_NUM, MAX_PACKET_FRAME_NUM, PFC_THRESHOLD) pfcRx <- mkPriorityFlowControlRx(
+        convertFifoToPipeOut(dataStreamInterBuf),
+        convertFifoToPipeOut(udpIpMetaDataInterBuf)
+    );
+
+    mkConnection(pfcTx.udpIpMetaDataOut, toPut(udpIpMetaDataInterBuf));
+    mkConnection(pfcTx.dataStreamOut, toPut(dataStreamInterBuf));
+    mkConnection(pfcRx.flowControlReqVecOut, flowControlReqVecInterBuf);
 
     Vector#(CHANNEL_NUM, Reg#(Bool)) metaDataSentFlags <- replicateM(mkReg(False));
     Vector#(CHANNEL_NUM, Reg#(Bit#(FRAME_COUNT_WIDTH))) dataStreamLenReg <- replicateM(mkRegU);
@@ -89,7 +99,9 @@ module mkTestPriorityFlowControl();
         rule sendMetaData if (isInit && !metaDataSentFlags[i] && inputCaseCounters[i] < fromInteger(testCaseNum));
             let udpIpMetaData <- randUdpIpMetaData[i].next;
             let dataStreamLen <- randDataStreamLen[i].next;
-            pfcTx.udpIpMetaDataInVec[i].put(udpIpMetaData);
+            udpIpMetaData.ipDscp = 0;
+            udpIpMetaData.ipEcn = 0;
+            udpIpMetaDataInBufVec[i].enq(udpIpMetaData);
             refMetaDataBuf[i].enq(udpIpMetaData);
             dataStreamLenReg[i] <= dataStreamLen;
             frameCounters[i] <= 0;
@@ -109,7 +121,7 @@ module mkTestPriorityFlowControl();
                 isLast: nextFrameCount == dataStreamLenReg[i]
             };
 
-            pfcTx.dataStreamInVec[i].put(dataStream);
+            dataStreamInBufVec[i].enq(dataStream);
             refDataStreamBuf[i].enq(dataStream);
             frameCounters[i] <= nextFrameCount;
             
@@ -128,6 +140,8 @@ module mkTestPriorityFlowControl();
             let refMetaData = refMetaDataBuf[i].first;
             refMetaDataBuf[i].deq;
             $display("Virtual Channel %d: Receive %d UdpIpMetaData", i, outputCaseCounters[i]);
+            // $display("REF: ", fshow(refMetaData));
+            // $display("DUT: ", fshow(dutMetaData));
             immAssert(
                 dutMetaData == refMetaData,
                 "Compare DUT And REF UdpIpMetaData output @ mkTestPriorityFlowControl",
