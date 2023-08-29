@@ -8,14 +8,13 @@ import Ports :: *;
 import Utils :: *;
 import PrimUtils :: *;
 import EthernetTypes :: *;
-import XilinxCmacRxTxWrapper :: *;
-import UdpIpArpEthRxTxWithPfc :: *;
+import PfcUdpIpArpEthRxTx :: *;
 
 import SemiFifo :: *;
 
-typedef 24 CYCLE_COUNT_WIDTH;
+typedef 16 CYCLE_COUNT_WIDTH;
 typedef 16 CASE_COUNT_WIDTH;
-typedef 10000000 MAX_CYCLE_NUM;
+typedef 50000 MAX_CYCLE_NUM;
 typedef 512 TEST_CASE_NUM;
 
 typedef 32'h7F000001 DUT_IP_ADDR;
@@ -29,22 +28,15 @@ typedef VIRTUAL_CHANNEL_NUM CHANNEL_NUM;
 
 typedef 400 PAUSE_CYCLE_NUM;
 
-typedef 4  TEST_CHANNEL_IDX;
-typedef 16 BUF_PACKET_NUM;
+typedef 4 TEST_CHANNEL_IDX;
+typedef 10 BUF_PACKET_NUM;
 typedef 32 MAX_PACKET_FRAME_NUM;
-typedef 4  PFC_THRESHOLD;
-typedef 8  SYNC_BRAM_BUF_DEPTH;
+typedef 3 PFC_THRESHOLD;
 
 typedef 256 REF_BUF_DEPTH;
 
-(* synthesize, default_clock_osc = "clk", default_reset = "reset" *)
-module mkTestUdpIpArpEthCmacRxTxWithPfc(
-    (* osc = "cmac_clk" *) Clock cmacRxTxClk,
-    (* reset = "cmac_rx_reset" *) Reset cmacRxReset,
-    (* reset = "cmac_tx_reset" *) Reset cmacTxReset,
-    XilinxCmacRxTxWrapper cmacIfc
-);
-    Bool isTxWaitRxAligned = True;
+(* synthesize *)
+module mkTestPfcUdpIpArpEthRxTx();
     Integer testCaseNum = valueOf(TEST_CASE_NUM);
     Integer maxCycleNum = valueOf(MAX_CYCLE_NUM);
     Integer testChannelIdx = valueOf(TEST_CHANNEL_IDX);
@@ -61,7 +53,7 @@ module mkTestUdpIpArpEthCmacRxTxWithPfc(
     Randomize#(Bit#(FRAME_COUNT_WIDTH)) randFrameNum <- mkGenericRandomizer;
 
     // DUT And Ref Model
-    Reg#(Bool) isRxPauseReg <- mkReg(True);
+    Reg#(Bool) isRxPause <- mkReg(True);
     Reg#(Bit#(CYCLE_COUNT_WIDTH)) pauseCycleCount <- mkReg(0);
     Reg#(Bool) metaDataSentFlag <- mkReg(False);
     Reg#(Bit#(FRAME_COUNT_WIDTH)) frameNumReg <- mkRegU;
@@ -71,17 +63,19 @@ module mkTestUdpIpArpEthCmacRxTxWithPfc(
     FIFOF#(UdpIpMetaData) refMetaDataBuf <- mkSizedFIFOF(valueOf(REF_BUF_DEPTH));
     FIFOF#(DataStream) refDataStreamBuf <- mkSizedFIFOF(valueOf(REF_BUF_DEPTH));
 
-    UdpIpArpEthCmacRxTxWithPfc#(
-        BUF_PACKET_NUM, 
-        MAX_PACKET_FRAME_NUM, 
-        PFC_THRESHOLD
-    ) udpIpArpEthCmacRxTxWithPfc <- mkUdpIpArpEthCmacRxTxWithPfc(
-        isTxWaitRxAligned,
-        valueOf(SYNC_BRAM_BUF_DEPTH),
-        cmacRxTxClk,
-        cmacRxReset,
-        cmacTxReset
-    );
+    PfcUdpIpArpEthRxTx#(BUF_PACKET_NUM, MAX_PACKET_FRAME_NUM, PFC_THRESHOLD) pfcUdpIpArpEthRxTx <- mkPfcUdpIpArpEthRxTx;
+    mkConnection(pfcUdpIpArpEthRxTx.flowControlReqVecIn, toGet(pfcUdpIpArpEthRxTx.flowControlReqVecOut));
+    mkConnection(pfcUdpIpArpEthRxTx.axiStreamInRx, toGet(axiStreamInterBuf));
+    rule connectAxiStream;
+        let axiStream = pfcUdpIpArpEthRxTx.axiStreamOutTx.first;
+        pfcUdpIpArpEthRxTx.axiStreamOutTx.deq;
+        if (axiStreamInterBuf.notFull) begin
+            axiStreamInterBuf.enq(axiStream);
+        end
+        else begin
+            $display("Testbench: Throw AxiStream frame");
+        end
+    endrule
 
 
     // Initialize Testbench
@@ -90,7 +84,7 @@ module mkTestUdpIpArpEthCmacRxTxWithPfc(
         randData.cntrl.init;
         randFrameNum.cntrl.init;
 
-        udpIpArpEthCmacRxTxWithPfc.udpConfig.put(
+        pfcUdpIpArpEthRxTx.udpConfig.put(
             UdpConfig {
                 macAddr: fromInteger(valueOf(DUT_MAC_ADDR)),
                 ipAddr: fromInteger(valueOf(DUT_IP_ADDR)),
@@ -108,16 +102,16 @@ module mkTestUdpIpArpEthCmacRxTxWithPfc(
         $display("\nCycle %d ----------------------------------------", cycleCount);
         immAssert(
             cycleCount < fromInteger(maxCycleNum),
-            "Testbench timeout assertion @ mkTestUdpIpArpEthCmacRxTxWithPfc",
+            "Testbench timeout assertion @ mkTestPfcUdpIpArpEthRxTx",
             $format("Cycle number overflow %d", maxCycleNum)
         );
     endrule
 
     rule genRandomRxPause if (isInit);
-        let isPause <- randPause.next;
         if (pauseCycleCount == fromInteger(valueOf(PAUSE_CYCLE_NUM))) begin
             pauseCycleCount <= 0;
-            isRxPauseReg <= isPause;
+            let isPause <- randPause.next;
+            isRxPause <= isPause;
             $display("Testbench: Pause UdpIpArpEthRx ", fshow(isPause));
         end
         else begin
@@ -139,12 +133,12 @@ module mkTestUdpIpArpEthCmacRxTxWithPfc(
         };
 
         refMetaDataBuf.enq(udpIpMetaData);
-        udpIpArpEthCmacRxTxWithPfc.udpIpMetaDataInTxVec[testChannelIdx].put(udpIpMetaData);
+        pfcUdpIpArpEthRxTx.udpIpMetaDataInTxVec[testChannelIdx].put(udpIpMetaData);
 
         frameNumReg <= frameNum;
         frameCounter <= 0;
         metaDataSentFlag <= True;
-        $display("Testbench: Channel %3d Send %d UdpIpMetaData:\n", testChannelIdx, inputCaseCounter, udpIpMetaData);
+        $display("Testbench: Channel %3d Send %d UdpIpMetaData", testChannelIdx, inputCaseCounter);
     endrule
 
     rule sendDataStream if (metaDataSentFlag);
@@ -159,7 +153,7 @@ module mkTestUdpIpArpEthCmacRxTxWithPfc(
 
         
         refDataStreamBuf.enq(dataStream);
-        udpIpArpEthCmacRxTxWithPfc.dataStreamInTxVec[testChannelIdx].put(dataStream);
+        pfcUdpIpArpEthRxTx.dataStreamInTxVec[testChannelIdx].put(dataStream);
         frameCounter <= nextFrameCount;
         
         if (dataStream.isLast) begin
@@ -167,34 +161,30 @@ module mkTestUdpIpArpEthCmacRxTxWithPfc(
             inputCaseCounter <= inputCaseCounter + 1;
         end
 
-        $display("Testbench: Channel %3d: Send %d dataStream of %d case:\n", testChannelIdx, frameCounter, inputCaseCounter, dataStream);
+        $display("Testbench: Channel %3d: Send %d dataStream of %d case", testChannelIdx, frameCounter, inputCaseCounter);
     endrule
 
 
-    rule recvAndCheckMetaData if (!isRxPauseReg);
-        let dutMetaData <- udpIpArpEthCmacRxTxWithPfc.udpIpMetaDataOutRxVec[testChannelIdx].get;
+    rule recvAndCheckMetaData if (!isRxPause);
+        let dutMetaData <- pfcUdpIpArpEthRxTx.udpIpMetaDataOutRxVec[testChannelIdx].get;
         let refMetaData = refMetaDataBuf.first;
         refMetaDataBuf.deq;
         $display("Testbench: Channel %3d: Receive %d UdpIpMetaData", testChannelIdx, outputCaseCounter);
-        $display("DUT: ", fshow(dutMetaData));
-        $display("REF: ", fshow(refMetaData));
         immAssert(
             dutMetaData == refMetaData,
-            "Compare DUT And REF UdpIpMetaData output @ mkTestUdpIpArpEthCmacRxTxWithPfc",
+            "Compare DUT And REF UdpIpMetaData output @ mkTestPfcUdpIpArpEthRxTx",
             $format("Channel %d Case %5d incorrect", testChannelIdx, outputCaseCounter)
         );
     endrule
 
-    rule recvAndCheckDataStream if (!isRxPauseReg);
-        let dutDataStream <- udpIpArpEthCmacRxTxWithPfc.dataStreamOutRxVec[testChannelIdx].get;
+    rule recvAndCheckDataStream if (!isRxPause);
+        let dutDataStream <- pfcUdpIpArpEthRxTx.dataStreamOutRxVec[testChannelIdx].get;
         let refDataStream = refDataStreamBuf.first;
         refDataStreamBuf.deq;
-        $display("Testbench: Channel %3d: Receive %d DataStream:", testChannelIdx, outputCaseCounter);
-        $display("DUT: ", fshow(dutDataStream));
-        $display("REF: ", fshow(refDataStream));
+        $display("Testbench: Channel %3d: Receive %d DataStream", testChannelIdx, outputCaseCounter);
         immAssert(
             dutDataStream == refDataStream,
-            "Compare DUT And REF DataStream output @ mkTestUdpIpArpEthCmacRxTxWithPfc",
+            "Compare DUT And REF DataStream output @ mkTestPfcUdpIpArpEthRxTx",
             $format("Channel %3d Case %5d incorrect", testChannelIdx, outputCaseCounter)
         );
         if (dutDataStream.isLast) begin
@@ -206,6 +196,4 @@ module mkTestUdpIpArpEthCmacRxTxWithPfc(
         $display("Testbench: Channel %3d pass %5d testcases", testChannelIdx, testCaseNum);
         $finish;
     endrule
-
-    return udpIpArpEthCmacRxTxWithPfc.cmacRxTxWrapper;
 endmodule

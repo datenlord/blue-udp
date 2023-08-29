@@ -284,7 +284,7 @@ module mkTestUdpIpArpEthCmacRxTx(TestUdpIpArpEthCmacRxTx);
 endmodule
 
 // Drive testcases and generate clk and reset signals
-interface UdpIpArpEthCmacRxTxTestbench;
+interface TestUdpIpArpEthCmacRxTxWithClkRst;
     (* prefix = "" *)
     interface TestUdpIpArpEthCmacRxTx testStimulus;
     
@@ -304,7 +304,7 @@ interface UdpIpArpEthCmacRxTxTestbench;
 endinterface
 
 (* synthesize, clock_prefix = "", reset_prefix = "", gate_prefix = "gate", no_default_clock, no_default_reset *)
-module mkUdpIpArpEthCmacRxTxTestbench(UdpIpArpEthCmacRxTxTestbench);
+module mkTestUdpIpArpEthCmacRxTxWithClkRst(TestUdpIpArpEthCmacRxTxWithClkRst);
     // Clock and Reset Generation
     let gtPositiveRefClkOsc <- mkAbsoluteClockFull(
         valueOf(GT_REF_CLK_HALF_PERIOD),
@@ -351,7 +351,7 @@ endmodule
 
 
 // Wrap UdpIpArpEthCmacRxTx for Vivado Simulation
-interface UdpIpArpEthCmacRxTxSim;
+interface UdpIpArpEthCmacRxTxTestInst;
     // Interface with CMAC IP
     (* prefix = "" *)
     interface XilinxCmacRxTxWrapper cmacRxTxWrapper;
@@ -369,13 +369,13 @@ interface UdpIpArpEthCmacRxTxSim;
 endinterface
 
 (* synthesize, no_default_clock, no_default_reset *)
-module mkUdpIpArpEthCmacRxTxSim(
-    (* osc = "udp_clk"  *) Clock udpClk,
-    (* osc = "cmac_rxtx_clk" *) Clock cmacRxTxClk,
-    (* reset = "udp_reset" *) Reset udpReset,
+module mkUdpIpArpEthCmacRxTxInst(
+    (* osc = "udp_clk"  *)        Clock udpClk,
+    (* osc = "cmac_rxtx_clk" *)   Clock cmacRxTxClk,
+    (* reset = "udp_reset" *)     Reset udpReset,
     (* reset = "cmac_rx_reset" *) Reset cmacRxReset,
     (* reset = "cmac_tx_reset" *) Reset cmacTxReset,
-    UdpIpArpEthCmacRxTxSim ifc
+    UdpIpArpEthCmacRxTxTestInst ifc
 );
     Bool isTxWaitRxAligned = True;
     let udpIpArpEthCmacRxTx <- mkUdpIpArpEthCmacRxTx(

@@ -29,7 +29,6 @@ module mkCompletionBuf(CompletionBuf#(size, dType)) provisos(Bits#(dType, dSize)
     Reg#(Bool) reserveReq[2] <- mkCReg(2, False);
     Reg#(Maybe#(Tuple2#(CBufIndex#(size), dType))) completeReq[2] <- mkCReg(2, Invalid);
 
-
     function CBufIndex#(size) nextIndex(CBufIndex#(size) index);
         return (index == maxIndex) ? 0 : index + 1;
     endfunction

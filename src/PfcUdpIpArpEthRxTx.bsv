@@ -14,7 +14,7 @@ import PriorityFlowControl :: *;
 import SemiFifo :: *;
 
 
-interface UdpIpArpEthRxTxWithPfc#(
+interface PfcUdpIpArpEthRxTx#(
     numeric type bufPacketNum, 
     numeric type maxPacketFrameNum,
     numeric type pfcThreshold
@@ -38,7 +38,7 @@ interface UdpIpArpEthRxTxWithPfc#(
 
 endinterface
 
-module mkUdpIpArpEthRxTxWithPfc(UdpIpArpEthRxTxWithPfc#(bufPacketNum, maxPacketFrameNum, pfcThreshold))
+module mkPfcUdpIpArpEthRxTx(PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold))
     provisos(Add#(pfcThreshold, a__, bufPacketNum));
 
     FIFOF#(FlowControlReqVec) flowControlReqVecInBuf <- mkFIFOF;
@@ -74,7 +74,7 @@ module mkUdpIpArpEthRxTxWithPfc(UdpIpArpEthRxTxWithPfc#(bufPacketNum, maxPacketF
     interface flowControlReqVecOut = pfcRx.flowControlReqVecOut;
 endmodule
 
-interface UdpIpArpEthCmacRxTxWithPfc#(
+interface PfcUdpIpArpEthCmacRxTx#(
     numeric type bufPacketNum, 
     numeric type maxPacketFrameNum,
     numeric type pfcThreshold
@@ -95,14 +95,14 @@ interface UdpIpArpEthCmacRxTxWithPfc#(
     interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataOutRxVec;
 endinterface
 
-module mkUdpIpArpEthCmacRxTxWithPfc#(
+module mkPfcUdpIpArpEthCmacRxTx#(
     Bool isCmacTxWaitRxAligned,
     Integer syncBramBufDepth
 )(
     Clock cmacRxTxClk,
     Reset cmacRxReset,
     Reset cmacTxReset,
-    UdpIpArpEthCmacRxTxWithPfc#(bufPacketNum, maxPacketFrameNum, pfcThreshold) ifc
+    PfcUdpIpArpEthCmacRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold) ifc
 ) provisos(Add#(pfcThreshold, a__, bufPacketNum));
     
     let isEnableFlowControl = True;
@@ -153,19 +153,19 @@ module mkUdpIpArpEthCmacRxTxWithPfc#(
         clocked_by cmacRxTxClk
     );
 
-    UdpIpArpEthRxTxWithPfc#(bufPacketNum, maxPacketFrameNum, pfcThreshold) udpIpArpEthRxTxWithPfc <- mkUdpIpArpEthRxTxWithPfc;
-    mkConnection(convertSyncFifoToPipeIn(txAxiStreamSyncBuf), udpIpArpEthRxTxWithPfc.axiStreamOutTx);
-    mkConnection(toGet(convertSyncFifoToPipeOut(rxAxiStreamSyncBuf)), udpIpArpEthRxTxWithPfc.axiStreamInRx);
-    mkConnection(convertSyncFifoToPipeIn(txFlowCtrlReqVecSyncBuf), udpIpArpEthRxTxWithPfc.flowControlReqVecOut);
-    mkConnection(toGet(convertSyncFifoToPipeOut(rxFlowCtrlReqVecSyncBuf)), udpIpArpEthRxTxWithPfc.flowControlReqVecIn);
+    PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold) pfcUdpIpArpEthRxTx <- mkPfcUdpIpArpEthRxTx;
+    mkConnection(convertSyncFifoToPipeIn(txAxiStreamSyncBuf), pfcUdpIpArpEthRxTx.axiStreamOutTx);
+    mkConnection(toGet(convertSyncFifoToPipeOut(rxAxiStreamSyncBuf)), pfcUdpIpArpEthRxTx.axiStreamInRx);
+    mkConnection(convertSyncFifoToPipeIn(txFlowCtrlReqVecSyncBuf), pfcUdpIpArpEthRxTx.flowControlReqVecOut);
+    mkConnection(toGet(convertSyncFifoToPipeOut(rxFlowCtrlReqVecSyncBuf)), pfcUdpIpArpEthRxTx.flowControlReqVecIn);
 
 
     interface cmacRxTxWrapper = cmacWrapper;
-    interface udpConfig = udpIpArpEthRxTxWithPfc.udpConfig;
-    interface udpIpMetaDataInTxVec = udpIpArpEthRxTxWithPfc.udpIpMetaDataInTxVec;
-    interface dataStreamInTxVec = udpIpArpEthRxTxWithPfc.dataStreamInTxVec;
-    interface udpIpMetaDataOutRxVec = udpIpArpEthRxTxWithPfc.udpIpMetaDataOutRxVec;
-    interface dataStreamOutRxVec = udpIpArpEthRxTxWithPfc.dataStreamOutRxVec;
+    interface udpConfig = pfcUdpIpArpEthRxTx.udpConfig;
+    interface udpIpMetaDataInTxVec = pfcUdpIpArpEthRxTx.udpIpMetaDataInTxVec;
+    interface dataStreamInTxVec = pfcUdpIpArpEthRxTx.dataStreamInTxVec;
+    interface udpIpMetaDataOutRxVec = pfcUdpIpArpEthRxTx.udpIpMetaDataOutRxVec;
+    interface dataStreamOutRxVec = pfcUdpIpArpEthRxTx.dataStreamOutRxVec;
 endmodule
 
 

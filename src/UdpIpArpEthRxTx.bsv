@@ -38,7 +38,6 @@ typedef enum{
 } MuxState deriving(Bits, Eq);
 typedef MuxState DemuxState;
 
-(* synthesize *)
 module mkUdpIpArpEthRxTx(UdpIpArpEthRxTx);
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
@@ -208,19 +207,26 @@ module mkUdpIpArpEthRxTx(UdpIpArpEthRxTx);
     endinterface
     interface PipeOut udpIpMetaDataOutRx = udpIpMetaDataAndDataStream.udpIpMetaDataOut;
     interface PipeOut dataStreamOutRx  = udpIpMetaDataAndDataStream.dataStreamOut;
-
 endmodule
 
 
 interface RawUdpIpArpEthRxTx;
+    (* prefix = "s_udp_config" *)
     interface RawUdpConfigBusSlave rawUdpConfig;
     // Tx
+    (* prefix = "s_udp_meta" *)
     interface RawUdpIpMetaDataBusSlave rawUdpIpMetaDataInTx;
-    interface RawDataStreamBusSlave    rawDataStreamInTx;
+    (* prefix = "s_data_stream" *)
+    interface RawDataStreamBusSlave rawDataStreamInTx;
+    (* prefix = "m_axi_stream" *)
     interface RawAxiStreamMaster#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamOutTx;
+    
     // Rx
+    (* prefix = "m_udp_meta" *)
     interface RawUdpIpMetaDataBusMaster rawUdpIpMetaDataOutRx;
-    interface RawDataStreamBusMaster    rawDataStreamOutRx;
+    (* prefix = "m_data_stream" *)
+    interface RawDataStreamBusMaster rawDataStreamOutRx;
+    (* prefix = "s_axi_stream" *)
     interface RawAxiStreamSlave#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamInRx;
 endinterface
 

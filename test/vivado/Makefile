@@ -7,17 +7,16 @@ LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper/src
 LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
+TARGET = PfcUdpIpArpEthCmacRxTx
 FILE_PATH = $(ROOT_DIR)/test/vivado
-FILE_NAME ?= UdpIpArpEthCmacRxTxTestbench.bsv
-TESTBENCH_TOP ?= mkUdpIpArpEthCmacRxTxTestbench
-DUT_TOP ?= mkUdpIpArpEthCmacRxTxSim
+FILE_NAME ?= Test$(TARGET).bsv
+TESTBENCH_TOP ?= mkTest$(TARGET)WithClkRst
+DUT_TOP ?= mk$(TARGET)Inst
 VLOGDIR = generated
 
 export PROJ_NAME = cmac_test
-export CONFIG_SRC = "./verilog/sim_config.vh"
-export SIM_SRC = "./verilog/UdpIpArpEthCmacRxTxTestbenchWrapper.v"
-DESIGN_SOURCES = $(shell ls ./$(VLOGDIR)/*.v)
-DESIGN_SOURCES = "$(DESIGN_SOURCES) ./verilog/UdpIpArpEthCmacRxTxSimWrapper.v"
+export CONFIG_SRC = ./verilog/sim_config.vh
+export SIM_SRC = ./verilog/Test$(TARGET)Wrapper.v
 
 
 table:
@@ -32,10 +31,12 @@ verilog:
 	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(DUT_TOP) $(DUT_TOP) | grep -i '\.v' | xargs -I {} cp {} $(VLOGDIR)
 
 sim: verilog
-	vivado -mode batch -source vivado_sim.tcl
+#	vivado -mode tcl
+	vivado -mode batch -source vivado_sim.tcl 2>&1 | tee ./run.log
+#rm -rf $(PROJ_NAME)
 
 clean:
-	rm -rf $(BUILDDIR) $(VLOGDIR) $(PROJ_NAME) *.mem .Xil *.jou *.log
+	rm -rf $(BUILDDIR) $(VLOGDIR) $(PROJ_NAME) *.mem .Xil *.jou *.log *.str
 
 
 .PHONY: table verilog clean

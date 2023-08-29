@@ -10,7 +10,7 @@ CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 PWD = $(shell pwd)
 VLOGDIR = generated
 OUTPUTDIR = output_ooc
-ONLYSYNTH = 1
+ONLYSYNTH = 0
 CLK = main_clock
 
 TARGET = RdmaUdpIpArpEthRxTx
