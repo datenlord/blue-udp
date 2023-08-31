@@ -4,16 +4,16 @@ import Clocks :: *;
 import BRAMFIFO :: *;
 import Connectable :: *;
 
-import Utils :: *;
+// import Utils :: *;
 import Ports :: *;
 import ArpCache :: *;
 import MacLayer :: *;
 import UdpIpLayer :: *;
 import ArpProcessor :: *;
 import EthernetTypes :: *;
+import StreamHandler :: *;
 import PortConversion :: *;
 import UdpIpLayerForRdma :: *;
-import PriorityFlowControl :: *;
 import XilinxCmacRxTxWrapper :: *;
 
 import SemiFifo :: *;

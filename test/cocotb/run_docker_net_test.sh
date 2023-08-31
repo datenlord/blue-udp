@@ -2,6 +2,13 @@ set -o errexit
 set -o nounset
 set -o xtrace
 
+in_server=0
+while getopts 's' option; do
+    if [ $option == 's' ]; then
+        in_server=1
+    fi
+done
+
 NET_IFC=wlp7s0
 PORT_NUM=88
 IMAGE_NAME=ethernet-test
@@ -11,7 +18,10 @@ CONTAINER_SERVER_IP="10.1.1.48"
 CONTAINER_CLIENT_IP="10.1.1.64"
 
 # Create Image
-docker build -f ./build_docker/Dockerfile -t $IMAGE_NAME ./build_docker
+if [ $in_server == 1 ]; then
+    docker build -f ./build_docker/Dockerfile -t $IMAGE_NAME ./build_docker
+    NET_IFC=eth0
+fi
 
 # Create MacVLAN docker network
 docker network create -d macvlan --subnet=$CONTAINER_NET --ip-range=$CONTAINER_NET -o macvlan_mode=bridge -o parent=$NET_IFC $DOCKER_NETWORK

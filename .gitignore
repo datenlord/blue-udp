@@ -16,3 +16,5 @@ output_ooc
 
 .metals
 .vscode
+
+*.txt

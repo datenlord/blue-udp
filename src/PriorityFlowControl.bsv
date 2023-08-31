@@ -10,13 +10,6 @@ import Utils :: *;
 import SemiFifo :: *;
 import EthernetTypes :: *;
 
-typedef enum {
-    FLOW_CTRL_STOP,
-    FLOW_CTRL_PASS
-} FlowControlRequest deriving(Bits, Eq, FShow);
-
-typedef Vector#(VIRTUAL_CHANNEL_NUM, Maybe#(FlowControlRequest)) FlowControlReqVec;
-
 function VirtualChannelIndex mapDscpToChannelIdx(IpDscp ipDscp);
     return truncateLSB(ipDscp);
 endfunction

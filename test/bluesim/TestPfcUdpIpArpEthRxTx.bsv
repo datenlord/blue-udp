@@ -6,7 +6,6 @@ import Randomizable :: *;
 
 import Ports :: *;
 import Utils :: *;
-import PrimUtils :: *;
 import EthernetTypes :: *;
 import PfcUdpIpArpEthRxTx :: *;
 

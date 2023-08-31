@@ -4,6 +4,7 @@ import Ports :: *;
 import Utils :: *;
 import UdpIpLayer :: *;
 import EthernetTypes :: *;
+import StreamHandler :: *;
 
 import SemiFifo :: *;
 import CrcDefines :: *;
@@ -35,7 +36,7 @@ function UdpIpHeader genUdpIpHeaderForICrc(UdpIpMetaData metaData, UdpConfig udp
 endfunction
 
 
-module mkUdpIpStreamForGenICrc#(
+module mkUdpIpStreamForICrcGen#(
     UdpIpMetaDataPipeOut udpIpMetaDataIn,
     DataStreamPipeOut dataStreamIn,
     UdpConfig udpConfig
@@ -128,7 +129,7 @@ module mkUdpIpStreamForRdma#(
         genUdpIpHeaderForRoCE
     );
 
-    DataStreamPipeOut udpIpStreamForICrc <- mkUdpIpStreamForGenICrc(
+    DataStreamPipeOut udpIpStreamForICrc <- mkUdpIpStreamForICrcGen(
         convertFifoToPipeOut(udpIpMetaDataCrcBuf),
         convertFifoToPipeOut(dataStreamCrcBuf),
         udpConfig
@@ -157,7 +158,7 @@ function UdpIpMetaData extractUdpIpMetaDataForRoCE(UdpIpHeader hdr);
     return meta;
 endfunction
 
-module mkUdpIpStreamForICrcCheck#(
+module mkUdpIpStreamForICrcChk#(
     DataStreamPipeOut udpIpStreamIn
 )(DataStreamPipeOut);
     Reg#(Bool) isFirst <- mkReg(True);
@@ -296,7 +297,7 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         udpIpStreamForICrcBuf.enq(udpIpStream);
     endrule
 
-    DataStreamPipeOut udpIpStreamForICrc <- mkUdpIpStreamForICrcCheck(
+    DataStreamPipeOut udpIpStreamForICrc <- mkUdpIpStreamForICrcChk(
         convertFifoToPipeOut(udpIpStreamForICrcBuf)
     );
 

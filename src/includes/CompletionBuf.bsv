@@ -2,6 +2,7 @@ import Vector :: *;
 import GetPut :: *;
 
 import SemiFifo :: *;
+
 typedef Bit#(TLog#(size)) CBufIndex#(numeric type size);
 
 interface CompletionBuf#(numeric type size, type dType);

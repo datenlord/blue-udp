@@ -10,7 +10,6 @@ import EthernetTypes :: *;
 import TestUtils :: *;
 import Utils :: *;
 import SemiFifo :: *;
-import PrimUtils :: *;
 
 typedef 128 TEST_CASE_NUM;
 typedef 30000 MAX_CYCLE;

@@ -3,12 +3,13 @@ import FIFOF :: *;
 import Vector :: *;
 import ClientServer :: *;
 
+import RFile :: *;
 import Utils :: *;
-import SemiFifo :: *;
 import CompletionBuf :: *;
 import EthernetTypes :: *;
-import RFile :: *;
 import ContentAddressMem :: *;
+
+import SemiFifo :: *;
 
 // ARP request/response
 
@@ -186,7 +187,6 @@ module mkArpCache(ArpCache);
         checkTagResBuf.enq(checkTagRes);
     endrule
 
-
     rule doCheckTagResult;
         let checkTagRes = checkTagResBuf.first;
         checkTagResBuf.deq;
@@ -213,7 +213,6 @@ module mkArpCache(ArpCache);
             $display("ArpCache: Miss: addr=%x", addr);
         end
     endrule
-
 
     rule doRespCBuf;
         if (missHitBuf.notEmpty) begin

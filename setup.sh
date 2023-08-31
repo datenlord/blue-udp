@@ -23,8 +23,9 @@ EOF
 pip install black
 pip install cocotb
 pip install cocotb-test
-pip install cocotbext-axi
 pip install netifaces
+pip install scapy
+pip install https://github.com/alexforencich/cocotbext-axi/archive/master.zip
 
 # Install Verilog Simulator
 sudo apt-get update -y

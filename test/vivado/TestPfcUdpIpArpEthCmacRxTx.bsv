@@ -7,7 +7,6 @@ import Randomizable :: *;
 
 import Ports :: *;
 import Utils :: *;
-import PrimUtils :: *;
 import EthernetTypes :: *;
 import XilinxCmacRxTxWrapper :: *;
 import PfcUdpIpArpEthRxTx :: *;

@@ -2,11 +2,13 @@ import FIFOF :: *;
 import GetPut :: *;
 import ClientServer :: *;
 
-import SemiFifo :: *;
 import Ports :: *;
 import Utils :: *;
-import EthernetTypes :: *;
 import ArpCache :: *;
+import StreamHandler :: *;
+import EthernetTypes :: *;
+
+import SemiFifo :: *;
 
 interface ArpProcessor;
     interface DataStreamPipeOut arpStreamOut;
@@ -20,7 +22,7 @@ module mkArpProcessor#(
     UdpIpMetaDataPipeOut udpIpMetaDataIn
 )(ArpProcessor);
     Reg#(UdpConfig) udpConfigReg <- mkRegU;
-    FIFOF#(ArpFrame) arpReplyBuf <- mkFIFOF;
+    FIFOF#(ArpFrame) arpRespBuf <- mkFIFOF;
     FIFOF#(ArpFrame) arpReqBuf <- mkFIFOF;
     FIFOF#(ArpFrame) arpFrameOutBuf <- mkFIFOF;
     FIFOF#(MacMetaData) arpMacMetaBuf <- mkFIFOF;
@@ -64,7 +66,7 @@ module mkArpProcessor#(
         let isArpReq = arpFrame.arpOper == fromInteger(valueOf(ARP_OPER_REQ));
         let isIpMatch = arpFrame.arpTpa == udpConfigReg.ipAddr;
         if (isArpReq && isIpMatch) begin
-            arpReplyBuf.enq(
+            arpRespBuf.enq(
                 ArpFrame{
                     arpHType: fromInteger(valueOf(ARP_HTYPE_ETH)),
                     arpPType: fromInteger(valueOf(ARP_PTYPE_IP)),
@@ -110,16 +112,16 @@ module mkArpProcessor#(
             );
             $display("ArpProcessor: broadcast an arpReq: ", fshow(arpReqBuf.first));
         end
-        else if (arpReplyBuf.notEmpty) begin
-            arpFrameOutBuf.enq(arpReplyBuf.first);
-            arpReplyBuf.deq;
+        else if (arpRespBuf.notEmpty) begin
+            arpFrameOutBuf.enq(arpRespBuf.first);
+            arpRespBuf.deq;
             arpMacMetaBuf.enq(
                 MacMetaData{
-                    macAddr: arpReplyBuf.first.arpTha,
+                    macAddr: arpRespBuf.first.arpTha,
                     ethType: fromInteger(valueOf(ETH_TYPE_ARP))
                 }
             );
-            $display("ArpProcessor: reply an arpReq: ", fshow(arpReplyBuf.first));
+            $display("ArpProcessor: reply an arpReq: ", fshow(arpRespBuf.first));
 
         end
     endrule

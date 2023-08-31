@@ -1,9 +1,10 @@
 import GetPut :: *;
 import Connectable :: *;
 
-import SemiFifo :: *;
 import Ports :: *;
 import EthernetTypes :: *;
+
+import SemiFifo :: *;
 import BusConversion :: *;
 
 (* always_ready, always_enabled *)

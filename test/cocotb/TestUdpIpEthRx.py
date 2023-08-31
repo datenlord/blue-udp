@@ -179,10 +179,10 @@ class UdpIpEthRxTester:
             ref_data_stream = self.ref_data_stream_buf.get()
             if dut_data_stream != ref_data_stream:
                 self.log.error(f"Dut DataStream Size {len(dut_data_stream)}")
-                dut_data_hex = dut_data_stream.hex('-')
+                dut_data_hex = dut_data_stream.hex("-")
                 self.log.error(f"Dut DataStream: {dut_data_hex}")
                 self.log.error(f"Ref DataStream Size {len(ref_data_stream)}")
-                ref_data_hex = ref_data_stream.hex('-')
+                ref_data_hex = ref_data_stream.hex("-")
                 self.log.error(f"Ref DataStream: {ref_data_hex}")
                 self.log.error(f"Test Case {case_idx}: check DataStream failed")
 

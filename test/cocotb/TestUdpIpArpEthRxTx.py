@@ -48,12 +48,12 @@ class UdpIpArpEthRxTxTester:
             False,
         )
         self.data_stream_src.log.setLevel(logging.WARNING)
-        
+
         self.axi_stream_sink = AxiStreamSink(
             AxiStreamBus.from_prefix(dut, "m_axi_stream"), self.clock, self.reset, False
         )
         self.axi_stream_sink.log.setLevel(logging.WARNING)
-        
+
         # Tx
         self.udp_meta_sink = UdpIpMetaDataSink(
             UdpIpMetaDataBus.from_prefix(dut, "m_udp_meta"),
@@ -131,8 +131,8 @@ class UdpIpArpEthRxTxTester:
             ref_udp_meta = self.ref_udp_meta_buf.get()
             ref_payload = self.ref_data_stream_buf.get()
 
-            self.log.info(f"Dut {case_idx} Udp Meta:{dut_udp_meta}")
-            self.log.info(f"Dut {case_idx} Payload:{dut_payload}")
+            self.log.info(f"Receive Dut {case_idx} Udp Meta:{dut_udp_meta}")
+            self.log.info(f"Receive Dut {case_idx} Payload:{dut_payload}")
 
             udp_meta_eq = is_udp_ip_meta_equal(dut_udp_meta, ref_udp_meta)
             packet_eq = udp_meta_eq & (ref_payload == dut_payload)
@@ -155,12 +155,12 @@ class UdpIpArpEthRxTxTester:
                 recv_pkt = r
 
             self.log.info(f"Scapy Recv {pkt_idx} Packet")
-            
+
             axi_frame = AxiStreamFrame(tdata=raw(recv_pkt))
             await self.axi_stream_src.send(axi_frame)
             self.log.info(f"Successfully send and receive {pkt_idx}")
             pkt_idx += 1
-            time.sleep(1)
+            time.sleep(2)
 
 
 @cocotb.test(timeout_time=1000000, timeout_unit="ns")

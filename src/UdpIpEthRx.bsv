@@ -3,11 +3,11 @@ import GetPut :: *;
 import Connectable :: *;
 
 import Ports :: *;
-import Utils :: *;
 import MacLayer :: *;
 import UdpIpLayer :: *;
-import PortConversion :: *;
+import StreamHandler :: *;
 import EthernetTypes :: *;
+import PortConversion :: *;
 import UdpIpLayerForRdma :: *;
 
 import SemiFifo :: *;

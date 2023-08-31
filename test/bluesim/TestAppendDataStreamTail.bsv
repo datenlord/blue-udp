@@ -4,7 +4,6 @@ import Randomizable :: *;
 import Ports :: *;
 import Utils :: *;
 import SemiFifo :: *;
-import PrimUtils :: *;
 import TestUtils :: *;
 
 typedef 16 CYCLE_COUNT_WIDTH;

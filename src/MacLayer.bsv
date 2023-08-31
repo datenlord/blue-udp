@@ -1,9 +1,10 @@
-import GetPut :: *;
 import FIFOF :: *;
+import GetPut :: *;
 
-import EthernetTypes :: *;
 import Ports :: *;
-import Utils :: *;
+import StreamHandler :: *;
+import EthernetTypes :: *;
+
 import SemiFifo :: *;
 
 
@@ -11,7 +12,7 @@ module mkMacStream#(
     DataStreamPipeOut  udpIpStreamIn,
     MacMetaDataPipeOut macMetaDataIn,
     UdpConfig udpConfig
-)( DataStreamPipeOut );
+)(DataStreamPipeOut);
     FIFOF#(EthHeader) ethHeaderBuf <- mkFIFOF;
     
     rule genEthHeader;

@@ -9,7 +9,6 @@ import Randomizable :: *;
 import Ports :: *;
 import Utils :: *;
 import SemiFifo :: *;
-import PrimUtils :: *;
 import TestUtils :: *;
 import EthernetTypes :: *;
 import PriorityFlowControl :: *;

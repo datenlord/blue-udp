@@ -36,7 +36,7 @@ verilog:
 
 cocotb: verilog table
 ifeq ($(TARGET), UdpIpArpEthRxTx)
-	python3 $(TEST_FILE) $(IP_ADDR) $(UDP_PORT)
+	echo "Run run_docker_net_test.sh to test UdpIpArpEthRxTx"
 else
 	python3 $(TEST_FILE) $(SUPPORT_RDMA)
 endif

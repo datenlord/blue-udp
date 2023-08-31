@@ -7,7 +7,7 @@ LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper/src
 LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
-TARGET = UdpIpArpEthCmacRxTx
+TARGET = PfcUdpIpArpEthCmacRxTx
 FILE_PATH = $(ROOT_DIR)/test/vivado
 FILE_NAME ?= Test$(TARGET).bsv
 TESTBENCH_TOP ?= mkTest$(TARGET)WithClkRst

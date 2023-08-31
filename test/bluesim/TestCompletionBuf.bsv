@@ -1,5 +1,4 @@
 import FIFOF :: *;
-import PrimUtils :: *;
 import CompletionBuf :: *;
 import Randomizable :: *;
 

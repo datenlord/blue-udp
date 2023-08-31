@@ -8,7 +8,6 @@ import GetPut :: *;
 import SemiFifo :: *;
 import ArpCache :: *;
 import TestUtils :: *;
-import PrimUtils :: *;
 
 typedef 9 SIM_MEM_ADDR_WIDTH;
 typedef TExp#(SIM_MEM_ADDR_WIDTH) SIM_MEM_SIZE;

@@ -4,10 +4,11 @@ import Vector :: *;
 import ClientServer :: *;
 import Connectable :: *;
 
-import Utils :: *;
 import Ports :: *;
-import SemiFifo :: *;
 import EthernetTypes :: *;
+import StreamHandler :: *;
+
+import SemiFifo :: *;
 
 
 module mkIpHdrCheckSumServer(Server#(IpHeader, IpCheckSum)) 
@@ -190,7 +191,7 @@ module mkUdpIpMetaDataAndDataStream#(
         let checkSum <- checkSumServer.response.get();
         let passCheck = (checkSum == 0) && interCheckRes;
         checkRes <= tagged Valid passCheck;
-        $display("UdpIpStreamExtractor: Check Pass ");
+        $display("UdpIpStreamExtractor: Check Pass");
     endrule
 
     rule passMetaData if (isValid(checkRes));
@@ -200,7 +201,7 @@ module mkUdpIpMetaDataAndDataStream#(
             udpIpMetaDataOutBuf.enq(metaData);
         end
         else begin
-            $display("UdpIpStreamExtractor: Check Fail ");
+            $display("UdpIpStreamExtractor: Check Fail");
         end
     endrule
 

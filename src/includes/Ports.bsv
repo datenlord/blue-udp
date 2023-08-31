@@ -1,5 +1,8 @@
-import SemiFifo :: *;
+import Vector :: *;
+
 import EthernetTypes :: *;
+
+import SemiFifo :: *;
 import AxiStreamTypes :: *;
 
 typedef 8 BYTE_WIDTH;
@@ -49,6 +52,13 @@ typedef struct {
     IpGateWay  gateWay;
 } UdpConfig deriving(Bits, Bounded, Eq, FShow);
 typedef PipeOut#(UdpConfig) UdpConfigPipeOut;
+
+typedef enum {
+    FLOW_CTRL_STOP,
+    FLOW_CTRL_PASS
+} FlowControlRequest deriving(Bits, Eq, FShow);
+
+typedef Vector#(VIRTUAL_CHANNEL_NUM, Maybe#(FlowControlRequest)) FlowControlReqVec;
 
 
 typedef 512 AXIS_TDATA_WIDTH;

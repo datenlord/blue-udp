@@ -8,7 +8,6 @@ import Connectable :: *;
 import Ports :: *;
 import Utils :: *;
 import EthernetTypes :: *;
-import PriorityFlowControl :: *;
 
 import SemiFifo :: *;
 import AxiStreamTypes :: *;

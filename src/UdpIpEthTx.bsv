@@ -2,10 +2,10 @@ import GetPut :: *;
 import FIFOF :: *;
 
 import Ports :: *;
-import Utils :: *;
 import MacLayer :: *;
 import UdpIpLayer :: *;
 import EthernetTypes :: *;
+import StreamHandler :: *;
 import PortConversion :: *;
 import UdpIpLayerForRdma :: *;
 
