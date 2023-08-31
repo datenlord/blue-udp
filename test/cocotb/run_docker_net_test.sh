@@ -11,7 +11,7 @@ CONTAINER_SERVER_IP="10.1.1.48"
 CONTAINER_CLIENT_IP="10.1.1.64"
 
 # Create Image
-# docker build -f ./build_docker/Dockerfile -t $IMAGE_NAME ./build_docker
+docker build -f ./build_docker/Dockerfile -t $IMAGE_NAME ./build_docker
 
 # Create MacVLAN docker network
 docker network create -d macvlan --subnet=$CONTAINER_NET --ip-range=$CONTAINER_NET -o macvlan_mode=bridge -o parent=$NET_IFC $DOCKER_NETWORK
@@ -22,6 +22,7 @@ docker run --rm -d -v `pwd`:`pwd` -w `pwd` --net=mymacvlan --ip=$CONTAINER_SERVE
 
 sleep 1 # Wait a while for server to ready
 docker run --rm -v `pwd`:`pwd` -w `pwd` --net=mymacvlan --ip=$CONTAINER_CLIENT_IP --name exch_client $IMAGE_NAME python3 TestUdpIpArpEthRxTx.py $CONTAINER_SERVER_IP $PORT_NUM
+#make TARGET=UdpIpArpEthRxTx IP_ADDR=$CONTAINER_SERVER_IP UDP_PORT=$PORT_NUM
 
 # Clean containers and delete network
 docker kill `docker ps -a -q` || true

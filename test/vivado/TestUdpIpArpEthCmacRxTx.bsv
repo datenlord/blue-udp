@@ -15,7 +15,7 @@ import SemiFifo :: *;
 typedef 33 CYCLE_COUNT_WIDTH;
 typedef 16 CASE_COUNT_WIDTH;
 typedef 16 FRAME_COUNT_WIDTH;
-typedef 1000 TEST_CASE_NUM;
+typedef 512 TEST_CASE_NUM;
 
 typedef   18 MIN_RAW_BYTE_NUM;
 typedef 1024 MAX_RAW_BYTE_NUM;
@@ -379,6 +379,7 @@ module mkUdpIpArpEthCmacRxTxInst(
 );
     Bool isTxWaitRxAligned = True;
     let udpIpArpEthCmacRxTx <- mkUdpIpArpEthCmacRxTx(
+        `IS_SUPPORT_RDMA,
         isTxWaitRxAligned,
         valueOf(SYNC_BRAM_BUF_DEPTH),
         cmacRxTxClk,

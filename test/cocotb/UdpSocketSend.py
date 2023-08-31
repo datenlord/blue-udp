@@ -10,6 +10,6 @@ if __name__ == "__main__":
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     dst_addr = (dst_ip, dst_port)
     while True:
-        udp_socket.sendto(b'Hello World!! Hello World!!', dst_addr)
+        udp_socket.sendto(b"Hello World!! Hello World!!", dst_addr)
         time.sleep(6)
         print("Send one packet to: ", dst_addr)

@@ -20,7 +20,7 @@ typedef 6 TEST_FRAGMENT_NUM;
 typedef TMul#(TEST_FRAGMENT_NUM, DATA_BUS_BYTE_WIDTH) TEST_CASE_NUM;
 
 (* synthesize *)
-module mkTestDataStreamAppend();
+module mkTestAppendDataStreamTail();
 
     Integer testCaseNum = valueOf(TEST_CASE_NUM);
     Integer maxCycleNum = valueOf(MAX_CYCLE_NUM);
@@ -77,7 +77,7 @@ module mkTestDataStreamAppend();
         $display("\nCycle %d ----------------------------------------", cycleCount);
         immAssert(
             cycleCount < fromInteger(maxCycleNum),
-            "Testbench timeout assertion @ mkTestCompletionBuf",
+            "Testbench timeout assertion @ mkTestAppendDataStreamTail",
             $format("Cycle number overflow %d", maxCycleNum)
         );
     endrule
@@ -113,7 +113,7 @@ module mkTestDataStreamAppend();
         $display("DUT: ", fshow(dutDataStream));
         immAssert(
             dutDataStream == refDataStream,
-            "Compare DUT And REF output @ mkTestDataStreamAppend",
+            "Compare DUT And REF output @ mkTestAppendDataStreamTail",
             $format("Case %5d incorrect", outputCaseCount)
         );
 

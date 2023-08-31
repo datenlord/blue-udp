@@ -12,6 +12,7 @@ import UdpIpLayer :: *;
 import ArpProcessor :: *;
 import EthernetTypes :: *;
 import PortConversion :: *;
+import UdpIpLayerForRdma :: *;
 import PriorityFlowControl :: *;
 import XilinxCmacRxTxWrapper :: *;
 
@@ -38,7 +39,7 @@ typedef enum{
 } MuxState deriving(Bits, Eq);
 typedef MuxState DemuxState;
 
-module mkUdpIpArpEthRxTx(UdpIpArpEthRxTx);
+module mkGenericUdpIpArpEthRxTx#(Bool isSupportRdma)(UdpIpArpEthRxTx);
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
 
@@ -65,12 +66,22 @@ module mkUdpIpArpEthRxTx(UdpIpArpEthRxTx);
     );
 
     // Tx datapath
-    DataStreamPipeOut ipUdpStreamTx <- mkUdpIpStream(
-        udpConfigVal,
-        convertFifoToPipeOut(dataStreamInTxBuf),
-        convertFifoToPipeOut(udpMetaDataTxBuf),
-        genUdpIpHeader
-    );
+    DataStreamPipeOut udpIpStreamTx = ?;
+    if (isSupportRdma) begin
+        udpIpStreamTx <- mkUdpIpStreamForRdma(
+            convertFifoToPipeOut(udpMetaDataTxBuf),
+            convertFifoToPipeOut(dataStreamInTxBuf),
+            udpConfigVal
+        );
+    end
+    else begin
+        udpIpStreamTx <- mkUdpIpStream(
+            udpConfigVal,
+            convertFifoToPipeOut(dataStreamInTxBuf),
+            convertFifoToPipeOut(udpMetaDataTxBuf),
+            genUdpIpHeader
+        );
+    end
 
     rule doMux;
         if (muxState == INIT) begin
@@ -86,8 +97,8 @@ module mkUdpIpArpEthRxTx(UdpIpArpEthRxTx);
                 end
             end
             else if (macMeta.ethType == fromInteger(valueOf(ETH_TYPE_IP))) begin
-                let ipUdpStream = ipUdpStreamTx.first;
-                ipUdpStreamTx.deq;
+                let ipUdpStream = udpIpStreamTx.first;
+                udpIpStreamTx.deq;
                 macPayloadTxBuf.enq(ipUdpStream);
                 if (!ipUdpStream.isLast) begin
                     muxState <= IP;
@@ -95,8 +106,8 @@ module mkUdpIpArpEthRxTx(UdpIpArpEthRxTx);
             end
         end
         else if (muxState == IP) begin
-            let ipUdpStream = ipUdpStreamTx.first;
-            ipUdpStreamTx.deq;
+            let ipUdpStream = udpIpStreamTx.first;
+            udpIpStreamTx.deq;
             macPayloadTxBuf.enq(ipUdpStream);
             if (ipUdpStream.isLast) begin
                 muxState <= INIT;
@@ -168,11 +179,20 @@ module mkUdpIpArpEthRxTx(UdpIpArpEthRxTx);
         end
     endrule
 
-    UdpIpMetaDataAndDataStream udpIpMetaDataAndDataStream <- mkUdpIpMetaDataAndDataStream(
-        udpConfigVal,
-        convertFifoToPipeOut(ipUdpStreamRxBuf),
-        extractUdpIpMetaData
-    );
+    UdpIpMetaDataAndDataStream udpIpMetaAndDataStream;
+    if (isSupportRdma) begin
+        udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStreamForRdma(
+            convertFifoToPipeOut(ipUdpStreamRxBuf),
+            udpConfigVal
+        );
+    end
+    else begin
+        udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStream(
+            udpConfigVal,
+            convertFifoToPipeOut(ipUdpStreamRxBuf),
+            extractUdpIpMetaData
+        );
+    end
 
 
     // Udp Config Interface
@@ -205,8 +225,8 @@ module mkUdpIpArpEthRxTx(UdpIpArpEthRxTx);
             axiStreamInRxBuf.enq(stream);
         endmethod
     endinterface
-    interface PipeOut udpIpMetaDataOutRx = udpIpMetaDataAndDataStream.udpIpMetaDataOut;
-    interface PipeOut dataStreamOutRx  = udpIpMetaDataAndDataStream.dataStreamOut;
+    interface PipeOut udpIpMetaDataOutRx = udpIpMetaAndDataStream.udpIpMetaDataOut;
+    interface PipeOut dataStreamOutRx  = udpIpMetaAndDataStream.dataStreamOut;
 endmodule
 
 
@@ -231,8 +251,8 @@ interface RawUdpIpArpEthRxTx;
 endinterface
 
 
-module mkRawUdpIpArpEthRxTx(RawUdpIpArpEthRxTx);
-    UdpIpArpEthRxTx udpRxTx <- mkUdpIpArpEthRxTx;
+module mkGenericRawUdpIpArpEthRxTx#(Bool isSupportRdma)(RawUdpIpArpEthRxTx);
+    UdpIpArpEthRxTx udpRxTx <- mkGenericUdpIpArpEthRxTx(isSupportRdma);
 
     let rawConfig <- mkRawUdpConfigBusSlave(udpRxTx.udpConfig);
     let rawUdpIpMetaDataTx <- mkRawUdpIpMetaDataBusSlave(udpRxTx.udpIpMetaDataInTx);
@@ -254,6 +274,12 @@ module mkRawUdpIpArpEthRxTx(RawUdpIpArpEthRxTx);
     interface rawAxiStreamInRx = rawAxiStreamRx;
 endmodule
 
+(* synthesize *)
+module mkRawUdpIpArpEthRxTx(RawUdpIpArpEthRxTx);
+    let rawUdpIpArpEthRxTx <- mkGenericRawUdpIpArpEthRxTx(`IS_SUPPORT_RDMA);
+    return rawUdpIpArpEthRxTx;
+endmodule
+
 // UdpIpArpEthRxTx module with wrapper of Xilinx 100Gb CMAC IP
 interface UdpIpArpEthCmacRxTx;
     // Interface with CMAC IP
@@ -273,6 +299,7 @@ interface UdpIpArpEthCmacRxTx;
 endinterface
 
 module mkUdpIpArpEthCmacRxTx#(
+    Bool isSupportRdma,
     Bool isCmacTxWaitRxAligned,
     Integer syncBramBufDepth
 )(
@@ -314,7 +341,7 @@ module mkUdpIpArpEthCmacRxTx#(
         clocked_by cmacRxTxClk
     );
 
-    let udpIpArpEthRxTx <- mkUdpIpArpEthRxTx;
+    let udpIpArpEthRxTx <- mkGenericUdpIpArpEthRxTx(isSupportRdma);
     mkConnection(convertSyncFifoToPipeIn(txSyncBuf), udpIpArpEthRxTx.axiStreamOutTx);
     mkConnection(toGet(convertSyncFifoToPipeOut(rxSyncBuf)), udpIpArpEthRxTx.axiStreamInRx);
 

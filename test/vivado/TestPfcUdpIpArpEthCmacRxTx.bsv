@@ -17,7 +17,7 @@ import SemiFifo :: *;
 typedef 24 CYCLE_COUNT_WIDTH;
 typedef 16 CASE_COUNT_WIDTH;
 typedef 10000000 MAX_CYCLE_NUM;
-typedef 512 TEST_CASE_NUM;
+typedef 256 TEST_CASE_NUM;
 
 typedef 32'h7F000001 DUT_IP_ADDR;
 typedef 48'hd89c679c4829 DUT_MAC_ADDR;
@@ -305,6 +305,7 @@ module mkPfcUdpIpArpEthCmacRxTxInst(
 );
     Bool isTxWaitRxAligned = True;
     PfcUdpIpArpEthCmacRxTxTestInst pfcUdpIpArpEthCmacRxTx <- mkPfcUdpIpArpEthCmacRxTx(
+        `IS_SUPPORT_RDMA,
         isTxWaitRxAligned,
         valueOf(SYNC_BRAM_BUF_DEPTH),
         cmacRxTxClk,

@@ -324,7 +324,7 @@ interface XilinxCmacRxWrapper;
     method Bool ctlRxCheckEtypePcp;
     (* result = "rx_ctl_check_opcode_pcp" *)
     method Bool ctlRxCheckOpcodePcp;
-    
+
     (* result = "rx_ctl_enable_gpp" *)
     method Bool ctlRxCheckEnableGpp;
     (* result = "rx_ctl_check_mcast_gpp" *)
@@ -337,7 +337,7 @@ interface XilinxCmacRxWrapper;
     method Bool ctlRxCheckEtypeGpp;
     (* result = "rx_ctl_check_opcode_gpp" *)
     method Bool ctlRxCheckOpcodeGpp;
-    
+
     (* result = "rx_ctl_enable_ppp" *)
     method Bool ctlRxCheckEnablePpp;
     (* result = "rx_ctl_check_mcast_ppp" *)

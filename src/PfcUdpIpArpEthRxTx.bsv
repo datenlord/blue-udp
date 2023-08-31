@@ -38,14 +38,14 @@ interface PfcUdpIpArpEthRxTx#(
 
 endinterface
 
-module mkPfcUdpIpArpEthRxTx(PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold))
+module mkPfcUdpIpArpEthRxTx#(Bool isSupportRdma)(PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold))
     provisos(Add#(pfcThreshold, a__, bufPacketNum));
 
     FIFOF#(FlowControlReqVec) flowControlReqVecInBuf <- mkFIFOF;
     Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(UdpIpMetaData)) udpIpMetaDataInTxBufVec <- replicateM(mkFIFOF);
     Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(DataStream)) dataStreamInTxBufVec <- replicateM(mkFIFOF);
 
-    let udpIpArpEthRxTx <- mkUdpIpArpEthRxTx;
+    let udpIpArpEthRxTx <- mkGenericUdpIpArpEthRxTx(isSupportRdma);
 
     let pfcTx <- mkPriorityFlowControlTx(
         convertFifoToPipeOut(flowControlReqVecInBuf),
@@ -96,6 +96,7 @@ interface PfcUdpIpArpEthCmacRxTx#(
 endinterface
 
 module mkPfcUdpIpArpEthCmacRxTx#(
+    Bool isSupportRdma,
     Bool isCmacTxWaitRxAligned,
     Integer syncBramBufDepth
 )(
@@ -153,7 +154,7 @@ module mkPfcUdpIpArpEthCmacRxTx#(
         clocked_by cmacRxTxClk
     );
 
-    PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold) pfcUdpIpArpEthRxTx <- mkPfcUdpIpArpEthRxTx;
+    PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold) pfcUdpIpArpEthRxTx <- mkPfcUdpIpArpEthRxTx(isSupportRdma);
     mkConnection(convertSyncFifoToPipeIn(txAxiStreamSyncBuf), pfcUdpIpArpEthRxTx.axiStreamOutTx);
     mkConnection(toGet(convertSyncFifoToPipeOut(rxAxiStreamSyncBuf)), pfcUdpIpArpEthRxTx.axiStreamInRx);
     mkConnection(convertSyncFifoToPipeIn(txFlowCtrlReqVecSyncBuf), pfcUdpIpArpEthRxTx.flowControlReqVecOut);
@@ -167,7 +168,3 @@ module mkPfcUdpIpArpEthCmacRxTx#(
     interface udpIpMetaDataOutRxVec = pfcUdpIpArpEthRxTx.udpIpMetaDataOutRxVec;
     interface dataStreamOutRxVec = pfcUdpIpArpEthRxTx.dataStreamOutRxVec;
 endmodule
-
-
-
-

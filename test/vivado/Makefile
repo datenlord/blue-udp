@@ -7,33 +7,45 @@ LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper/src
 LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
-TARGET = PfcUdpIpArpEthCmacRxTx
+TARGET = UdpIpArpEthCmacRxTx
 FILE_PATH = $(ROOT_DIR)/test/vivado
 FILE_NAME ?= Test$(TARGET).bsv
 TESTBENCH_TOP ?= mkTest$(TARGET)WithClkRst
 DUT_TOP ?= mk$(TARGET)Inst
 VLOGDIR = generated
+SUPPORT_RDMA ?= False
 
+MACROFLAGS = -D IS_SUPPORT_RDMA=$(SUPPORT_RDMA)
+
+# Pass parameters to vivado
 export PROJ_NAME = cmac_test
-export CONFIG_SRC = ./verilog/sim_config.vh
-export SIM_SRC = ./verilog/Test$(TARGET)Wrapper.v
-
+export CONFIG_FILE = ./verilog/sim_config.vh
+export SRC_DIR = ./verilog/$(TARGET)
+export GEN_SRC_DIR = $(VLOGDIR)
+export IP_TCL = create_cmac_ip.tcl
+ifeq ($(SUPPORT_RDMA), True)
+export READ_MEM_FILE = 1
+else
+export READ_MEM_FILE = 0
+endif
 
 table:
-	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_256.json ./
+ifeq ($(SUPPORT_RDMA), True)
+	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_256.json $(GEN_SRC_DIR)
+endif
 
 verilog:
 	mkdir -p $(BUILDDIR)
-	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) -g $(TESTBENCH_TOP) $(FILE_PATH)/$(FILE_NAME)
-	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) -g $(DUT_TOP) $(FILE_PATH)/$(FILE_NAME)
+	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g $(TESTBENCH_TOP) $(FILE_PATH)/$(FILE_NAME)
+	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g $(DUT_TOP) $(FILE_PATH)/$(FILE_NAME)
 	mkdir -p $(VLOGDIR)
 	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(TESTBENCH_TOP) $(TESTBENCH_TOP) | grep -i '\.v' | xargs -I {} cp {} $(VLOGDIR)
 	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(DUT_TOP) $(DUT_TOP) | grep -i '\.v' | xargs -I {} cp {} $(VLOGDIR)
 
-sim: verilog
+sim: verilog table
 #	vivado -mode tcl
 	vivado -mode batch -source vivado_sim.tcl 2>&1 | tee ./run.log
-#rm -rf $(PROJ_NAME)
+	rm -rf $(PROJ_NAME)
 
 clean:
 	rm -rf $(BUILDDIR) $(VLOGDIR) $(PROJ_NAME) *.mem .Xil *.jou *.log *.str

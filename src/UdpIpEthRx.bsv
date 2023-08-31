@@ -8,6 +8,7 @@ import MacLayer :: *;
 import UdpIpLayer :: *;
 import PortConversion :: *;
 import EthernetTypes :: *;
+import UdpIpLayerForRdma :: *;
 
 import SemiFifo :: *;
 import AxiStreamTypes :: *;
@@ -23,27 +24,35 @@ interface UdpIpEthRx;
     interface DataStreamPipeOut  dataStreamOut;
 endinterface
 
-(* synthesize *)
-module mkUdpIpEthRx (UdpIpEthRx);
+module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
     FIFOF#(AxiStream512) axiStreamInBuf <- mkFIFOF;
     
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
 
-    DataStreamPipeOut macStream <- mkAxiStream512ToDataStream(
+    let macStream <- mkAxiStream512ToDataStream(
         convertFifoToPipeOut(axiStreamInBuf)
     );
 
-    MacMetaDataAndUdpIpStream macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
+    let macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
         macStream, 
         udpConfigVal
     );
 
-    UdpIpMetaDataAndDataStream udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStream(
-        udpConfigVal,
-        macMetaAndUdpIpStream.udpIpStreamOut,
-        extractUdpIpMetaData
-    );
+    UdpIpMetaDataAndDataStream udpIpMetaAndDataStream;
+    if (isSupportRdma) begin
+        udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStreamForRdma(
+            macMetaAndUdpIpStream.udpIpStreamOut,
+            udpConfigVal
+        );
+    end
+    else begin
+        udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStream(
+            udpConfigVal,
+            macMetaAndUdpIpStream.udpIpStreamOut,
+            extractUdpIpMetaData
+        );
+    end
 
     interface Put udpConfig;
         method Action put(UdpConfig conf);
@@ -77,8 +86,8 @@ interface RawUdpIpEthRx;
     interface RawDataStreamBusMaster rawDataStreamOut;
 endinterface
 
-module mkRawUdpIpEthRx(RawUdpIpEthRx);
-    UdpIpEthRx udpIpEthRx <- mkUdpIpEthRx;
+module mkGenericRawUdpIpEthRx#(Bool isSupportRdma)(RawUdpIpEthRx);
+    UdpIpEthRx udpIpEthRx <- mkGenericUdpIpEthRx(isSupportRdma);
 
     let rawUdpConfigBus <- mkRawUdpConfigBusSlave(udpIpEthRx.udpConfig);
     let rawMacMetaDataBus <- mkRawMacMetaDataBusMaster(udpIpEthRx.macMetaDataOut);
@@ -91,5 +100,11 @@ module mkRawUdpIpEthRx(RawUdpIpEthRx);
     interface rawMacMetaDataOut = rawMacMetaDataBus;
     interface rawUdpIpMetaDataOut = rawUdpIpMetaDataBus;
     interface rawDataStreamOut = rawDataStreamBus;
+endmodule
+
+(* synthesize *)
+module mkRawUdpIpEthRx(RawUdpIpEthRx);
+    let rawUdpIpEthRx <- mkGenericRawUdpIpEthRx(`IS_SUPPORT_RDMA);
+    return rawUdpIpEthRx;
 endmodule
 

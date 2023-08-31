@@ -1,0 +1,60 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+set -o xtrace
+
+in_server=0
+while getopts 's' op; do
+    if [ $op == 's' ]; then
+        in_server=1
+    fi
+done
+
+if [ $in_server == 1 ]; then
+    BASH_PROFILE=$HOME/.bash_profile
+    if [ -f "$BASH_PROFILE" ]; then
+        source $BASH_PROFILE
+    fi
+fi
+
+# Update submodules
+git submodule update --init --recursive
+
+# Check or format Code format
+echo -e "\nStart check code format"
+if [ $in_server == 1 ]; then
+    black --check $(find ./ -name "*.py")
+else
+    black $(find ./ -name "*.py")
+fi
+
+ROOT_DIR=`pwd`
+TEST_DIR=${ROOT_DIR}/test/cocotb
+cd ${TEST_DIR}
+# Run Tests with SUPPORT_RDMA=True
+echo -e "\nStart testing UdpIpEthTx with SUPPORT_RDMA=True"
+make cocotb TARGET=UdpIpEthTx SUPPORT_RDMA=True
+
+echo -e "\nStart testing UdpIpEthRx with SUPPORT_RDMA=True"
+make cocotb TARGET=UdpIpEthRx SUPPORT_RDMA=True
+
+make clean
+
+# Run Tests with SUPPORT_RDMA=False
+echo -e "\nStart testing UdpIpEthTx with SUPPORT_RDMA=True"
+make cocotb TARGET=UdpIpEthTx SUPPORT_RDMA=False
+
+echo -e "\nStart testing UdpIpEthRx with SUPPORT_RDMA=True"
+make cocotb TARGET=UdpIpEthRx SUPPORT_RDMA=False
+
+make clean
+
+# Test UdpIpArpEthRxTx on virtual docker network
+
+echo -e "\nStart testing UdpIpArpEthRxTx on docker virtual network"
+
+make verilog TARGET=UdpIpArpEthRxTx SUPPORT_RDMA=False
+source ./run_docker_net_test.sh
+
+

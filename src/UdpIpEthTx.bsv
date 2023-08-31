@@ -5,8 +5,9 @@ import Ports :: *;
 import Utils :: *;
 import MacLayer :: *;
 import UdpIpLayer :: *;
-import PortConversion :: *;
 import EthernetTypes :: *;
+import PortConversion :: *;
+import UdpIpLayerForRdma :: *;
 
 import SemiFifo :: *;
 import AxiStreamTypes :: *;
@@ -19,8 +20,7 @@ interface UdpIpEthTx;
     interface AxiStream512PipeOut axiStreamOut;
 endinterface
 
-(* synthesize *)
-module mkUdpIpEthTx(UdpIpEthTx);
+module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
     FIFOF#(   DataStream) dataStreamInBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataInBuf <- mkFIFOF;
     FIFOF#(  MacMetaData) macMetaDataInBuf <- mkFIFOF;
@@ -28,15 +28,25 @@ module mkUdpIpEthTx(UdpIpEthTx);
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
     
-    DataStreamPipeOut ipUdpStream <- mkUdpIpStream(
-        udpConfigVal,
-        convertFifoToPipeOut(dataStreamInBuf),
-        convertFifoToPipeOut(udpIpMetaDataInBuf),
-        genUdpIpHeader
-    );
+    DataStreamPipeOut udpIpStream = ?;
+    if (isSupportRdma) begin
+        udpIpStream <- mkUdpIpStreamForRdma(
+            convertFifoToPipeOut(udpIpMetaDataInBuf),
+            convertFifoToPipeOut(dataStreamInBuf),
+            udpConfigVal
+        );
+    end
+    else begin
+        udpIpStream <- mkUdpIpStream(
+            udpConfigVal,
+            convertFifoToPipeOut(dataStreamInBuf),
+            convertFifoToPipeOut(udpIpMetaDataInBuf),
+            genUdpIpHeader
+        );
+    end
 
     DataStreamPipeOut macStream <- mkMacStream(
-        ipUdpStream, 
+        udpIpStream, 
         convertFifoToPipeOut(macMetaDataInBuf), 
         udpConfigVal
     );
@@ -72,7 +82,6 @@ module mkUdpIpEthTx(UdpIpEthTx);
     interface PipeOut axiStreamOut = macAxiStream;
 endmodule
 
-
 interface RawUdpIpEthTx;
     (* prefix = "s_udp_config" *)
     interface RawUdpConfigBusSlave rawUdpConfig;
@@ -87,8 +96,8 @@ interface RawUdpIpEthTx;
     interface RawAxiStreamMaster#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamOut;
 endinterface
 
-module mkRawUdpIpEthTx(RawUdpIpEthTx);
-    UdpIpEthTx udpIpEthTx <- mkUdpIpEthTx;
+module mkGenericRawUdpIpEthTx#(Bool isSupportRdma)(RawUdpIpEthTx);
+    UdpIpEthTx udpIpEthTx <- mkGenericUdpIpEthTx(isSupportRdma);
 
     let rawUdpConfigBus <- mkRawUdpConfigBusSlave(udpIpEthTx.udpConfig);
     let rawUdpIpMetaDataBus <- mkRawUdpIpMetaDataBusSlave(udpIpEthTx.udpIpMetaDataIn);
@@ -103,5 +112,15 @@ module mkRawUdpIpEthTx(RawUdpIpEthTx);
     interface rawDataStreamIn = rawDataStreamBus;
     interface rawAxiStreamOut = rawAxiStreamBus;
 endmodule
+
+
+(* synthesize *)
+module mkRawUdpIpEthTx(RawUdpIpEthTx);
+    let rawUdpIpEth <- mkGenericRawUdpIpEthTx(`IS_SUPPORT_RDMA);
+    return rawUdpIpEth;
+endmodule
+
+
+
 
 
