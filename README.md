@@ -437,9 +437,9 @@ module mkPriorityFlowControlRx#(
 
 ## PfcUdpIpArpEthRxTx
 
-- **mkPfcUdpIpArpEthRxTx** integrates **mkPriorityFlowControlRx/Tx** and **mkGenericUdpIpArpEthRxTx** to provide the functionality of generating and parsing UDP/IP/Ethernet packets while supporting priority flow control. For packet transmission, it takes eight channels of payload stream and UDP/IP header information, and outputs one UDP/IP/Ethernet packet stream. For packet reception, it takes in one UDP/IP/Ethernet packet stream and routes the extracted UDP/IP header and payload stream to one of eight output channels.
+- **mkGenericPfcUdpIpArpEthRxTx** integrates **mkPriorityFlowControlRx/Tx** and **mkGenericUdpIpArpEthRxTx** to provide the functionality of generating and parsing UDP/IP/Ethernet packets while supporting priority flow control. For packet transmission, it takes eight channels of payload stream and UDP/IP header information, and outputs one UDP/IP/Ethernet packet stream. For packet reception, it takes in one UDP/IP/Ethernet packet stream and routes the extracted UDP/IP header and payload stream to one of eight output channels.
 
-- **mkPfcUdpIpArpEthCmacRxTx** integrates both **mkPfcUdpIpArpEthRxTx** module and **mkXilinxCmacTxWrapper** module. It’s designed to interact with Xilinx CMAC IP to transmits and receives UDP/IP/Ethernet packets to and from physical medium.
+- **mkPfcUdpIpArpEthCmacRxTx** integrates both **mkGenericPfcUdpIpArpEthRxTx** module and **mkXilinxCmacTxWrapper** module. It’s designed to interact with Xilinx CMAC IP to transmits and receives UDP/IP/Ethernet packets to and from physical medium.
 
 # Performance and Area
 

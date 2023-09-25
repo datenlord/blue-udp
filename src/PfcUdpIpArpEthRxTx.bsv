@@ -6,13 +6,19 @@ import Connectable :: *;
 import BRAMFIFO :: *;
 
 import Ports :: *;
+import PortConversion :: *;
 import EthernetTypes :: *;
 import UdpIpArpEthRxTx :: *;
 import XilinxCmacRxTxWrapper :: *;
 import PriorityFlowControl :: *;
 
 import SemiFifo :: *;
+import BusConversion :: *;
+import AxiStreamTypes :: *;
 
+typedef 8 BUF_PKT_NUM;
+typedef 64 MAX_PKT_FRAME_NUM;
+typedef 3 PFC_THRESHOLD;
 
 interface PfcUdpIpArpEthRxTx#(
     numeric type bufPacketNum, 
@@ -29,8 +35,8 @@ interface PfcUdpIpArpEthRxTx#(
 
     // Rx Channels
     interface Put#(AxiStream512)   axiStreamInRx;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(DataStream))    dataStreamOutRxVec;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataOutRxVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, DataStreamPipeOut)    dataStreamOutRxVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, UdpIpMetaDataPipeOut) udpIpMetaDataOutRxVec;
         
     // PFC Request
     interface Put#(FlowControlReqVec) flowControlReqVecIn;
@@ -38,7 +44,7 @@ interface PfcUdpIpArpEthRxTx#(
 
 endinterface
 
-module mkPfcUdpIpArpEthRxTx#(Bool isSupportRdma)(PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold))
+module mkGenericPfcUdpIpArpEthRxTx#(Bool isSupportRdma)(PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold))
     provisos(Add#(pfcThreshold, a__, bufPacketNum));
 
     FIFOF#(FlowControlReqVec) flowControlReqVecInBuf <- mkFIFOF;
@@ -72,6 +78,57 @@ module mkPfcUdpIpArpEthRxTx#(Bool isSupportRdma)(PfcUdpIpArpEthRxTx#(bufPacketNu
 
     interface flowControlReqVecIn = toPut(flowControlReqVecInBuf);
     interface flowControlReqVecOut = pfcRx.flowControlReqVecOut;
+endmodule
+
+
+interface RawPfcUdpIpArpEthRxTx;
+    (* prefix = "s_udp_config" *)
+    interface RawUdpConfigBusSlave rawUdpConfig;
+    
+    // Tx
+    interface Vector#(VIRTUAL_CHANNEL_NUM, RawUdpIpMetaDataBusSlave) rawUdpIpMetaSlaveVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, RawDataStreamBusSlave) rawDataStreamSlaveVec;
+    (* prefix = "m_axi_stream" *)
+    interface RawAxiStreamMaster#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamOutTx;
+    
+    // Rx
+    interface Vector#(VIRTUAL_CHANNEL_NUM, RawUdpIpMetaDataBusMaster) rawUdpIpMetaMasterVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, RawDataStreamBusMaster) rawDataStreamMasterVec;
+    (* prefix = "s_axi_stream" *)
+    interface RawAxiStreamSlave#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamInRx;
+endinterface
+
+module mkRawPfcUdpIpArpEthRxTx(RawPfcUdpIpArpEthRxTx);
+
+    Vector#(VIRTUAL_CHANNEL_NUM, RawUdpIpMetaDataBusSlave) rawUdpIpMetaDataInTxVec;
+    Vector#(VIRTUAL_CHANNEL_NUM, RawDataStreamBusSlave) rawDataStreamInTxVec;
+    Vector#(VIRTUAL_CHANNEL_NUM, RawUdpIpMetaDataBusMaster) rawUdpIpMetaDataOutRxVec;
+    Vector#(VIRTUAL_CHANNEL_NUM, RawDataStreamBusMaster) rawDataStreamOutRxVec;
+
+    PfcUdpIpArpEthRxTx#(BUF_PKT_NUM, MAX_PKT_FRAME_NUM, PFC_THRESHOLD) pfcUdpIpArpEthRxTx <- mkGenericPfcUdpIpArpEthRxTx(`IS_SUPPORT_RDMA);
+    let rawConfig <- mkRawUdpConfigBusSlave(pfcUdpIpArpEthRxTx.udpConfig);
+    let rawAxiStreamTx <- mkPipeOutToRawAxiStreamMaster(pfcUdpIpArpEthRxTx.axiStreamOutTx);
+    let rawAxiStreamRx <- mkPutToRawAxiStreamSlave(pfcUdpIpArpEthRxTx.axiStreamInRx, CF);
+
+    for (Integer i = 0; i < valueOf(VIRTUAL_CHANNEL_NUM); i = i + 1) begin
+        let rawUdpIpMetaInTx <- mkRawUdpIpMetaDataBusSlave(pfcUdpIpArpEthRxTx.udpIpMetaDataInTxVec[i]);
+        let rawDataStreamInTx <- mkRawDataStreamBusSlave(pfcUdpIpArpEthRxTx.dataStreamInTxVec[i]);
+        let rawUdpIpMetaOutRx <- mkRawUdpIpMetaDataBusMaster(pfcUdpIpArpEthRxTx.udpIpMetaDataOutRxVec[i]);
+        let rawDataStreamOutRx <- mkRawDataStreamBusMaster(pfcUdpIpArpEthRxTx.dataStreamOutRxVec[i]);
+
+        rawUdpIpMetaDataInTxVec[i] = rawUdpIpMetaInTx;
+        rawDataStreamInTxVec[i] = rawDataStreamInTx;
+        rawUdpIpMetaDataOutRxVec[i] = rawUdpIpMetaOutRx;
+        rawDataStreamOutRxVec[i] = rawDataStreamOutRx;
+    end
+
+    interface rawUdpConfig = rawConfig;
+    interface rawAxiStreamOutTx = rawAxiStreamTx;
+    interface rawUdpIpMetaSlaveVec = rawUdpIpMetaDataInTxVec;
+    interface rawDataStreamSlaveVec = rawDataStreamInTxVec;
+    interface rawAxiStreamInRx = rawAxiStreamRx;
+    interface rawUdpIpMetaMasterVec = rawUdpIpMetaDataOutRxVec;
+    interface rawDataStreamMasterVec = rawDataStreamOutRxVec;
 endmodule
 
 interface PfcUdpIpArpEthCmacRxTx#(
@@ -154,7 +211,7 @@ module mkPfcUdpIpArpEthCmacRxTx#(
         clocked_by cmacRxTxClk
     );
 
-    PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold) pfcUdpIpArpEthRxTx <- mkPfcUdpIpArpEthRxTx(isSupportRdma);
+    PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold) pfcUdpIpArpEthRxTx <- mkGenericPfcUdpIpArpEthRxTx(isSupportRdma);
     mkConnection(convertSyncFifoToPipeIn(txAxiStreamSyncBuf), pfcUdpIpArpEthRxTx.axiStreamOutTx);
     mkConnection(toGet(convertSyncFifoToPipeOut(rxAxiStreamSyncBuf)), pfcUdpIpArpEthRxTx.axiStreamInRx);
     mkConnection(convertSyncFifoToPipeIn(txFlowCtrlReqVecSyncBuf), pfcUdpIpArpEthRxTx.flowControlReqVecOut);
@@ -165,6 +222,6 @@ module mkPfcUdpIpArpEthCmacRxTx#(
     interface udpConfig = pfcUdpIpArpEthRxTx.udpConfig;
     interface udpIpMetaDataInTxVec = pfcUdpIpArpEthRxTx.udpIpMetaDataInTxVec;
     interface dataStreamInTxVec = pfcUdpIpArpEthRxTx.dataStreamInTxVec;
-    interface udpIpMetaDataOutRxVec = pfcUdpIpArpEthRxTx.udpIpMetaDataOutRxVec;
-    interface dataStreamOutRxVec = pfcUdpIpArpEthRxTx.dataStreamOutRxVec;
+    interface udpIpMetaDataOutRxVec = map(toGet, pfcUdpIpArpEthRxTx.udpIpMetaDataOutRxVec);
+    interface dataStreamOutRxVec = map(toGet, pfcUdpIpArpEthRxTx.dataStreamOutRxVec);
 endmodule

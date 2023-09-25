@@ -62,7 +62,7 @@ module mkTestPfcUdpIpArpEthRxTx();
     FIFOF#(UdpIpMetaData) refMetaDataBuf <- mkSizedFIFOF(valueOf(REF_BUF_DEPTH));
     FIFOF#(DataStream) refDataStreamBuf <- mkSizedFIFOF(valueOf(REF_BUF_DEPTH));
 
-    PfcUdpIpArpEthRxTx#(BUF_PACKET_NUM, MAX_PACKET_FRAME_NUM, PFC_THRESHOLD) pfcUdpIpArpEthRxTx <- mkPfcUdpIpArpEthRxTx;
+    PfcUdpIpArpEthRxTx#(BUF_PACKET_NUM, MAX_PACKET_FRAME_NUM, PFC_THRESHOLD) pfcUdpIpArpEthRxTx <- mkGenericPfcUdpIpArpEthRxTx(`IS_SUPPORT_RDMA);
     mkConnection(pfcUdpIpArpEthRxTx.flowControlReqVecIn, toGet(pfcUdpIpArpEthRxTx.flowControlReqVecOut));
     mkConnection(pfcUdpIpArpEthRxTx.axiStreamInRx, toGet(axiStreamInterBuf));
     rule connectAxiStream;
@@ -75,7 +75,6 @@ module mkTestPfcUdpIpArpEthRxTx();
             $display("Testbench: Throw AxiStream frame");
         end
     endrule
-
 
     // Initialize Testbench
     rule initTest if (!isInit);
@@ -150,7 +149,6 @@ module mkTestPfcUdpIpArpEthRxTx();
             isLast: nextFrameCount == frameNumReg
         };
 
-        
         refDataStreamBuf.enq(dataStream);
         pfcUdpIpArpEthRxTx.dataStreamInTxVec[testChannelIdx].put(dataStream);
         frameCounter <= nextFrameCount;
@@ -165,7 +163,8 @@ module mkTestPfcUdpIpArpEthRxTx();
 
 
     rule recvAndCheckMetaData if (!isRxPause);
-        let dutMetaData <- pfcUdpIpArpEthRxTx.udpIpMetaDataOutRxVec[testChannelIdx].get;
+        let dutMetaData = pfcUdpIpArpEthRxTx.udpIpMetaDataOutRxVec[testChannelIdx].first;
+        pfcUdpIpArpEthRxTx.udpIpMetaDataOutRxVec[testChannelIdx].deq;
         let refMetaData = refMetaDataBuf.first;
         refMetaDataBuf.deq;
         $display("Testbench: Channel %3d: Receive %d UdpIpMetaData", testChannelIdx, outputCaseCounter);
@@ -177,7 +176,8 @@ module mkTestPfcUdpIpArpEthRxTx();
     endrule
 
     rule recvAndCheckDataStream if (!isRxPause);
-        let dutDataStream <- pfcUdpIpArpEthRxTx.dataStreamOutRxVec[testChannelIdx].get;
+        let dutDataStream = pfcUdpIpArpEthRxTx.dataStreamOutRxVec[testChannelIdx].first;
+        pfcUdpIpArpEthRxTx.dataStreamOutRxVec[testChannelIdx].deq;
         let refDataStream = refDataStreamBuf.first;
         refDataStreamBuf.deq;
         $display("Testbench: Channel %3d: Receive %d DataStream", testChannelIdx, outputCaseCounter);

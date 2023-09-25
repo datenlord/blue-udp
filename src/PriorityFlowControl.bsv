@@ -68,8 +68,8 @@ interface PriorityFlowControlRx#(
     // pause and resume request from receiver
     interface PipeOut#(FlowControlReqVec) flowControlReqVecOut;
     
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(DataStream)) dataStreamOutVec;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataOutVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, PipeOut#(DataStream)) dataStreamOutVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, PipeOut#(UdpIpMetaData)) udpIpMetaDataOutVec;
 endinterface
 
 module mkPriorityFlowControlRx#(
@@ -141,19 +141,20 @@ module mkPriorityFlowControlRx#(
     endrule
 
 
-    Vector#(VIRTUAL_CHANNEL_NUM, Get#(DataStream)) dataStreamVec = newVector;
-    Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataVec = newVector;
+    Vector#(VIRTUAL_CHANNEL_NUM, PipeOut#(DataStream)) dataStreamVec = newVector;
+    Vector#(VIRTUAL_CHANNEL_NUM, PipeOut#(UdpIpMetaData)) udpIpMetaDataVec = newVector;
     for (Integer i = 0; i < virtualChannelNum; i = i + 1) begin
-        udpIpMetaDataVec[i] = toGet(udpIpMetaDataOutBufVec[i]);
+        udpIpMetaDataVec[i] = convertFifoToPipeOut(udpIpMetaDataOutBufVec[i]);
         dataStreamVec[i] = (
-            interface Get#(DataStream)
-                method ActionValue#(DataStream) get;
+            interface PipeOut#(DataStream)
+                method DataStream first = dataStreamOutBufVec[i].first;
+                method Bool notEmpty = dataStreamOutBufVec[i].notEmpty;
+                method Action deq;
                     let dataStream = dataStreamOutBufVec[i].first;
                     dataStreamOutBufVec[i].deq;
                     if (dataStream.isLast) begin
                         packetNumCountVec[i].decr(1);
                     end
-                    return dataStream;
                 endmethod
             endinterface
         );

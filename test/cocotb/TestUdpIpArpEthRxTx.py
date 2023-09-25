@@ -1,5 +1,6 @@
 import os
 import random
+import json
 
 from scapy.all import *
 
@@ -34,7 +35,7 @@ class UdpIpArpEthRxTxTester:
         self.udp_config_dut_src = UdpConfigSource(
             UdpConfigBus.from_prefix(dut, "s_udp_config"), self.clock, self.reset, False
         )
-        # Rx
+        # Tx
         self.udp_meta_src = UdpIpMetaDataSource(
             UdpIpMetaDataBus.from_prefix(dut, "s_udp_meta"),
             self.clock,
@@ -54,7 +55,7 @@ class UdpIpArpEthRxTxTester:
         )
         self.axi_stream_sink.log.setLevel(logging.WARNING)
 
-        # Tx
+        # Rx
         self.udp_meta_sink = UdpIpMetaDataSink(
             UdpIpMetaDataBus.from_prefix(dut, "m_udp_meta"),
             self.clock,
@@ -207,7 +208,9 @@ def test_UdpIpArpEthRxTx(target_ip, udp_port):
 
 
 if __name__ == "__main__":
-    assert len(sys.argv) == 3, "Usage: python3 TestUdpIpArpEthRxTx.py IP_ADDR UDP_PORT"
-    target_ip = sys.argv[1]
-    udp_port = sys.argv[2]
+    assert len(sys.argv) == 2, "Usage: python3 TestUdpIpArpEthRxTx JSON_CONFIG_FILE"
+    with open(sys.argv[1]) as json_file:
+        test_config = json.load(json_file)
+    target_ip = test_config["ip_addr"]
+    udp_port = test_config["udp_port"]
     test_UdpIpArpEthRxTx(target_ip, udp_port)

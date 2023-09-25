@@ -4,6 +4,7 @@ import Connectable :: *;
 import Vector :: *;
 import ClientServer :: *;
 import GetPut :: *;
+import Utils :: *;
 
 import SemiFifo :: *;
 import ArpCache :: *;

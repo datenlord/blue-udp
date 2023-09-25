@@ -7,7 +7,7 @@ LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper/src
 LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
-TARGET = UdpIpEthTx
+TARGET = UdpIpArpEthRxTx
 FILE_PATH = $(ROOT_DIR)/src
 TEST_FILE = Test$(TARGET).py
 DESIGN_FILE ?= $(TARGET).bsv
@@ -42,7 +42,7 @@ else
 endif
 
 clean:
-	rm -rf $(BUILDDIR) __pycache__ .pytest_cache verilog *.mem
+	rm -rf $(BUILDDIR) __pycache__ .pytest_cache verilog *.mem *.json
 
 
 .PHONY: table verilog cocotb clean

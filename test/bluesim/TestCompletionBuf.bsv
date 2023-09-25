@@ -1,3 +1,4 @@
+import Utils :: *;
 import FIFOF :: *;
 import CompletionBuf :: *;
 import Randomizable :: *;

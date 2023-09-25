@@ -13,7 +13,7 @@ if __name__ == "__main__":
     pkt_count = 0
     while True:
         pkt, pkt_addr = sock.recvfrom(4096)
-        print(f"Receive {pkt_count} packet from {pkt_addr}")
+        print(f"Recv {pkt_count} packet from {pkt_addr}")
         time.sleep(3)
         sock.sendto(pkt, pkt_addr)
         print(f"Send {pkt_count} packet back to {pkt_addr}")

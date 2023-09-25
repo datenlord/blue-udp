@@ -4,6 +4,7 @@ from cocotbext.axi.stream import define_stream
 IP_ADDR_BYTE_NUM = 4
 MAC_ADDR_BYTE_NUM = 6
 UDP_PORT_BYTE_NUM = 2
+VIRTUAL_CHANNEL_NUM = 8
 
 (
     UdpConfigBus,

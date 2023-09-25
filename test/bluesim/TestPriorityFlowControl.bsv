@@ -16,7 +16,7 @@ import PriorityFlowControl :: *;
 typedef 16 CYCLE_COUNT_WIDTH;
 typedef 16 CASE_COUNT_WIDTH;
 typedef 50000 MAX_CYCLE_NUM;
-typedef 32 TEST_CASE_NUM;
+typedef 64 TEST_CASE_NUM;
 
 typedef 5 FRAME_COUNT_WIDTH;
 typedef 4 MAX_RANDOM_DELAY;
@@ -135,7 +135,8 @@ module mkTestPriorityFlowControl();
 
     for (Integer i = 0; i < channelNum; i = i + 1) begin
         rule recvAndCheckMetaData;
-            let dutMetaData <- pfcRx.udpIpMetaDataOutVec[i].get;
+            let dutMetaData = pfcRx.udpIpMetaDataOutVec[i].first;
+            pfcRx.udpIpMetaDataOutVec[i].deq;
             let refMetaData = refMetaDataBuf[i].first;
             refMetaDataBuf[i].deq;
             $display("Virtual Channel %d: Receive %d UdpIpMetaData", i, outputCaseCounters[i]);
@@ -151,7 +152,8 @@ module mkTestPriorityFlowControl();
 
     for (Integer i = 0; i < channelNum; i = i + 1) begin
         rule recvAndCheckDataStream;
-            let dutDataStream <- pfcRx.dataStreamOutVec[i].get;
+            let dutDataStream = pfcRx.dataStreamOutVec[i].first;
+            pfcRx.dataStreamOutVec[i].deq;
             let refDataStream = refDataStreamBuf[i].first;
             refDataStreamBuf[i].deq;
             $display("Virtual Channel %d: Receive %d DataStream", i, outputCaseCounters[i]);
