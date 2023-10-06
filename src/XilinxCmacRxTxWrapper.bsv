@@ -129,9 +129,7 @@ module mkXilinxCmacTxWrapper#(
         ctlTxSendLocalFaultIndicationReg <= False;
         ctlTxSendRemoteFaultIndicationReg <= False;
 
-        if (txAxiStreamIn.notEmpty) begin
-            txStateReg <= TX_STATE_GT_LOCKED;
-        end
+        txStateReg <= TX_STATE_GT_LOCKED;
     endrule
 
     rule stateGtLocked if (txStateReg == TX_STATE_GT_LOCKED);

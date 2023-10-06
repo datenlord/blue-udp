@@ -40,7 +40,7 @@ typedef 256 REF_BUF_DEPTH;
 // Clock and Reset Signal Configuration(unit: 1ps/1ps)
 typedef    1 CLK_POSITIVE_INIT_VAL;
 typedef    0 CLK_NEGATIVE_INIT_VAL;
-typedef 3200 GT_REF_CLK_HALF_PERIOD;
+typedef 3103 GT_REF_CLK_HALF_PERIOD;
 typedef 5000 INIT_CLK_HALF_PERIOD;
 typedef 1000 UDP_CLK_HALF_PERIOD;
 typedef  100 SYS_RST_DURATION;

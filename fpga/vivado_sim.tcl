@@ -2,6 +2,7 @@
 # STEP#1: define variables
 #
 set project_name $::env(PROJ_NAME)
+set sim_top $::env(SIM_TOP)
 set config_file $::env(CONFIG_FILE)
 set src_dir $::env(SRC_DIR)
 set gen_src_dir $::env(GEN_SRC_DIR)
@@ -27,6 +28,8 @@ set_property is_global_include true [get_files $config_file]
 
 update_compile_order -fileset sources_1
 update_compile_order -fileset sim_1
+
+set_property top $sim_top [get_filesets sim_1]
 
 
 # STEP#3: create and synthesize ip

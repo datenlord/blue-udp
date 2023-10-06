@@ -8,7 +8,7 @@ LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
 TARGET = PfcUdpIpArpEthCmacRxTx
-FILE_PATH = $(ROOT_DIR)/test/vivado
+BSVDIR = bsv
 FILE_NAME ?= Test$(TARGET).bsv
 TESTBENCH_TOP ?= mkTest$(TARGET)WithClkRst
 DUT_TOP ?= mk$(TARGET)Inst
@@ -36,8 +36,8 @@ endif
 
 verilog:
 	mkdir -p $(BUILDDIR)
-	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g $(TESTBENCH_TOP) $(FILE_PATH)/$(FILE_NAME)
-	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g $(DUT_TOP) $(FILE_PATH)/$(FILE_NAME)
+	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g $(TESTBENCH_TOP) $(BSVDIR)/$(FILE_NAME)
+	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g $(DUT_TOP) $(BSVDIR)/$(FILE_NAME)
 	mkdir -p $(VLOGDIR)
 	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(TESTBENCH_TOP) $(TESTBENCH_TOP) | grep -i '\.v' | xargs -I {} cp {} $(VLOGDIR)
 	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(DUT_TOP) $(DUT_TOP) | grep -i '\.v' | xargs -I {} cp {} $(VLOGDIR)

@@ -1,0 +1,3 @@
+`define BSV_POSITIVE_RESET
+
+`define SIM_SPEED_UP
