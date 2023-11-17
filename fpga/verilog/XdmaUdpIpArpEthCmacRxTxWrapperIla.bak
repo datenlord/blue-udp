@@ -105,6 +105,46 @@ module XdmaUdpIpArpEthCmacRxTxWrapper#(
         .m_axis_h2c_tkeep_0 (xdma_h2c_axis_tkeep)    // output wire [63 : 0] m_axis_h2c_tkeep_0
     );
     
+    ila_0 xdma_h2c_axis_ila (
+        .clk   (xdma_axi_aclk), // input wire clk
+
+        .probe0( xdma_h2c_axis_tvalid ),  
+        .probe1( xdma_h2c_axis_tready ),
+        .probe2( xdma_h2c_axis_tlast  ),
+        .probe3( xdma_h2c_axis_tkeep  ),
+        .probe4( xdma_h2c_axis_tdata  )
+    );
+
+    ila_0 xdma_c2h_axis_ila (
+        .clk   (xdma_axi_aclk), // input wire clk
+    
+        .probe0( xdma_c2h_axis_tvalid ),  
+        .probe1( xdma_c2h_axis_tready ),
+        .probe2( xdma_c2h_axis_tlast  ),
+        .probe3( xdma_c2h_axis_tkeep  ),
+        .probe4( xdma_c2h_axis_tdata  )
+    );
+    
+    ila_1 xdma_tx_axis_ila (
+        .clk(udp_clk), // input wire clk
+    
+        .probe0(xdma_tx_axis_tvalid), 
+        .probe1(xdma_tx_axis_tready),
+        .probe2(xdma_tx_axis_tlast ),
+        .probe3(xdma_tx_axis_tkeep ),
+        .probe4(xdma_tx_axis_tdata )
+    );
+
+    ila_1 xdma_rx_axis_ila (
+        .clk(udp_clk), // input wire clk
+        
+        .probe0(xdma_rx_axis_tvalid),
+        .probe1(xdma_rx_axis_tready),
+        .probe2(xdma_rx_axis_tlast ),
+        .probe3(xdma_rx_axis_tkeep ),
+        .probe4(xdma_rx_axis_tdata )
+    );
+    
     clk_wiz_0 clk_wiz_inst (
         // Clock out ports
         .clk_out1(udp_clk),           // output clk_out1
@@ -116,7 +156,7 @@ module XdmaUdpIpArpEthCmacRxTxWrapper#(
         .clk_in1(xdma_axi_aclk)       // input clk_in1
     );
     
-    assign udp_reset = clk_wiz_locked;
+    assign udp_reset = ~ clk_wiz_locked;
     assign cmac_sys_reset = ~ clk_wiz_locked;
 
     axis_data_fifo_0 tx_axis_sync_fifo (

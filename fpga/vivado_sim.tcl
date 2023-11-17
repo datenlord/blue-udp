@@ -3,6 +3,7 @@
 #
 set project_name $::env(PROJ_NAME)
 set sim_top $::env(SIM_TOP)
+set include_dir $::env(INCLUDE_DIR)
 set config_file $::env(CONFIG_FILE)
 set src_dir $::env(SRC_DIR)
 set gen_src_dir $::env(GEN_SRC_DIR)
@@ -22,8 +23,7 @@ if { $read_mem_file } {
     add_files -norecurse [glob $gen_src_dir/*.mem]
 }
 
-#move_files -fileset sim_1 [get_files $sim_src]
-add_files -norecurse $config_file
+add_files -norecurse [glob $include_dir/*]
 set_property is_global_include true [get_files $config_file]
 
 update_compile_order -fileset sources_1

@@ -17,9 +17,9 @@ typedef 256 TEST_CASE_NUM;
 
 typedef 2048 PAYLOAD_BYTE_NUM;
 typedef TMul#(PAYLOAD_BYTE_NUM, 8) PAYLOAD_WIDTH;
-typedef TDiv#(PAYLOAD_BYTE_NUM, AXIS_TKEEP_WIDTH) PAYLOAD_FRAME_NUM;
-typedef TMul#(PAYLOAD_FRAME_NUM, AXIS_TDATA_WIDTH) PAYLOAD_EXT_WIDTH;
-typedef TMul#(PAYLOAD_FRAME_NUM, AXIS_TKEEP_WIDTH) PAYLOAD_EXT_BYTE_NUM;
+typedef TDiv#(PAYLOAD_BYTE_NUM, AXIS512_TKEEP_WIDTH) PAYLOAD_FRAME_NUM;
+typedef TMul#(PAYLOAD_FRAME_NUM, AXIS512_TDATA_WIDTH) PAYLOAD_EXT_WIDTH;
+typedef TMul#(PAYLOAD_FRAME_NUM, AXIS512_TKEEP_WIDTH) PAYLOAD_EXT_BYTE_NUM;
 typedef TSub#(PAYLOAD_EXT_BYTE_NUM, PAYLOAD_BYTE_NUM) EXTRA_BYTE_NUM;
 
 // Clock and Reset Signal Configuration(unit: 1ps/1ps)
@@ -31,14 +31,15 @@ typedef 1000 UDP_CLK_HALF_PERIOD;
 typedef  100 SYS_RST_DURATION;
 typedef  100 UDP_RESET_DURATION;
 
-interface TestXdmaUdpIpArpEthCmacRxTx;
+interface TestXdmaUdpIpArpEthRxTx;
     (* prefix = "xdma_tx_axis" *)
-    interface RawAxiStreamMaster#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) xdmaAxiStreamOutTx;
+    interface RawAxiStreamMaster#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) xdmaAxiStreamOutTx;
     (* prefix = "xdma_rx_axis" *)
-    interface RawAxiStreamSlave#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) xdmaAxiStreamInRx;
+    interface RawAxiStreamSlave#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) xdmaAxiStreamInRx;
 endinterface
 
-module mkTestXdmaUdpIpArpEthCmacRxTx(TestXdmaUdpIpArpEthCmacRxTx);
+(* synthesize *)
+module mkTestXdmaUdpIpArpEthRxTx(TestXdmaUdpIpArpEthRxTx);
     Integer testCaseNum = valueOf(TEST_CASE_NUM);
     Integer payloadFrameNum = valueOf(PAYLOAD_FRAME_NUM);
 
@@ -86,12 +87,12 @@ module mkTestXdmaUdpIpArpEthCmacRxTx(TestXdmaUdpIpArpEthCmacRxTx);
         );
     endrule
 
-    Reg#(Vector#(PAYLOAD_FRAME_NUM, Bit#(AXIS_TDATA_WIDTH))) rawDataVecReg <- mkRegU;
+    Reg#(Vector#(PAYLOAD_FRAME_NUM, Bit#(AXIS512_TDATA_WIDTH))) rawDataVecReg <- mkRegU;
     rule driveXdmaAxiStreamTx if (isInit && (inputCaseCount < fromInteger(testCaseNum)));
         let nextFrameCount = inputFrameCount + 1;
         let rawData <- randRawData.next;
         Bit#(PAYLOAD_EXT_WIDTH) extRawData = zeroExtend(rawData);
-        Vector#(PAYLOAD_FRAME_NUM, Bit#(AXIS_TDATA_WIDTH)) rawDataVec = unpack(extRawData);
+        Vector#(PAYLOAD_FRAME_NUM, Bit#(AXIS512_TDATA_WIDTH)) rawDataVec = unpack(extRawData);
         AxiStream512 axiStream = AxiStream {
             tData: rawDataVecReg[inputFrameCount],
             tKeep: setAllBits,
@@ -137,7 +138,7 @@ module mkTestXdmaUdpIpArpEthCmacRxTx(TestXdmaUdpIpArpEthCmacRxTx);
         $display("DUT: ", fshow(dutAxiStream));
         immAssert(
             dutAxiStream == refAxiStream,
-            "Compare DUT And REF output @ mkTestXdmaUdpIpArpEthCmacRxTx",
+            "Compare DUT And REF output @ mkTestXdmaUdpIpArpEthRxTx",
             $format("The %5d AxiStream frame of %5d testcase is incorrect", outputFrameCount, outputCaseCount)
         );
     endrule
@@ -152,9 +153,9 @@ module mkTestXdmaUdpIpArpEthCmacRxTx(TestXdmaUdpIpArpEthCmacRxTx);
 endmodule
 
 // Drive testcases and generate clk and reset signals
-interface TestXdmaUdpIpArpEthCmacRxTxWithClk;
+interface TestXdmaUdpIpArpEthRxTxWithCmac;
     (* prefix = "" *)
-    interface TestXdmaUdpIpArpEthCmacRxTx testStimulus;
+    interface TestXdmaUdpIpArpEthRxTx testStimulus;
     
     // Clock and Reset
     (* prefix = "gt_ref_clk_p" *)
@@ -172,7 +173,7 @@ interface TestXdmaUdpIpArpEthCmacRxTxWithClk;
 endinterface
 
 (* synthesize, clock_prefix = "", reset_prefix = "", gate_prefix = "gate", no_default_clock, no_default_reset *)
-module mkTestXdmaUdpIpArpEthCmacRxTxWithClk(TestXdmaUdpIpArpEthCmacRxTxWithClk);
+module mkTestXdmaUdpIpArpEthRxTxWithCmac(TestXdmaUdpIpArpEthRxTxWithCmac);
     // Clock and Reset Generation
     let gtPositiveRefClkOsc <- mkAbsoluteClockFull(
         valueOf(GT_REF_CLK_HALF_PERIOD),
@@ -206,9 +207,9 @@ module mkTestXdmaUdpIpArpEthCmacRxTxWithClk(TestXdmaUdpIpArpEthCmacRxTxWithClk);
     let udpResetSrc <- mkInitialReset(valueOf(UDP_RESET_DURATION), clocked_by udpClkSrc);
 
 
-    let testXdmaUdpIpArpEthCmacRxTx <- mkTestXdmaUdpIpArpEthCmacRxTx(clocked_by udpClkSrc, reset_by udpResetSrc);
+    let testXdmaUdpIpArpEthRxTx <- mkTestXdmaUdpIpArpEthRxTx(clocked_by udpClkSrc, reset_by udpResetSrc);
 
-    interface testStimulus = testXdmaUdpIpArpEthCmacRxTx;
+    interface testStimulus = testXdmaUdpIpArpEthRxTx;
     interface gtPositiveRefClk = gtPositiveRefClkOsc;
     interface gtNegativeRefClk = gtNegativeRefClkOsc;
     interface initClk = initClkSrc;
