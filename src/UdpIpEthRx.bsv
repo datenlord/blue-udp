@@ -3,6 +3,7 @@ import GetPut :: *;
 import Connectable :: *;
 
 import Ports :: *;
+import Utils :: *;
 import MacLayer :: *;
 import UdpIpLayer :: *;
 import StreamHandler :: *;
@@ -17,7 +18,7 @@ import BusConversion :: *;
 interface UdpIpEthRx;
     interface Put#(UdpConfig) udpConfig;
     
-    interface Put#(AxiStream512) axiStreamIn;
+    interface Put#(AxiStream256) axiStreamIn;
     
     interface MacMetaDataPipeOut macMetaDataOut;
     interface UdpIpMetaDataPipeOut udpIpMetaDataOut;
@@ -25,12 +26,12 @@ interface UdpIpEthRx;
 endinterface
 
 module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
-    FIFOF#(AxiStream512) axiStreamInBuf <- mkFIFOF;
+    FIFOF#(AxiStream256) axiStreamInBuf <- mkFIFOF;
     
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
 
-    let macStream <- mkAxiStream512ToDataStream(
+    let macStream <- mkAxiStream256ToDataStream(
         convertFifoToPipeOut(axiStreamInBuf)
     );
 
@@ -61,7 +62,7 @@ module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
     endinterface
 
     interface Put axiStreamIn;
-        method Action put(AxiStream512 stream) if (isValid(udpConfigReg));
+        method Action put(AxiStream256 stream) if (isValid(udpConfigReg));
             axiStreamInBuf.enq(stream);
         endmethod
     endinterface
@@ -76,9 +77,9 @@ interface RawUdpIpEthRx;
     (* prefix = "s_udp_config" *) 
     interface RawUdpConfigBusSlave rawUdpConfig;
     (* prefix = "s_axis" *) 
-    interface RawAxiStreamSlave#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamIn;
+    interface RawAxiStreamSlave#(AXIS256_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamIn;
     
-    (* prefix = "m_mac_meta" *) 
+    (* prefix = "m_mac_meta" *)
     interface RawMacMetaDataBusMaster rawMacMetaDataOut;
     (* prefix = "m_udp_meta" *)
     interface RawUdpIpMetaDataBusMaster rawUdpIpMetaDataOut;

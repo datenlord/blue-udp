@@ -34,7 +34,7 @@ fi
 docker network create -d macvlan --subnet=$CONTAINER_NET --ip-range=$CONTAINER_NET -o macvlan_mode=bridge -o parent=$NET_IFC $DOCKER_NETWORK
 
 # Create Container
-docker kill `docker ps -a -q` || true # Clean all pending containers to release IP
+#docker kill `docker ps -a -q` || true # Clean all pending containers to release IP
 docker run --rm -d -v `pwd`:`pwd` -w `pwd` --net=mymacvlan --ip=$CONTAINER_SERVER_IP --name exch_server $IMAGE_NAME python3 UdpSocketLoopback.py $CONTAINER_SERVER_IP $PORT_NUM
 
 sleep 1 # Wait a while for server to ready
@@ -42,6 +42,6 @@ docker run --rm -v `pwd`:`pwd` -w `pwd` --net=mymacvlan --ip=$CONTAINER_CLIENT_I
 #make TARGET=UdpIpArpEthRxTx IP_ADDR=$CONTAINER_SERVER_IP UDP_PORT=$PORT_NUM
 
 # Clean containers and delete network
-docker kill `docker ps -a -q` || true
+#docker kill `docker ps -a -q` || true
 docker network rm $DOCKER_NETWORK
 rm $TEST_CONFIG_FILE

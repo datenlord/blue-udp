@@ -15,147 +15,147 @@ module PfcUdpIpArpEthCmacRxTxWrapper#(
     input init_clk,
     input sys_reset,
 
-	input [UDP_CONFIG_WIDTH - 1 : 0] udpConfig_put,
-	input EN_udpConfig_put,
-	output RDY_udpConfig_put,
+    input [UDP_CONFIG_WIDTH - 1 : 0] udpConfig_put,
+    input EN_udpConfig_put,
+    output RDY_udpConfig_put,
 
     // channel 0
-	input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataInTxVec_0_put,
-	input EN_udpIpMetaDataInTxVec_0_put,
-	output RDY_udpIpMetaDataInTxVec_0_put,
+    input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataTxInVec_0_put,
+    input EN_udpIpMetaDataTxInVec_0_put,
+    output RDY_udpIpMetaDataTxInVec_0_put,
 
-	input [DATA_STREAM_WIDTH - 1 : 0] dataStreamInTxVec_0_put,
-	input EN_dataStreamInTxVec_0_put,
-	output RDY_dataStreamInTxVec_0_put,
+    input [DATA_STREAM_WIDTH - 1 : 0] dataStreamTxInVec_0_put,
+    input EN_dataStreamTxInVec_0_put,
+    output RDY_dataStreamTxInVec_0_put,
 
-	input EN_udpIpMetaDataOutRxVec_0_get,
-	output RDY_udpIpMetaDataOutRxVec_0_get,
-    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataOutRxVec_0_get,
+    input EN_udpIpMetaDataRxOutVec_0_get,
+    output RDY_udpIpMetaDataRxOutVec_0_get,
+    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataRxOutVec_0_get,
 
-	input EN_dataStreamOutRxVec_0_get,
-	output RDY_dataStreamOutRxVec_0_get,
-    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamOutRxVec_0_get,
+    input EN_dataStreamRxOutVec_0_get,
+    output RDY_dataStreamRxOutVec_0_get,
+    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamRxOutVec_0_get,
 
     // channel 1
-	input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataInTxVec_1_put,
-	input EN_udpIpMetaDataInTxVec_1_put,
-	output RDY_udpIpMetaDataInTxVec_1_put,
+    input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataTxInVec_1_put,
+    input EN_udpIpMetaDataTxInVec_1_put,
+    output RDY_udpIpMetaDataTxInVec_1_put,
 
-	input [DATA_STREAM_WIDTH - 1 : 0] dataStreamInTxVec_1_put,
-	input EN_dataStreamInTxVec_1_put,
-	output RDY_dataStreamInTxVec_1_put,
+    input [DATA_STREAM_WIDTH - 1 : 0] dataStreamTxInVec_1_put,
+    input EN_dataStreamTxInVec_1_put,
+    output RDY_dataStreamTxInVec_1_put,
 
-	input EN_udpIpMetaDataOutRxVec_1_get,
-	output RDY_udpIpMetaDataOutRxVec_1_get,
-    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataOutRxVec_1_get,
+    input EN_udpIpMetaDataRxOutVec_1_get,
+    output RDY_udpIpMetaDataRxOutVec_1_get,
+    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataRxOutVec_1_get,
 
-	input EN_dataStreamOutRxVec_1_get,
-	output RDY_dataStreamOutRxVec_1_get,
-    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamOutRxVec_1_get,
+    input EN_dataStreamRxOutVec_1_get,
+    output RDY_dataStreamRxOutVec_1_get,
+    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamRxOutVec_1_get,
 
     // channel 2
-	input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataInTxVec_2_put,
-	input EN_udpIpMetaDataInTxVec_2_put,
-	output RDY_udpIpMetaDataInTxVec_2_put,
+    input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataTxInVec_2_put,
+    input EN_udpIpMetaDataTxInVec_2_put,
+    output RDY_udpIpMetaDataTxInVec_2_put,
 
-	input [DATA_STREAM_WIDTH - 1 : 0] dataStreamInTxVec_2_put,
-	input EN_dataStreamInTxVec_2_put,
-	output RDY_dataStreamInTxVec_2_put,
+    input [DATA_STREAM_WIDTH - 1 : 0] dataStreamTxInVec_2_put,
+    input EN_dataStreamTxInVec_2_put,
+    output RDY_dataStreamTxInVec_2_put,
 
-	input EN_udpIpMetaDataOutRxVec_2_get,
-	output RDY_udpIpMetaDataOutRxVec_2_get,
-    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataOutRxVec_2_get,
+    input EN_udpIpMetaDataRxOutVec_2_get,
+    output RDY_udpIpMetaDataRxOutVec_2_get,
+    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataRxOutVec_2_get,
 
-	input EN_dataStreamOutRxVec_2_get,
-	output RDY_dataStreamOutRxVec_2_get,
-    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamOutRxVec_2_get,
+    input EN_dataStreamRxOutVec_2_get,
+    output RDY_dataStreamRxOutVec_2_get,
+    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamRxOutVec_2_get,
 
 
     // channel 3
-	input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataInTxVec_3_put,
-	input EN_udpIpMetaDataInTxVec_3_put,
-	output RDY_udpIpMetaDataInTxVec_3_put,
+    input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataTxInVec_3_put,
+    input EN_udpIpMetaDataTxInVec_3_put,
+    output RDY_udpIpMetaDataTxInVec_3_put,
 
-	input [DATA_STREAM_WIDTH - 1 : 0] dataStreamInTxVec_3_put,
-	input EN_dataStreamInTxVec_3_put,
-	output RDY_dataStreamInTxVec_3_put,
+    input [DATA_STREAM_WIDTH - 1 : 0] dataStreamTxInVec_3_put,
+    input EN_dataStreamTxInVec_3_put,
+    output RDY_dataStreamTxInVec_3_put,
 
-	input EN_udpIpMetaDataOutRxVec_3_get,
-	output RDY_udpIpMetaDataOutRxVec_3_get,
-    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataOutRxVec_3_get,
+    input EN_udpIpMetaDataRxOutVec_3_get,
+    output RDY_udpIpMetaDataRxOutVec_3_get,
+    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataRxOutVec_3_get,
 
-	input EN_dataStreamOutRxVec_3_get,
-	output RDY_dataStreamOutRxVec_3_get,
-    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamOutRxVec_3_get,
+    input EN_dataStreamRxOutVec_3_get,
+    output RDY_dataStreamRxOutVec_3_get,
+    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamRxOutVec_3_get,
 
 
     // channel 4
-	input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataInTxVec_4_put,
-	input EN_udpIpMetaDataInTxVec_4_put,
-	output RDY_udpIpMetaDataInTxVec_4_put,
+    input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataTxInVec_4_put,
+    input EN_udpIpMetaDataTxInVec_4_put,
+    output RDY_udpIpMetaDataTxInVec_4_put,
 
-	input [DATA_STREAM_WIDTH - 1 : 0] dataStreamInTxVec_4_put,
-	input EN_dataStreamInTxVec_4_put,
-	output RDY_dataStreamInTxVec_4_put,
+    input [DATA_STREAM_WIDTH - 1 : 0] dataStreamTxInVec_4_put,
+    input EN_dataStreamTxInVec_4_put,
+    output RDY_dataStreamTxInVec_4_put,
 
-	input EN_udpIpMetaDataOutRxVec_4_get,
-	output RDY_udpIpMetaDataOutRxVec_4_get,
-    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataOutRxVec_4_get,
+    input EN_udpIpMetaDataRxOutVec_4_get,
+    output RDY_udpIpMetaDataRxOutVec_4_get,
+    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataRxOutVec_4_get,
 
-	input EN_dataStreamOutRxVec_4_get,
-	output RDY_dataStreamOutRxVec_4_get,
-    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamOutRxVec_4_get,
+    input EN_dataStreamRxOutVec_4_get,
+    output RDY_dataStreamRxOutVec_4_get,
+    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamRxOutVec_4_get,
 
     // channel 5
-	input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataInTxVec_5_put,
-	input EN_udpIpMetaDataInTxVec_5_put,
-	output RDY_udpIpMetaDataInTxVec_5_put,
+    input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataTxInVec_5_put,
+    input EN_udpIpMetaDataTxInVec_5_put,
+    output RDY_udpIpMetaDataTxInVec_5_put,
 
-	input [DATA_STREAM_WIDTH - 1 : 0] dataStreamInTxVec_5_put,
-	input EN_dataStreamInTxVec_5_put,
-	output RDY_dataStreamInTxVec_5_put,
+    input [DATA_STREAM_WIDTH - 1 : 0] dataStreamTxInVec_5_put,
+    input EN_dataStreamTxInVec_5_put,
+    output RDY_dataStreamTxInVec_5_put,
 
-	input EN_udpIpMetaDataOutRxVec_5_get,
-	output RDY_udpIpMetaDataOutRxVec_5_get,
-    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataOutRxVec_5_get,
+    input EN_udpIpMetaDataRxOutVec_5_get,
+    output RDY_udpIpMetaDataRxOutVec_5_get,
+    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataRxOutVec_5_get,
 
-	input EN_dataStreamOutRxVec_5_get,
-	output RDY_dataStreamOutRxVec_5_get,
-    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamOutRxVec_5_get,
+    input EN_dataStreamRxOutVec_5_get,
+    output RDY_dataStreamRxOutVec_5_get,
+    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamRxOutVec_5_get,
 
     // channel 6
-	input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataInTxVec_6_put,
-	input EN_udpIpMetaDataInTxVec_6_put,
-	output RDY_udpIpMetaDataInTxVec_6_put,
+    input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataTxInVec_6_put,
+    input EN_udpIpMetaDataTxInVec_6_put,
+    output RDY_udpIpMetaDataTxInVec_6_put,
 
-	input [DATA_STREAM_WIDTH - 1 : 0] dataStreamInTxVec_6_put,
-	input EN_dataStreamInTxVec_6_put,
-	output RDY_dataStreamInTxVec_6_put,
+    input [DATA_STREAM_WIDTH - 1 : 0] dataStreamTxInVec_6_put,
+    input EN_dataStreamTxInVec_6_put,
+    output RDY_dataStreamTxInVec_6_put,
 
-	input EN_udpIpMetaDataOutRxVec_6_get,
-	output RDY_udpIpMetaDataOutRxVec_6_get,
-    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataOutRxVec_6_get,
+    input EN_udpIpMetaDataRxOutVec_6_get,
+    output RDY_udpIpMetaDataRxOutVec_6_get,
+    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataRxOutVec_6_get,
 
-	input EN_dataStreamOutRxVec_6_get,
-	output RDY_dataStreamOutRxVec_6_get,
-    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamOutRxVec_6_get,
+    input EN_dataStreamRxOutVec_6_get,
+    output RDY_dataStreamRxOutVec_6_get,
+    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamRxOutVec_6_get,
 
     // channel 7
-	input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataInTxVec_7_put,
-	input EN_udpIpMetaDataInTxVec_7_put,
-	output RDY_udpIpMetaDataInTxVec_7_put,
+    input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataTxInVec_7_put,
+    input EN_udpIpMetaDataTxInVec_7_put,
+    output RDY_udpIpMetaDataTxInVec_7_put,
 
-	input [DATA_STREAM_WIDTH - 1 : 0] dataStreamInTxVec_7_put,
-	input EN_dataStreamInTxVec_7_put,
-	output RDY_dataStreamInTxVec_7_put,
+    input [DATA_STREAM_WIDTH - 1 : 0] dataStreamTxInVec_7_put,
+    input EN_dataStreamTxInVec_7_put,
+    output RDY_dataStreamTxInVec_7_put,
 
-	input EN_udpIpMetaDataOutRxVec_7_get,
-	output RDY_udpIpMetaDataOutRxVec_7_get,
-    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataOutRxVec_7_get,
+    input EN_udpIpMetaDataRxOutVec_7_get,
+    output RDY_udpIpMetaDataRxOutVec_7_get,
+    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataRxOutVec_7_get,
 
-	input EN_dataStreamOutRxVec_7_get,
-	output RDY_dataStreamOutRxVec_7_get,
-    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamOutRxVec_7_get,
+    input EN_dataStreamRxOutVec_7_get,
+    output RDY_dataStreamRxOutVec_7_get,
+    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamRxOutVec_7_get,
 
     // Serdes
     input  [GT_LANE_WIDTH - 1 : 0] gt_rxn_in,
@@ -178,18 +178,18 @@ module PfcUdpIpArpEthCmacRxTxWrapper#(
     wire            usr_tx_reset;
     wire            usr_rx_reset;
 
-    wire            rx_axis_tvalid;
-    wire [511:0]    rx_axis_tdata;
-    wire            rx_axis_tlast;
-    wire [63:0]     rx_axis_tkeep;
-    wire            rx_axis_tuser;
+    wire            cmac_rx_axis_tvalid;
+    wire [511:0]    cmac_rx_axis_tdata;
+    wire            cmac_rx_axis_tlast;
+    wire [63:0]     cmac_rx_axis_tkeep;
+    wire            cmac_rx_axis_tuser;
 
-    wire            tx_axis_tready;
-    wire            tx_axis_tvalid;
-    wire [511:0]    tx_axis_tdata;
-    wire            tx_axis_tlast;
-    wire [63:0]     tx_axis_tkeep;
-    wire            tx_axis_tuser;
+    wire            cmac_tx_axis_tready;
+    wire            cmac_tx_axis_tvalid;
+    wire [511:0]    cmac_tx_axis_tdata;
+    wire            cmac_tx_axis_tlast;
+    wire [63:0]     cmac_tx_axis_tkeep;
+    wire            cmac_tx_axis_tuser;
 
     wire            tx_ovfout;
     wire            tx_unfout;
@@ -451,230 +451,230 @@ module PfcUdpIpArpEthCmacRxTxWrapper#(
     assign gtwiz_reset_tx_datapath    = 1'b0;
     assign gtwiz_reset_rx_datapath    = 1'b0;
 
-    mkPfcUdpIpArpEthCmacRxTxInst udp_inst(
-	    .udp_clk(udp_clk),
+    mkRawPfcUdpIpArpEthCmacRxTx udp_inst(
+        .udp_clk  (udp_clk  ),
         .udp_reset(udp_reset),
 
-        .cmac_rxtx_clk(txusrclk2),
-        .cmac_rx_reset(usr_rx_reset),
-        .cmac_tx_reset(usr_tx_reset),
+        .cmac_rxtx_clk(txusrclk2    ),
+        .cmac_rx_reset(~usr_rx_reset),
+        .cmac_tx_reset(~usr_tx_reset),
 
-        .udpConfig_put(udpConfig_put),
-        .EN_udpConfig_put(EN_udpConfig_put),
+        .udpConfig_put    (udpConfig_put),
+        .EN_udpConfig_put (EN_udpConfig_put),
         .RDY_udpConfig_put(RDY_udpConfig_put),
 
         // Channel 0
-        .udpIpMetaDataInTxVec_0_put(udpIpMetaDataInTxVec_0_put),
-        .EN_udpIpMetaDataInTxVec_0_put(EN_udpIpMetaDataInTxVec_0_put),
-        .RDY_udpIpMetaDataInTxVec_0_put(RDY_udpIpMetaDataInTxVec_0_put),
+        .udpIpMetaDataTxInVec_0_put     (udpIpMetaDataTxInVec_0_put),
+        .EN_udpIpMetaDataTxInVec_0_put  (EN_udpIpMetaDataTxInVec_0_put),
+        .RDY_udpIpMetaDataTxInVec_0_put (RDY_udpIpMetaDataTxInVec_0_put),
 
-        .dataStreamInTxVec_0_put(dataStreamInTxVec_0_put),
-        .EN_dataStreamInTxVec_0_put(EN_dataStreamInTxVec_0_put),
-        .RDY_dataStreamInTxVec_0_put(RDY_dataStreamInTxVec_0_put),
+        .dataStreamTxInVec_0_put        (dataStreamTxInVec_0_put),
+        .EN_dataStreamTxInVec_0_put     (EN_dataStreamTxInVec_0_put),
+        .RDY_dataStreamTxInVec_0_put    (RDY_dataStreamTxInVec_0_put),
 
-        .EN_udpIpMetaDataOutRxVec_0_get(EN_udpIpMetaDataOutRxVec_0_get),
-        .udpIpMetaDataOutRxVec_0_get(udpIpMetaDataOutRxVec_0_get),
-        .RDY_udpIpMetaDataOutRxVec_0_get(RDY_udpIpMetaDataOutRxVec_0_get),
+        .EN_udpIpMetaDataRxOutVec_0_get (EN_udpIpMetaDataRxOutVec_0_get),
+        .udpIpMetaDataRxOutVec_0_get    (udpIpMetaDataRxOutVec_0_get),
+        .RDY_udpIpMetaDataRxOutVec_0_get(RDY_udpIpMetaDataRxOutVec_0_get),
 
-        .EN_dataStreamOutRxVec_0_get(EN_dataStreamOutRxVec_0_get),
-        .dataStreamOutRxVec_0_get(dataStreamOutRxVec_0_get),
-        .RDY_dataStreamOutRxVec_0_get(RDY_dataStreamOutRxVec_0_get),
+        .EN_dataStreamRxOutVec_0_get    (EN_dataStreamRxOutVec_0_get),
+        .dataStreamRxOutVec_0_get       (dataStreamRxOutVec_0_get),
+        .RDY_dataStreamRxOutVec_0_get   (RDY_dataStreamRxOutVec_0_get),
+                                        
+        // Channel 1                    
+        .udpIpMetaDataTxInVec_1_put     (udpIpMetaDataTxInVec_1_put),
+        .EN_udpIpMetaDataTxInVec_1_put  (EN_udpIpMetaDataTxInVec_1_put),
+        .RDY_udpIpMetaDataTxInVec_1_put (RDY_udpIpMetaDataTxInVec_1_put),
 
-        // Channel 1
-        .udpIpMetaDataInTxVec_1_put(udpIpMetaDataInTxVec_1_put),
-        .EN_udpIpMetaDataInTxVec_1_put(EN_udpIpMetaDataInTxVec_1_put),
-        .RDY_udpIpMetaDataInTxVec_1_put(RDY_udpIpMetaDataInTxVec_1_put),
+        .dataStreamTxInVec_1_put        (dataStreamTxInVec_1_put),
+        .EN_dataStreamTxInVec_1_put     (EN_dataStreamTxInVec_1_put),
+        .RDY_dataStreamTxInVec_1_put    (RDY_dataStreamTxInVec_1_put),
 
-        .dataStreamInTxVec_1_put(dataStreamInTxVec_1_put),
-        .EN_dataStreamInTxVec_1_put(EN_dataStreamInTxVec_1_put),
-        .RDY_dataStreamInTxVec_1_put(RDY_dataStreamInTxVec_1_put),
+        .EN_udpIpMetaDataRxOutVec_1_get (EN_udpIpMetaDataRxOutVec_1_get),
+        .udpIpMetaDataRxOutVec_1_get    (udpIpMetaDataRxOutVec_1_get),
+        .RDY_udpIpMetaDataRxOutVec_1_get(RDY_udpIpMetaDataRxOutVec_1_get),
 
-        .EN_udpIpMetaDataOutRxVec_1_get(EN_udpIpMetaDataOutRxVec_1_get),
-        .udpIpMetaDataOutRxVec_1_get(udpIpMetaDataOutRxVec_1_get),
-        .RDY_udpIpMetaDataOutRxVec_1_get(RDY_udpIpMetaDataOutRxVec_1_get),
-
-        .EN_dataStreamOutRxVec_1_get(EN_dataStreamOutRxVec_1_get),
-        .dataStreamOutRxVec_1_get(dataStreamOutRxVec_1_get),
-        .RDY_dataStreamOutRxVec_1_get(RDY_dataStreamOutRxVec_1_get),
+        .EN_dataStreamRxOutVec_1_get    (EN_dataStreamRxOutVec_1_get),
+        .dataStreamRxOutVec_1_get       (dataStreamRxOutVec_1_get),
+        .RDY_dataStreamRxOutVec_1_get   (RDY_dataStreamRxOutVec_1_get),
 
         // Channel 2
-        .udpIpMetaDataInTxVec_2_put(udpIpMetaDataInTxVec_2_put),
-        .EN_udpIpMetaDataInTxVec_2_put(EN_udpIpMetaDataInTxVec_2_put),
-        .RDY_udpIpMetaDataInTxVec_2_put(RDY_udpIpMetaDataInTxVec_2_put),
+        .udpIpMetaDataTxInVec_2_put     (udpIpMetaDataTxInVec_2_put),
+        .EN_udpIpMetaDataTxInVec_2_put  (EN_udpIpMetaDataTxInVec_2_put),
+        .RDY_udpIpMetaDataTxInVec_2_put (RDY_udpIpMetaDataTxInVec_2_put),
 
-        .dataStreamInTxVec_2_put(dataStreamInTxVec_2_put),
-        .EN_dataStreamInTxVec_2_put(EN_dataStreamInTxVec_2_put),
-        .RDY_dataStreamInTxVec_2_put(RDY_dataStreamInTxVec_2_put),
+        .dataStreamTxInVec_2_put        (dataStreamTxInVec_2_put),
+        .EN_dataStreamTxInVec_2_put     (EN_dataStreamTxInVec_2_put),
+        .RDY_dataStreamTxInVec_2_put    (RDY_dataStreamTxInVec_2_put),
 
-        .EN_udpIpMetaDataOutRxVec_2_get(EN_udpIpMetaDataOutRxVec_2_get),
-        .udpIpMetaDataOutRxVec_2_get(udpIpMetaDataOutRxVec_2_get),
-        .RDY_udpIpMetaDataOutRxVec_2_get(RDY_udpIpMetaDataOutRxVec_2_get),
+        .EN_udpIpMetaDataRxOutVec_2_get (EN_udpIpMetaDataRxOutVec_2_get),
+        .udpIpMetaDataRxOutVec_2_get    (udpIpMetaDataRxOutVec_2_get),
+        .RDY_udpIpMetaDataRxOutVec_2_get(RDY_udpIpMetaDataRxOutVec_2_get),
 
-        .EN_dataStreamOutRxVec_2_get(EN_dataStreamOutRxVec_2_get),
-        .dataStreamOutRxVec_2_get(dataStreamOutRxVec_2_get),
-        .RDY_dataStreamOutRxVec_2_get(RDY_dataStreamOutRxVec_2_get),
+        .EN_dataStreamRxOutVec_2_get    (EN_dataStreamRxOutVec_2_get),
+        .dataStreamRxOutVec_2_get       (dataStreamRxOutVec_2_get),
+        .RDY_dataStreamRxOutVec_2_get   (RDY_dataStreamRxOutVec_2_get),
 
         // Channel 3
-        .udpIpMetaDataInTxVec_3_put(udpIpMetaDataInTxVec_3_put),
-        .EN_udpIpMetaDataInTxVec_3_put(EN_udpIpMetaDataInTxVec_3_put),
-        .RDY_udpIpMetaDataInTxVec_3_put(RDY_udpIpMetaDataInTxVec_3_put),
+        .udpIpMetaDataTxInVec_3_put     (udpIpMetaDataTxInVec_3_put),
+        .EN_udpIpMetaDataTxInVec_3_put  (EN_udpIpMetaDataTxInVec_3_put),
+        .RDY_udpIpMetaDataTxInVec_3_put (RDY_udpIpMetaDataTxInVec_3_put),
 
-        .dataStreamInTxVec_3_put(dataStreamInTxVec_3_put),
-        .EN_dataStreamInTxVec_3_put(EN_dataStreamInTxVec_3_put),
-        .RDY_dataStreamInTxVec_3_put(RDY_dataStreamInTxVec_3_put),
+        .dataStreamTxInVec_3_put        (dataStreamTxInVec_3_put),
+        .EN_dataStreamTxInVec_3_put     (EN_dataStreamTxInVec_3_put),
+        .RDY_dataStreamTxInVec_3_put    (RDY_dataStreamTxInVec_3_put),
 
-        .EN_udpIpMetaDataOutRxVec_3_get(EN_udpIpMetaDataOutRxVec_3_get),
-        .udpIpMetaDataOutRxVec_3_get(udpIpMetaDataOutRxVec_3_get),
-        .RDY_udpIpMetaDataOutRxVec_3_get(RDY_udpIpMetaDataOutRxVec_3_get),
+        .EN_udpIpMetaDataRxOutVec_3_get (EN_udpIpMetaDataRxOutVec_3_get),
+        .udpIpMetaDataRxOutVec_3_get    (udpIpMetaDataRxOutVec_3_get),
+        .RDY_udpIpMetaDataRxOutVec_3_get(RDY_udpIpMetaDataRxOutVec_3_get),
 
-        .EN_dataStreamOutRxVec_3_get(EN_dataStreamOutRxVec_3_get),
-        .dataStreamOutRxVec_3_get(dataStreamOutRxVec_3_get),
-        .RDY_dataStreamOutRxVec_3_get(RDY_dataStreamOutRxVec_3_get),
+        .EN_dataStreamRxOutVec_3_get    (EN_dataStreamRxOutVec_3_get),
+        .dataStreamRxOutVec_3_get       (dataStreamRxOutVec_3_get),
+        .RDY_dataStreamRxOutVec_3_get   (RDY_dataStreamRxOutVec_3_get),
 
         // Channel 4
-        .udpIpMetaDataInTxVec_4_put(udpIpMetaDataInTxVec_4_put),
-        .EN_udpIpMetaDataInTxVec_4_put(EN_udpIpMetaDataInTxVec_4_put),
-        .RDY_udpIpMetaDataInTxVec_4_put(RDY_udpIpMetaDataInTxVec_4_put),
+        .udpIpMetaDataTxInVec_4_put     (udpIpMetaDataTxInVec_4_put),
+        .EN_udpIpMetaDataTxInVec_4_put  (EN_udpIpMetaDataTxInVec_4_put),
+        .RDY_udpIpMetaDataTxInVec_4_put (RDY_udpIpMetaDataTxInVec_4_put),
 
-        .dataStreamInTxVec_4_put(dataStreamInTxVec_4_put),
-        .EN_dataStreamInTxVec_4_put(EN_dataStreamInTxVec_4_put),
-        .RDY_dataStreamInTxVec_4_put(RDY_dataStreamInTxVec_4_put),
+        .dataStreamTxInVec_4_put        (dataStreamTxInVec_4_put),
+        .EN_dataStreamTxInVec_4_put     (EN_dataStreamTxInVec_4_put),
+        .RDY_dataStreamTxInVec_4_put    (RDY_dataStreamTxInVec_4_put),
 
-        .EN_udpIpMetaDataOutRxVec_4_get(EN_udpIpMetaDataOutRxVec_4_get),
-        .udpIpMetaDataOutRxVec_4_get(udpIpMetaDataOutRxVec_4_get),
-        .RDY_udpIpMetaDataOutRxVec_4_get(RDY_udpIpMetaDataOutRxVec_4_get),
+        .EN_udpIpMetaDataRxOutVec_4_get (EN_udpIpMetaDataRxOutVec_4_get),
+        .udpIpMetaDataRxOutVec_4_get    (udpIpMetaDataRxOutVec_4_get),
+        .RDY_udpIpMetaDataRxOutVec_4_get(RDY_udpIpMetaDataRxOutVec_4_get),
 
-        .EN_dataStreamOutRxVec_4_get(EN_dataStreamOutRxVec_4_get),
-        .dataStreamOutRxVec_4_get(dataStreamOutRxVec_4_get),
-        .RDY_dataStreamOutRxVec_4_get(RDY_dataStreamOutRxVec_4_get),
+        .EN_dataStreamRxOutVec_4_get    (EN_dataStreamRxOutVec_4_get),
+        .dataStreamRxOutVec_4_get       (dataStreamRxOutVec_4_get),
+        .RDY_dataStreamRxOutVec_4_get   (RDY_dataStreamRxOutVec_4_get),
 
         // Channel 5
-        .udpIpMetaDataInTxVec_5_put(udpIpMetaDataInTxVec_5_put),
-        .EN_udpIpMetaDataInTxVec_5_put(EN_udpIpMetaDataInTxVec_5_put),
-        .RDY_udpIpMetaDataInTxVec_5_put(RDY_udpIpMetaDataInTxVec_5_put),
+        .udpIpMetaDataTxInVec_5_put     (udpIpMetaDataTxInVec_5_put),
+        .EN_udpIpMetaDataTxInVec_5_put  (EN_udpIpMetaDataTxInVec_5_put),
+        .RDY_udpIpMetaDataTxInVec_5_put (RDY_udpIpMetaDataTxInVec_5_put),
 
-        .dataStreamInTxVec_5_put(dataStreamInTxVec_5_put),
-        .EN_dataStreamInTxVec_5_put(EN_dataStreamInTxVec_5_put),
-        .RDY_dataStreamInTxVec_5_put(RDY_dataStreamInTxVec_5_put),
+        .dataStreamTxInVec_5_put        (dataStreamTxInVec_5_put),
+        .EN_dataStreamTxInVec_5_put     (EN_dataStreamTxInVec_5_put),
+        .RDY_dataStreamTxInVec_5_put    (RDY_dataStreamTxInVec_5_put),
 
-        .EN_udpIpMetaDataOutRxVec_5_get(EN_udpIpMetaDataOutRxVec_5_get),
-        .udpIpMetaDataOutRxVec_5_get(udpIpMetaDataOutRxVec_5_get),
-        .RDY_udpIpMetaDataOutRxVec_5_get(RDY_udpIpMetaDataOutRxVec_5_get),
+        .EN_udpIpMetaDataRxOutVec_5_get (EN_udpIpMetaDataRxOutVec_5_get),
+        .udpIpMetaDataRxOutVec_5_get    (udpIpMetaDataRxOutVec_5_get),
+        .RDY_udpIpMetaDataRxOutVec_5_get(RDY_udpIpMetaDataRxOutVec_5_get),
 
-        .EN_dataStreamOutRxVec_5_get(EN_dataStreamOutRxVec_5_get),
-        .dataStreamOutRxVec_5_get(dataStreamOutRxVec_5_get),
-        .RDY_dataStreamOutRxVec_5_get(RDY_dataStreamOutRxVec_5_get),
+        .EN_dataStreamRxOutVec_5_get    (EN_dataStreamRxOutVec_5_get),
+        .dataStreamRxOutVec_5_get       (dataStreamRxOutVec_5_get),
+        .RDY_dataStreamRxOutVec_5_get   (RDY_dataStreamRxOutVec_5_get),
 
         // Channel 6
-        .udpIpMetaDataInTxVec_6_put(udpIpMetaDataInTxVec_6_put),
-        .EN_udpIpMetaDataInTxVec_6_put(EN_udpIpMetaDataInTxVec_6_put),
-        .RDY_udpIpMetaDataInTxVec_6_put(RDY_udpIpMetaDataInTxVec_6_put),
+        .udpIpMetaDataTxInVec_6_put     (udpIpMetaDataTxInVec_6_put),
+        .EN_udpIpMetaDataTxInVec_6_put  (EN_udpIpMetaDataTxInVec_6_put),
+        .RDY_udpIpMetaDataTxInVec_6_put (RDY_udpIpMetaDataTxInVec_6_put),
 
-        .dataStreamInTxVec_6_put(dataStreamInTxVec_6_put),
-        .EN_dataStreamInTxVec_6_put(EN_dataStreamInTxVec_6_put),
-        .RDY_dataStreamInTxVec_6_put(RDY_dataStreamInTxVec_6_put),
+        .dataStreamTxInVec_6_put        (dataStreamTxInVec_6_put),
+        .EN_dataStreamTxInVec_6_put     (EN_dataStreamTxInVec_6_put),
+        .RDY_dataStreamTxInVec_6_put    (RDY_dataStreamTxInVec_6_put),
 
-        .EN_udpIpMetaDataOutRxVec_6_get(EN_udpIpMetaDataOutRxVec_6_get),
-        .udpIpMetaDataOutRxVec_6_get(udpIpMetaDataOutRxVec_6_get),
-        .RDY_udpIpMetaDataOutRxVec_6_get(RDY_udpIpMetaDataOutRxVec_6_get),
+        .EN_udpIpMetaDataRxOutVec_6_get (EN_udpIpMetaDataRxOutVec_6_get),
+        .udpIpMetaDataRxOutVec_6_get    (udpIpMetaDataRxOutVec_6_get),
+        .RDY_udpIpMetaDataRxOutVec_6_get(RDY_udpIpMetaDataRxOutVec_6_get),
 
-        .EN_dataStreamOutRxVec_6_get(EN_dataStreamOutRxVec_6_get),
-        .dataStreamOutRxVec_6_get(dataStreamOutRxVec_6_get),
-        .RDY_dataStreamOutRxVec_6_get(RDY_dataStreamOutRxVec_6_get),
+        .EN_dataStreamRxOutVec_6_get    (EN_dataStreamRxOutVec_6_get),
+        .dataStreamRxOutVec_6_get       (dataStreamRxOutVec_6_get),
+        .RDY_dataStreamRxOutVec_6_get   (RDY_dataStreamRxOutVec_6_get),
 
         // Channel 7
-        .udpIpMetaDataInTxVec_7_put(udpIpMetaDataInTxVec_7_put),
-        .EN_udpIpMetaDataInTxVec_7_put(EN_udpIpMetaDataInTxVec_7_put),
-        .RDY_udpIpMetaDataInTxVec_7_put(RDY_udpIpMetaDataInTxVec_7_put),
+        .udpIpMetaDataTxInVec_7_put     (udpIpMetaDataTxInVec_7_put),
+        .EN_udpIpMetaDataTxInVec_7_put  (EN_udpIpMetaDataTxInVec_7_put),
+        .RDY_udpIpMetaDataTxInVec_7_put (RDY_udpIpMetaDataTxInVec_7_put),
 
-        .dataStreamInTxVec_7_put(dataStreamInTxVec_7_put),
-        .EN_dataStreamInTxVec_7_put(EN_dataStreamInTxVec_7_put),
-        .RDY_dataStreamInTxVec_7_put(RDY_dataStreamInTxVec_7_put),
+        .dataStreamTxInVec_7_put        (dataStreamTxInVec_7_put),
+        .EN_dataStreamTxInVec_7_put     (EN_dataStreamTxInVec_7_put),
+        .RDY_dataStreamTxInVec_7_put    (RDY_dataStreamTxInVec_7_put),
 
-        .EN_udpIpMetaDataOutRxVec_7_get(EN_udpIpMetaDataOutRxVec_7_get),
-        .udpIpMetaDataOutRxVec_7_get(udpIpMetaDataOutRxVec_7_get),
-        .RDY_udpIpMetaDataOutRxVec_7_get(RDY_udpIpMetaDataOutRxVec_7_get),
+        .EN_udpIpMetaDataRxOutVec_7_get (EN_udpIpMetaDataRxOutVec_7_get),
+        .udpIpMetaDataRxOutVec_7_get    (udpIpMetaDataRxOutVec_7_get),
+        .RDY_udpIpMetaDataRxOutVec_7_get(RDY_udpIpMetaDataRxOutVec_7_get),
 
-        .EN_dataStreamOutRxVec_7_get(EN_dataStreamOutRxVec_7_get),
-        .dataStreamOutRxVec_7_get(dataStreamOutRxVec_7_get),
-        .RDY_dataStreamOutRxVec_7_get(RDY_dataStreamOutRxVec_7_get),
+        .EN_dataStreamRxOutVec_7_get    (EN_dataStreamRxOutVec_7_get),
+        .dataStreamRxOutVec_7_get       (dataStreamRxOutVec_7_get),
+        .RDY_dataStreamRxOutVec_7_get   (RDY_dataStreamRxOutVec_7_get),
 
 
-	    .tx_axis_tvalid(tx_axis_tvalid),
-		.tx_axis_tdata ( tx_axis_tdata),
-		.tx_axis_tkeep ( tx_axis_tkeep),
-		.tx_axis_tlast ( tx_axis_tlast),
-		.tx_axis_tuser ( tx_axis_tuser),
-		.tx_axis_tready(tx_axis_tready),
+        .cmac_tx_axis_tvalid    (cmac_tx_axis_tvalid),
+        .cmac_tx_axis_tdata     (cmac_tx_axis_tdata ),
+        .cmac_tx_axis_tkeep     (cmac_tx_axis_tkeep ),
+        .cmac_tx_axis_tlast     (cmac_tx_axis_tlast ),
+        .cmac_tx_axis_tuser     (cmac_tx_axis_tuser ),
+        .cmac_tx_axis_tready    (cmac_tx_axis_tready),
 
-		.tx_ctl_enable      (      ctl_tx_enable),
-		.tx_ctl_test_pattern(ctl_tx_test_pattern),
-		.tx_ctl_send_idle   (   ctl_tx_send_idle),
-		.tx_ctl_send_lfi    (    ctl_tx_send_lfi),
-		.tx_ctl_send_rfi    (    ctl_tx_send_rfi),
-		.tx_ctl_reset(),
+        .tx_ctl_enable          (      ctl_tx_enable),
+        .tx_ctl_test_pattern    (ctl_tx_test_pattern),
+        .tx_ctl_send_idle       (   ctl_tx_send_idle),
+        .tx_ctl_send_lfi        (    ctl_tx_send_lfi),
+        .tx_ctl_send_rfi        (    ctl_tx_send_rfi),
+        .tx_ctl_reset           (),
 
-	    .tx_ctl_pause_enable (ctl_tx_pause_enable),
-	    .tx_ctl_pause_req    (ctl_tx_pause_req),
-	    .tx_ctl_pause_quanta0(ctl_tx_pause_quanta0),
-	    .tx_ctl_pause_quanta1(ctl_tx_pause_quanta1),
-	    .tx_ctl_pause_quanta2(ctl_tx_pause_quanta2),
-	    .tx_ctl_pause_quanta3(ctl_tx_pause_quanta3),
-		.tx_ctl_pause_quanta4(ctl_tx_pause_quanta4),
-		.tx_ctl_pause_quanta5(ctl_tx_pause_quanta5),
-		.tx_ctl_pause_quanta6(ctl_tx_pause_quanta6),
-		.tx_ctl_pause_quanta7(ctl_tx_pause_quanta7),
-		.tx_ctl_pause_quanta8(ctl_tx_pause_quanta8),
+        .tx_ctl_pause_enable    (ctl_tx_pause_enable),
+        .tx_ctl_pause_req       (ctl_tx_pause_req),
+        .tx_ctl_pause_quanta0   (ctl_tx_pause_quanta0),
+        .tx_ctl_pause_quanta1   (ctl_tx_pause_quanta1),
+        .tx_ctl_pause_quanta2   (ctl_tx_pause_quanta2),
+        .tx_ctl_pause_quanta3   (ctl_tx_pause_quanta3),
+        .tx_ctl_pause_quanta4   (ctl_tx_pause_quanta4),
+        .tx_ctl_pause_quanta5   (ctl_tx_pause_quanta5),
+        .tx_ctl_pause_quanta6   (ctl_tx_pause_quanta6),
+        .tx_ctl_pause_quanta7   (ctl_tx_pause_quanta7),
+        .tx_ctl_pause_quanta8   (ctl_tx_pause_quanta8),
 
-		.tx_stat_ovfout    (tx_ovfout),
-		.tx_stat_unfout    (tx_unfout),
-		.tx_stat_rx_aligned(stat_rx_aligned),
+        .tx_stat_ovfout         (tx_ovfout),
+        .tx_stat_unfout         (tx_unfout),
+        .tx_stat_rx_aligned     (stat_rx_aligned),
 
-		.rx_axis_tvalid(rx_axis_tvalid),
-		.rx_axis_tdata (rx_axis_tdata),
-		.rx_axis_tkeep (rx_axis_tkeep),
-		.rx_axis_tlast (rx_axis_tlast),
-		.rx_axis_tuser (rx_axis_tuser),
-		.rx_axis_tready(),
+        .cmac_rx_axis_tvalid    (cmac_rx_axis_tvalid),
+        .cmac_rx_axis_tdata     (cmac_rx_axis_tdata),
+        .cmac_rx_axis_tkeep     (cmac_rx_axis_tkeep),
+        .cmac_rx_axis_tlast     (cmac_rx_axis_tlast),
+        .cmac_rx_axis_tuser     (cmac_rx_axis_tuser),
+        .cmac_rx_axis_tready    (),
 
-		.rx_ctl_enable      (ctl_rx_enable),
-		.rx_ctl_force_resync(ctl_rx_force_resync),
-		.rx_ctl_test_pattern(ctl_rx_test_pattern),
-		.rx_ctl_reset(),
-		
-		.rx_ctl_pause_enable    (ctl_rx_pause_enable),
-		.rx_ctl_pause_ack       (ctl_rx_pause_ack),
-		
-		.rx_ctl_enable_gcp      (ctl_rx_enable_gcp),
-		.rx_ctl_check_mcast_gcp (ctl_rx_check_mcast_gcp),
-		.rx_ctl_check_ucast_gcp (ctl_rx_check_ucast_gcp),
-		.rx_ctl_check_sa_gcp    (ctl_rx_check_sa_gcp),
-		.rx_ctl_check_etype_gcp (ctl_rx_check_etype_gcp),
-		.rx_ctl_check_opcode_gcp(ctl_rx_check_opcode_gcp),
-		
-		.rx_ctl_enable_pcp      (ctl_rx_enable_pcp),
-		.rx_ctl_check_mcast_pcp (ctl_rx_check_mcast_pcp),
-		.rx_ctl_check_ucast_pcp (ctl_rx_check_ucast_pcp),
-		.rx_ctl_check_sa_pcp    (ctl_rx_check_sa_pcp),
-		.rx_ctl_check_etype_pcp (ctl_rx_etype_pcp),
-		.rx_ctl_check_opcode_pcp(ctl_rx_check_opcode_pcp),
-		
-		.rx_ctl_enable_gpp      (ctl_rx_enable_gpp),
-		.rx_ctl_check_mcast_gpp (ctl_rx_check_mcast_gpp),
-		.rx_ctl_check_ucast_gpp (ctl_rx_check_ucast_gpp),
-		.rx_ctl_check_sa_gpp    (ctl_rx_check_sa_gpp),
-		.rx_ctl_check_etype_gpp (ctl_rx_check_etype_gpp),
-		.rx_ctl_check_opcode_gpp(ctl_rx_check_opcode_gpp),
-		
-		.rx_ctl_enable_ppp      (ctl_rx_enable_ppp),
-		.rx_ctl_check_mcast_ppp (ctl_rx_check_mcast_ppp),
-		.rx_ctl_check_ucast_ppp (ctl_rx_check_ucast_ppp),
-		.rx_ctl_check_sa_ppp    (ctl_rx_check_sa_ppp),
-		.rx_ctl_check_etype_ppp (ctl_rx_check_etype_ppp),
-		.rx_ctl_check_opcode_ppp(ctl_rx_check_opcode_ppp),
+        .rx_ctl_enable          (ctl_rx_enable),
+        .rx_ctl_force_resync    (ctl_rx_force_resync),
+        .rx_ctl_test_pattern    (ctl_rx_test_pattern),
+        .rx_ctl_reset           (),
+        
+        .rx_ctl_pause_enable    (ctl_rx_pause_enable),
+        .rx_ctl_pause_ack       (ctl_rx_pause_ack),
+        
+        .rx_ctl_enable_gcp      (ctl_rx_enable_gcp),
+        .rx_ctl_check_mcast_gcp (ctl_rx_check_mcast_gcp),
+        .rx_ctl_check_ucast_gcp (ctl_rx_check_ucast_gcp),
+        .rx_ctl_check_sa_gcp    (ctl_rx_check_sa_gcp),
+        .rx_ctl_check_etype_gcp (ctl_rx_check_etype_gcp),
+        .rx_ctl_check_opcode_gcp(ctl_rx_check_opcode_gcp),
+        
+        .rx_ctl_enable_pcp      (ctl_rx_enable_pcp),
+        .rx_ctl_check_mcast_pcp (ctl_rx_check_mcast_pcp),
+        .rx_ctl_check_ucast_pcp (ctl_rx_check_ucast_pcp),
+        .rx_ctl_check_sa_pcp    (ctl_rx_check_sa_pcp),
+        .rx_ctl_check_etype_pcp (ctl_rx_etype_pcp),
+        .rx_ctl_check_opcode_pcp(ctl_rx_check_opcode_pcp),
+        
+        .rx_ctl_enable_gpp      (ctl_rx_enable_gpp),
+        .rx_ctl_check_mcast_gpp (ctl_rx_check_mcast_gpp),
+        .rx_ctl_check_ucast_gpp (ctl_rx_check_ucast_gpp),
+        .rx_ctl_check_sa_gpp    (ctl_rx_check_sa_gpp),
+        .rx_ctl_check_etype_gpp (ctl_rx_check_etype_gpp),
+        .rx_ctl_check_opcode_gpp(ctl_rx_check_opcode_gpp),
+        
+        .rx_ctl_enable_ppp      (ctl_rx_enable_ppp),
+        .rx_ctl_check_mcast_ppp (ctl_rx_check_mcast_ppp),
+        .rx_ctl_check_ucast_ppp (ctl_rx_check_ucast_ppp),
+        .rx_ctl_check_sa_ppp    (ctl_rx_check_sa_ppp),
+        .rx_ctl_check_etype_ppp (ctl_rx_check_etype_ppp),
+        .rx_ctl_check_opcode_ppp(ctl_rx_check_opcode_ppp),
 
-		.rx_stat_aligned  (stat_rx_aligned),
-		.rx_stat_pause_req(stat_rx_pause_req)
+        .rx_stat_aligned        (stat_rx_aligned),
+        .rx_stat_pause_req      (stat_rx_pause_req)
     );
 
     cmac_usplus_0 cmac_inst(
@@ -695,11 +695,11 @@ module PfcUdpIpArpEthCmacRxTxWrapper#(
         .init_clk                             (init_clk),
         .gt_ref_clk_out                       (gt_ref_clk_out),
 
-        .rx_axis_tvalid                       (rx_axis_tvalid),
-        .rx_axis_tdata                        (rx_axis_tdata),
-        .rx_axis_tkeep                        (rx_axis_tkeep),
-        .rx_axis_tlast                        (rx_axis_tlast),
-        .rx_axis_tuser                        (rx_axis_tuser),
+        .rx_axis_tvalid                       (cmac_rx_axis_tvalid),
+        .rx_axis_tdata                        (cmac_rx_axis_tdata),
+        .rx_axis_tkeep                        (cmac_rx_axis_tkeep),
+        .rx_axis_tlast                        (cmac_rx_axis_tlast),
+        .rx_axis_tuser                        (cmac_rx_axis_tuser),
         
         .rx_otn_bip8_0                        (rx_otn_bip8_0),
         .rx_otn_bip8_1                        (rx_otn_bip8_1),
@@ -946,26 +946,26 @@ module PfcUdpIpArpEthCmacRxTxWrapper#(
         .ctl_tx_pause_quanta6                 (ctl_tx_pause_quanta6),
         .ctl_tx_pause_quanta7                 (ctl_tx_pause_quanta7),
         .ctl_tx_pause_quanta8                 (ctl_tx_pause_quanta8),
-        .ctl_tx_pause_refresh_timer0          (0),
-        .ctl_tx_pause_refresh_timer1          (0),
-        .ctl_tx_pause_refresh_timer2          (0),
-        .ctl_tx_pause_refresh_timer3          (0),
-        .ctl_tx_pause_refresh_timer4          (0),
-        .ctl_tx_pause_refresh_timer5          (0),
-        .ctl_tx_pause_refresh_timer6          (0),
-        .ctl_tx_pause_refresh_timer7          (0),
-        .ctl_tx_pause_refresh_timer8          (0),
-        .ctl_tx_resend_pause                  (0),
+        .ctl_tx_pause_refresh_timer0          (16'd0),
+        .ctl_tx_pause_refresh_timer1          (16'd0),
+        .ctl_tx_pause_refresh_timer2          (16'd0),
+        .ctl_tx_pause_refresh_timer3          (16'd0),
+        .ctl_tx_pause_refresh_timer4          (16'd0),
+        .ctl_tx_pause_refresh_timer5          (16'd0),
+        .ctl_tx_pause_refresh_timer6          (16'd0),
+        .ctl_tx_pause_refresh_timer7          (16'd0),
+        .ctl_tx_pause_refresh_timer8          (16'd0),
+        .ctl_tx_resend_pause                  (1'b0 ),
         
-        .tx_axis_tready                       (tx_axis_tready),
-        .tx_axis_tvalid                       (tx_axis_tvalid),
-        .tx_axis_tdata                        (tx_axis_tdata),
-        .tx_axis_tkeep                        (tx_axis_tkeep),
-        .tx_axis_tlast                        (tx_axis_tlast),
-        .tx_axis_tuser                        (tx_axis_tuser),
+        .tx_axis_tready                       (cmac_tx_axis_tready),
+        .tx_axis_tvalid                       (cmac_tx_axis_tvalid),
+        .tx_axis_tdata                        (cmac_tx_axis_tdata),
+        .tx_axis_tkeep                        (cmac_tx_axis_tkeep),
+        .tx_axis_tlast                        (cmac_tx_axis_tlast),
+        .tx_axis_tuser                        (cmac_tx_axis_tuser),
         .tx_ovfout                            (tx_ovfout),
         .tx_unfout                            (tx_unfout),
-        .tx_preamblein                        (0),
+        .tx_preamblein                        (56'd0),
         .usr_tx_reset                         (usr_tx_reset),
 
 

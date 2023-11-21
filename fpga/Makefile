@@ -5,11 +5,11 @@ LOCALSRCDIR = $(ROOT_DIR)/src:$(ROOT_DIR)/src/includes
 LIBSRCDIR = $(ROOT_DIR)/lib/blue-crc/src:$(ROOT_DIR)/lib/blue-wrapper/src
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
-TARGET = XdmaUdpIpArpEthRxTx
+TARGET = XdmaUdpIpArpEthCmacRxTx
 BSV_DIR = ./bsv
 GEN_VLOG_DIR = generated
 DUT_TOP ?= mk$(TARGET)
-TB_FILE = $(BSV_DIR)/Test$(TARGET)WithCmac.bsv
+TB_FILE = $(BSV_DIR)/Test$(TARGET).bsv
 TB_TOP = mkTest$(TARGET)
 
 CMAC_CTRL = RawXilinxCmacController

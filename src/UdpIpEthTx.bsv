@@ -2,6 +2,7 @@ import GetPut :: *;
 import FIFOF :: *;
 
 import Ports :: *;
+import Utils :: *;
 import MacLayer :: *;
 import UdpIpLayer :: *;
 import EthernetTypes :: *;
@@ -17,7 +18,7 @@ interface UdpIpEthTx;
     interface Put#(UdpIpMetaData) udpIpMetaDataIn;
     interface Put#(MacMetaData) macMetaDataIn;
     interface Put#(DataStream) dataStreamIn;
-    interface AxiStream512PipeOut axiStreamOut;
+    interface AxiStream256PipeOut axiStreamOut;
 endinterface
 
 module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
@@ -51,10 +52,6 @@ module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
         udpConfigVal
     );
 
-    AxiStream512PipeOut macAxiStream <- mkDataStreamToAxiStream512(
-        macStream
-    );
-
     interface Put udpConfig;
         method Action put(UdpConfig conf);
             udpConfigReg <= tagged Valid conf;
@@ -79,7 +76,7 @@ module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
         endmethod
     endinterface
 
-    interface PipeOut axiStreamOut = macAxiStream;
+    interface PipeOut axiStreamOut = convertDataStreamToAxiStream256(macStream);
 endmodule
 
 interface RawUdpIpEthTx;
@@ -93,7 +90,7 @@ interface RawUdpIpEthTx;
     interface RawDataStreamBusSlave rawDataStreamIn;
     
     (* prefix = "m_axis" *)
-    interface RawAxiStreamMaster#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamOut;
+    interface RawAxiStreamMaster#(AXIS256_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamOut;
 endinterface
 
 module mkGenericRawUdpIpEthTx#(Bool isSupportRdma)(RawUdpIpEthTx);

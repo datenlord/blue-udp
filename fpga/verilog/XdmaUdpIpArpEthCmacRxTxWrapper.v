@@ -47,18 +47,6 @@ module XdmaUdpIpArpEthCmacRxTxWrapper#(
 
     wire cmac_init_clk, cmac_sys_reset;
 
-    wire xdma_c2h_axis_tready;
-    wire xdma_c2h_axis_tvalid;
-    wire xdma_c2h_axis_tlast;
-    wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] xdma_c2h_axis_tdata;
-    wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] xdma_c2h_axis_tkeep;
-
-    wire xdma_h2c_axis_tvalid;
-    wire xdma_h2c_axis_tready;
-    wire xdma_h2c_axis_tlast;
-    wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] xdma_h2c_axis_tdata;
-    wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] xdma_h2c_axis_tkeep;
-
     wire xdma_rx_axis_tready;
     wire xdma_rx_axis_tvalid;
     wire xdma_rx_axis_tlast;
@@ -72,6 +60,14 @@ module XdmaUdpIpArpEthCmacRxTxWrapper#(
     wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] xdma_tx_axis_tdata;
     wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] xdma_tx_axis_tkeep;
     wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] xdma_tx_axis_tuser;
+    assign xdma_tx_axis_tuser = 1'b0;
+    
+    wire xdma_tx_axis_tvalid_piped;
+    wire xdma_tx_axis_tready_piped;
+    wire xdma_tx_axis_tlast_piped;
+    wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] xdma_tx_axis_tdata_piped;
+    wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] xdma_tx_axis_tkeep_piped;
+    wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] xdma_tx_axis_tuser_piped;
 
     // PCIe Clock buffer
     IBUFDS_GTE4 # (.REFCLK_HROW_CK_SEL(2'b00)) refclk_ibuf (.O(xdma_sys_clk_gt), .ODIV2(xdma_sys_clk), .I(pcie_clk_p), .CEB(1'b0), .IB(pcie_clk_n));
@@ -92,71 +88,61 @@ module XdmaUdpIpArpEthCmacRxTxWrapper#(
         .usr_irq_req(0),                             // input wire [0 : 0] usr_irq_req
         .usr_irq_ack(),                              // output wire [0 : 0] usr_irq_ack
         
-        .s_axis_c2h_tdata_0 (xdma_c2h_axis_tdata),   // input wire [511 : 0] s_axis_c2h_tdata_0
-        .s_axis_c2h_tlast_0 (xdma_c2h_axis_tlast),   // input wire s_axis_c2h_tlast_0
-        .s_axis_c2h_tvalid_0(xdma_c2h_axis_tvalid),  // input wire s_axis_c2h_tvalid_0
-        .s_axis_c2h_tready_0(xdma_c2h_axis_tready),  // output wire s_axis_c2h_tready_0
-        .s_axis_c2h_tkeep_0 (xdma_c2h_axis_tkeep),   // input wire [63 : 0] s_axis_c2h_tkeep_0
-        
-        .m_axis_h2c_tdata_0 (xdma_h2c_axis_tdata),   // output wire [511 : 0] m_axis_h2c_tdata_0
-        .m_axis_h2c_tlast_0 (xdma_h2c_axis_tlast),   // output wire m_axis_h2c_tlast_0
-        .m_axis_h2c_tvalid_0(xdma_h2c_axis_tvalid),  // output wire m_axis_h2c_tvalid_0
-        .m_axis_h2c_tready_0(xdma_h2c_axis_tready),  // input wire m_axis_h2c_tready_0
-        .m_axis_h2c_tkeep_0 (xdma_h2c_axis_tkeep)    // output wire [63 : 0] m_axis_h2c_tkeep_0
+        .s_axis_c2h_tdata_0 (xdma_rx_axis_tdata),   // input wire [511 : 0] s_axis_c2h_tdata_0
+        .s_axis_c2h_tlast_0 (xdma_rx_axis_tlast),   // input wire s_axis_c2h_tlast_0
+        .s_axis_c2h_tvalid_0(xdma_rx_axis_tvalid),  // input wire s_axis_c2h_tvalid_0
+        .s_axis_c2h_tready_0(xdma_rx_axis_tready),  // output wire s_axis_c2h_tready_0
+        .s_axis_c2h_tkeep_0 (xdma_rx_axis_tkeep),   // input wire [63 : 0] s_axis_c2h_tkeep_0
+
+        .m_axis_h2c_tdata_0 (xdma_tx_axis_tdata),   // output wire [511 : 0] m_axis_h2c_tdata_0
+        .m_axis_h2c_tlast_0 (xdma_tx_axis_tlast),   // output wire m_axis_h2c_tlast_0
+        .m_axis_h2c_tvalid_0(xdma_tx_axis_tvalid),  // output wire m_axis_h2c_tvalid_0
+        .m_axis_h2c_tready_0(xdma_tx_axis_tready),  // input wire m_axis_h2c_tready_0
+        .m_axis_h2c_tkeep_0 (xdma_tx_axis_tkeep)    // output wire [63 : 0] m_axis_h2c_tkeep_0
     );
     
     clk_wiz_0 clk_wiz_inst (
         // Clock out ports
-        .clk_out1(udp_clk),           // output clk_out1
-        .clk_out2(cmac_init_clk),     // output clk_out2
+        .clk_out1 (udp_clk         ),    // output clk_out1
+        .clk_out2 (cmac_init_clk   ),    // output clk_out2
         // Status and control signals
-        .resetn(xdma_axi_aresetn),    // input resetn
-        .locked(clk_wiz_locked),      // output locked
+        .resetn   (xdma_axi_aresetn),    // input resetn
+        .locked   (clk_wiz_locked  ),    // output locked
         // Clock in ports
-        .clk_in1(xdma_axi_aclk)       // input clk_in1
+        .clk_in1  (xdma_axi_aclk   )     // input clk_in1
     );
     
     assign udp_reset = clk_wiz_locked;
     assign cmac_sys_reset = ~ clk_wiz_locked;
 
-    axis_data_fifo_0 tx_axis_sync_fifo (
-        .s_axis_aresetn(xdma_axi_aresetn   ),      // input wire s_axis_aresetn
-        .s_axis_aclk   (xdma_axi_aclk      ),      // input wire s_axis_aclk
-        
-        .s_axis_tvalid(xdma_h2c_axis_tvalid),   // input wire s_axis_tvalid
-        .s_axis_tready(xdma_h2c_axis_tready),   // output wire s_axis_tready
-        .s_axis_tdata (xdma_h2c_axis_tdata ),   // input wire [511 : 0] s_axis_tdata
-        .s_axis_tkeep (xdma_h2c_axis_tkeep ),   // input wire [63 : 0] s_axis_tkeep
-        .s_axis_tlast (xdma_h2c_axis_tlast ),   // input wire s_axis_tlast
-        .s_axis_tuser (1'b0                ),   // input wire [0 : 0] s_axis_tuser
-        
-        .m_axis_aclk  (udp_clk             ),                // input wire m_axis_aclk
-        .m_axis_tvalid(xdma_tx_axis_tvalid ),    // output wire m_axis_tvalid
-        .m_axis_tready(xdma_tx_axis_tready ),    // input wire m_axis_tready
-        .m_axis_tdata (xdma_tx_axis_tdata  ),     // output wire [511 : 0] m_axis_tdata
-        .m_axis_tkeep (xdma_tx_axis_tkeep  ),     // output wire [63 : 0] m_axis_tkeep
-        .m_axis_tlast (xdma_tx_axis_tlast  ),     // output wire m_axis_tlast
-        .m_axis_tuser (xdma_tx_axis_tuser  )      // output wire [0 : 0] m_axis_tuser
-    );
+    // Extra Buffer for Cross-Die Connections
+    xpm_fifo_axis #(
+        .FIFO_DEPTH(16),
+        .TDATA_WIDTH(XDMA_AXIS_TDATA_WIDTH)
+    ) xdma_tx_axis_buf (
+        .s_aclk   (xdma_axi_aclk),
+        .m_aclk   (xdma_axi_aclk),
+        .s_aresetn(xdma_axi_aresetn),
 
-    axis_data_fifo_0 rx_axis_sync_fifo (
-        .s_axis_aresetn(clk_wiz_locked     ),               // input wire s_axis_aresetn
-        .s_axis_aclk   (udp_clk            ),        // input wire s_axis_aclk
+        .injectdbiterr_axis(1'd0),
+        .injectsbiterr_axis(1'd0),
+        .s_axis_tdest      (1'b0),
+        .s_axis_tid        (1'b0),
+        .s_axis_tstrb      (32'd0),
+
+        .s_axis_tvalid(xdma_tx_axis_tvalid),
+        .s_axis_tready(xdma_tx_axis_tready),
+        .s_axis_tdata (xdma_tx_axis_tdata ),
+        .s_axis_tkeep (xdma_tx_axis_tkeep ),
+        .s_axis_tlast (xdma_tx_axis_tlast ),
+        .s_axis_tuser (xdma_tx_axis_tuser ),
         
-        .s_axis_tvalid(xdma_rx_axis_tvalid ),    // input wire s_axis_tvalid
-        .s_axis_tready(xdma_rx_axis_tready ),    // output wire s_axis_tready
-        .s_axis_tdata (xdma_rx_axis_tdata  ),     // input wire [511 : 0] s_axis_tdata
-        .s_axis_tkeep (xdma_rx_axis_tkeep  ),     // input wire [63 : 0] s_axis_tkeep
-        .s_axis_tlast (xdma_rx_axis_tlast  ),     // input wire s_axis_tlast
-        .s_axis_tuser (xdma_rx_axis_tuser  ),     // input wire [0 : 0] s_axis_tuser
-        
-        .m_axis_aclk  (xdma_axi_aclk       ),          // input wire m_axis_aclk
-        .m_axis_tvalid(xdma_c2h_axis_tvalid),   // output wire m_axis_tvalid
-        .m_axis_tready(xdma_c2h_axis_tready),   // input wire m_axis_tready
-        .m_axis_tdata (xdma_c2h_axis_tdata ),    // output wire [511 : 0] m_axis_tdata
-        .m_axis_tkeep (xdma_c2h_axis_tkeep ),    // output wire [63 : 0] m_axis_tkeep
-        .m_axis_tlast (xdma_c2h_axis_tlast ),    // output wire m_axis_tlast
-        .m_axis_tuser (xdma_c2h_axis_tuser )     // output wire [0 : 0] m_axis_tuser
+        .m_axis_tvalid(xdma_tx_axis_tvalid_piped),
+        .m_axis_tready(xdma_tx_axis_tready_piped),
+        .m_axis_tdata (xdma_tx_axis_tdata_piped ),
+        .m_axis_tkeep (xdma_tx_axis_tkeep_piped ),
+        .m_axis_tlast (xdma_tx_axis_tlast_piped ),
+        .m_axis_tuser (xdma_tx_axis_tuser_piped )
     );
 
     UdpIpArpEthCmacRxTxWrapper#(
@@ -165,6 +151,8 @@ module XdmaUdpIpArpEthCmacRxTxWrapper#(
         XDMA_AXIS_TKEEP_WIDTH,
         XDMA_AXIS_TUSER_WIDTH
     ) udp_cmac_inst1(
+        .xdma_clk  (xdma_axi_aclk   ),
+        .xdma_reset(xdma_axi_aresetn),
 
         .udp_clk  (udp_clk  ),
         .udp_reset(udp_reset),
@@ -181,16 +169,16 @@ module XdmaUdpIpArpEthCmacRxTxWrapper#(
         .xdma_rx_axis_tkeep (),
         .xdma_rx_axis_tuser (),
 
-        .xdma_tx_axis_tvalid(xdma_tx_axis_tvalid),
-        .xdma_tx_axis_tready(xdma_tx_axis_tready),
-        .xdma_tx_axis_tlast (xdma_tx_axis_tlast),
-        .xdma_tx_axis_tdata (xdma_tx_axis_tdata),
-        .xdma_tx_axis_tkeep (xdma_tx_axis_tkeep),
-        .xdma_tx_axis_tuser (xdma_tx_axis_tuser),
+        .xdma_tx_axis_tvalid(xdma_tx_axis_tvalid_piped),
+        .xdma_tx_axis_tready(xdma_tx_axis_tready_piped),
+        .xdma_tx_axis_tlast (xdma_tx_axis_tlast_piped ),
+        .xdma_tx_axis_tdata (xdma_tx_axis_tdata_piped ),
+        .xdma_tx_axis_tkeep (xdma_tx_axis_tkeep_piped ),
+        .xdma_tx_axis_tuser (xdma_tx_axis_tuser_piped ),
 
         // CMAC GT
-        .gt_rxn_in (qsfp1_rxn_in),
-        .gt_rxp_in (qsfp1_rxp_in),
+        .gt_rxn_in (qsfp1_rxn_in ),
+        .gt_rxp_in (qsfp1_rxp_in ),
         .gt_txn_out(qsfp1_txn_out),
         .gt_txp_out(qsfp1_txp_out)
     );
@@ -202,8 +190,11 @@ module XdmaUdpIpArpEthCmacRxTxWrapper#(
         XDMA_AXIS_TUSER_WIDTH
     ) udp_cmac_inst2(
 
-        .udp_clk  (udp_clk  ),
-        .udp_reset(udp_reset),
+        .xdma_clk  (xdma_axi_aclk   ),
+        .xdma_reset(xdma_axi_aresetn),
+
+        .udp_clk   (udp_clk  ),
+        .udp_reset (udp_reset),
 
         .gt_ref_clk_p(qsfp2_ref_clk_p   ),
         .gt_ref_clk_n(qsfp2_ref_clk_n   ),
@@ -212,21 +203,21 @@ module XdmaUdpIpArpEthCmacRxTxWrapper#(
 
         .xdma_rx_axis_tready(xdma_rx_axis_tready),
         .xdma_rx_axis_tvalid(xdma_rx_axis_tvalid),
-        .xdma_rx_axis_tlast (xdma_rx_axis_tlast),
-        .xdma_rx_axis_tdata (xdma_rx_axis_tdata),
-        .xdma_rx_axis_tkeep (xdma_rx_axis_tkeep),
-        .xdma_rx_axis_tuser (xdma_rx_axis_tuser),
+        .xdma_rx_axis_tlast (xdma_rx_axis_tlast ),
+        .xdma_rx_axis_tdata (xdma_rx_axis_tdata ),
+        .xdma_rx_axis_tkeep (xdma_rx_axis_tkeep ),
+        .xdma_rx_axis_tuser (xdma_rx_axis_tuser ),
 
         .xdma_tx_axis_tvalid(1'b0),
-        .xdma_tx_axis_tready(),
+        .xdma_tx_axis_tready( ),
         .xdma_tx_axis_tlast (0),
         .xdma_tx_axis_tdata (0),
         .xdma_tx_axis_tkeep (0),
         .xdma_tx_axis_tuser (0),
 
         // CMAC GT
-        .gt_rxn_in (qsfp2_rxn_in),
-        .gt_rxp_in (qsfp2_rxp_in),
+        .gt_rxn_in (qsfp2_rxn_in ),
+        .gt_rxp_in (qsfp2_rxp_in ),
         .gt_txn_out(qsfp2_txn_out),
         .gt_txp_out(qsfp2_txp_out)
     );

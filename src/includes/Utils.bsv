@@ -1,5 +1,6 @@
 import FIFOF :: *;
 import Vector :: *;
+import Clocks :: *;
 import BRAMFIFO :: *;
 import Connectable :: *;
 
@@ -289,6 +290,31 @@ function AxiStream256PipeOut convertDataStreamToAxiStream256(DataStreamPipeOut s
         endinterface
      );
 endfunction
+
+module mkAxiStream256ToDataStream#(
+    AxiStream256PipeOut axiStreamIn
+)(DataStreamPipeOut);
+    Reg#(Bool) isFirstReg <- mkReg(True);
+
+    
+    method DataStream first();
+        return DataStream {
+            data: axiStreamIn.first.tData,
+            byteEn: axiStreamIn.first.tKeep,
+            isFirst: isFirstReg,
+            isLast: axiStreamIn.first.tLast
+        };
+    endmethod
+
+    method Action deq();
+        isFirstReg <= axiStreamIn.first.tLast;
+        axiStreamIn.deq();
+    endmethod
+
+    method Bool notEmpty();
+        return axiStreamIn.notEmpty();
+    endmethod
+endmodule
 
 
 module mkCrc32AxiStream256PipeOut#(

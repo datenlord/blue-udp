@@ -1,113 +1,210 @@
 `timescale 1ps / 1ps
 
+`define MAC_ADDR_WIDTH 48
+`define IP_ADDR_WIDTH  32
+`define IP_DSCP_WIDTH  6
+`define IP_ECN_WIDTH   2
+`define UDP_PORT_WIDTH 16
+`define UDP_LEN_WIDTH  16
+`define STREAM_DATA_WIDTH 256
+`define STREAM_KEEP_WIDTH 32
+
 module TestUdpIpArpEthCmacRxTxWrapper();
     localparam GT_LANE_WIDTH = 4;
-    localparam UDP_CONFIG_WIDTH = 144;
-    localparam UDP_IP_META_WIDTH = 88;
-    localparam DATA_STREAM_WIDTH = 290;
 
-    wire udp_clk;
-    wire udp_reset;
+    reg udp_clk;
+    reg udp_reset;
 
-    wire gt_ref_clk_p;
-    wire gt_ref_clk_n;
-    wire init_clk;
-    wire sys_reset;
-
-	wire [UDP_CONFIG_WIDTH - 1 : 0] udpConfig_put;
-	wire EN_udpConfig_put;
-	wire RDY_udpConfig_put;
-
-	wire [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataInTx_put;
-	wire EN_udpIpMetaDataInTx_put;
-	wire RDY_udpIpMetaDataInTx_put;
-
-	wire [DATA_STREAM_WIDTH - 1 : 0] dataStreamInTx_put;
-	wire EN_dataStreamInTx_put;
-	wire RDY_dataStreamInTx_put;
-
-	wire EN_udpIpMetaDataOutRx_get;
-	wire RDY_udpIpMetaDataOutRx_get;
-    wire [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataOutRx_get;
-
-	wire EN_dataStreamOutRx_get;
-	wire RDY_dataStreamOutRx_get;
-    wire [DATA_STREAM_WIDTH - 1 : 0] dataStreamOutRx_get;
+    reg gt_ref_clk_p;
+    reg gt_ref_clk_n;
+    reg gt_init_clk;
+    reg gt_sys_reset;
 
     wire [GT_LANE_WIDTH - 1 : 0] gt_n_loop, gt_p_loop;
 
+    wire  udp_config_valid;
+    wire  udp_config_ready;
+    wire  [`MAC_ADDR_WIDTH - 1 : 0] udp_config_mac_addr;
+    wire  [`IP_ADDR_WIDTH  - 1 : 0] udp_config_ip_addr;
+    wire  [`IP_ADDR_WIDTH  - 1 : 0] udp_config_net_mask;
+    wire  [`IP_ADDR_WIDTH  - 1 : 0] udp_config_gate_way;
 
-    mkTestUdpIpArpEthCmacRxTxWithClkRst testbench(
+    // Tx Channel
+    wire tx_udp_meta_valid;
+    wire [`IP_ADDR_WIDTH  - 1 : 0] tx_udp_meta_ip_addr;
+    wire [`IP_DSCP_WIDTH  - 1 : 0] tx_udp_meta_ip_dscp;
+    wire [`IP_ECN_WIDTH   - 1 : 0] tx_udp_meta_ip_ecn;
+    wire [`UDP_PORT_WIDTH - 1 : 0] tx_udp_meta_dst_port;
+    wire [`UDP_PORT_WIDTH - 1 : 0] tx_udp_meta_src_port;
+    wire [`UDP_LEN_WIDTH  - 1 : 0] tx_udp_meta_data_len;
+    wire tx_udp_meta_ready;
 
-        .EN_udpConfig_get(RDY_udpConfig_put & EN_udpConfig_put),
-		.udpConfig_get(udpConfig_put),
-		.RDY_udpConfig_get(EN_udpConfig_put),
+    
+    wire  tx_data_stream_tvalid;
+    wire  [`STREAM_DATA_WIDTH - 1 : 0] tx_data_stream_tdata;
+    wire  [`STREAM_KEEP_WIDTH - 1 : 0] tx_data_stream_tkeep;
+    wire  tx_data_stream_tfirst;
+    wire  tx_data_stream_tlast;
+    wire  tx_data_stream_tready;
 
-		.EN_udpIpMetaDataOutTx_get(RDY_udpIpMetaDataInTx_put & EN_udpIpMetaDataInTx_put),
-        .udpIpMetaDataOutTx_get(udpIpMetaDataInTx_put),
-        .RDY_udpIpMetaDataOutTx_get(EN_udpIpMetaDataInTx_put),
+    // Rx Channel
+    wire  rx_udp_meta_valid;
+    wire  [`IP_ADDR_WIDTH  - 1 : 0] rx_udp_meta_ip_addr;
+    wire  [`IP_DSCP_WIDTH  - 1 : 0] rx_udp_meta_ip_dscp;
+    wire  [`IP_ECN_WIDTH   - 1 : 0] rx_udp_meta_ip_ecn;
+    wire  [`UDP_PORT_WIDTH - 1 : 0] rx_udp_meta_dst_port;
+    wire  [`UDP_PORT_WIDTH - 1 : 0] rx_udp_meta_src_port;
+    wire  [`UDP_LEN_WIDTH  - 1 : 0] rx_udp_meta_data_len;
+    wire  rx_udp_meta_ready;
+    
+    wire  rx_data_stream_tvalid;
+    wire  rx_data_stream_tfirst;
+    wire  rx_data_stream_tlast;
+    wire  rx_data_stream_tready;
+    wire  [`STREAM_DATA_WIDTH - 1 : 0] rx_data_stream_tdata;
+    wire  [`STREAM_KEEP_WIDTH - 1 : 0] rx_data_stream_tkeep;
 
-        .EN_dataStreamOutTx_get(RDY_dataStreamInTx_put & EN_dataStreamInTx_put),
-        .dataStreamOutTx_get(dataStreamInTx_put),
-        .RDY_dataStreamOutTx_get(EN_dataStreamInTx_put),
+    mkTestUdpIpArpEthCmacRxTx testbench(
+        .m_udp_config_valid   (udp_config_valid   ),
+        .m_udp_config_mac_addr(udp_config_mac_addr),
+		.m_udp_config_ip_addr (udp_config_ip_addr ),
+		.m_udp_config_net_mask(udp_config_net_mask),
+		.m_udp_config_gate_way(udp_config_gate_way),
+		.m_udp_config_ready   (udp_config_ready   ),
 
-        .udpIpMetaDataInRx_put(udpIpMetaDataOutRx_get),
-        .EN_udpIpMetaDataInRx_put(RDY_udpIpMetaDataOutRx_get & EN_udpIpMetaDataOutRx_get),
-        .RDY_udpIpMetaDataInRx_put(EN_udpIpMetaDataOutRx_get),
+		.m_udp_meta_valid     (tx_udp_meta_valid   ),
+		.m_udp_meta_ip_addr   (tx_udp_meta_ip_addr ),
+		.m_udp_meta_ip_dscp   (tx_udp_meta_ip_dscp ),
+		.m_udp_meta_ip_ecn    (tx_udp_meta_ip_ecn  ),
+		.m_udp_meta_dst_port  (tx_udp_meta_dst_port),
+		.m_udp_meta_src_port  (tx_udp_meta_src_port),
+		.m_udp_meta_data_len  (tx_udp_meta_data_len),
+		.m_udp_meta_ready     (tx_udp_meta_ready   ),
 
-        .dataStreamInRx_put(dataStreamOutRx_get),
-        .EN_dataStreamInRx_put(RDY_dataStreamOutRx_get & EN_dataStreamOutRx_get),
-        .RDY_dataStreamInRx_put(EN_dataStreamOutRx_get),
+		.m_data_stream_tvalid (tx_data_stream_tvalid),
+		.m_data_stream_tdata  (tx_data_stream_tdata ),
+		.m_data_stream_tkeep  (tx_data_stream_tkeep ),
+		.m_data_stream_tfirst (tx_data_stream_tfirst),
+		.m_data_stream_tlast  (tx_data_stream_tlast ),
+		.m_data_stream_tready (tx_data_stream_tready),
 
+		.s_udp_meta_valid     (rx_udp_meta_valid   ),
+		.s_udp_meta_ip_addr   (rx_udp_meta_ip_addr ),
+		.s_udp_meta_ip_dscp   (rx_udp_meta_ip_dscp ),
+		.s_udp_meta_ip_ecn    (rx_udp_meta_ip_ecn  ),
+		.s_udp_meta_dst_port  (rx_udp_meta_dst_port),
+		.s_udp_meta_src_port  (rx_udp_meta_src_port),
+		.s_udp_meta_data_len  (rx_udp_meta_data_len),
+		.s_udp_meta_ready     (rx_udp_meta_ready   ),
 
-        .gt_ref_clk_p(gt_ref_clk_p),
-        .gate_gt_ref_clk_p(),
+		.s_data_stream_tvalid (rx_data_stream_tvalid),
+		.s_data_stream_tdata  (rx_data_stream_tdata ),
+		.s_data_stream_tkeep  (rx_data_stream_tkeep ),
+		.s_data_stream_tfirst (rx_data_stream_tfirst),
+		.s_data_stream_tlast  (rx_data_stream_tlast ),
+		.s_data_stream_tready (rx_data_stream_tready),
 
-        .gt_ref_clk_n(gt_ref_clk_n),
-        .gate_gt_ref_clk_n(),
-
-        .init_clk(init_clk),
-        .gate_init_clk(),
-
-        .udp_clk(udp_clk),
-        .gate_udp_clk(),
-
-        .sys_reset(sys_reset),
+        .udp_clk  (udp_clk),
         .udp_reset(udp_reset)
     );
 
-    UdpIpArpEthCmacRxTxWrapper dut_wrapper(
-        .udp_clk(udp_clk),
-        .udp_reset(udp_reset),
+    UdpIpArpEthCmacRxTxWrapper#(
+        GT_LANE_WIDTH
+    ) udpCmacInst(
+
+        .udp_clk     (udp_clk  ),
+        .udp_reset   (udp_reset),
 
         .gt_ref_clk_p(gt_ref_clk_p),
         .gt_ref_clk_n(gt_ref_clk_n),
-        .init_clk(init_clk),
-        .sys_reset(sys_reset),
+        .gt_init_clk (gt_init_clk ),
+        .gt_sys_reset(gt_sys_reset),
 
-	    .udpConfig_put(udpConfig_put),
-	    .EN_udpConfig_put(EN_udpConfig_put & RDY_udpConfig_put),
-	    .RDY_udpConfig_put(RDY_udpConfig_put),
+        // Config
+        .s_udp_config_valid   (udp_config_valid   ),
+        .s_udp_config_mac_addr(udp_config_mac_addr),
+        .s_udp_config_ip_addr (udp_config_ip_addr ),
+        .s_udp_config_net_mask(udp_config_net_mask),
+        .s_udp_config_gate_way(udp_config_gate_way),
+        .s_udp_config_ready   (udp_config_ready   ),
 
-	    .udpIpMetaDataInTx_put(udpIpMetaDataInTx_put),
-	    .EN_udpIpMetaDataInTx_put(EN_udpIpMetaDataInTx_put & RDY_udpIpMetaDataInTx_put),
-	    .RDY_udpIpMetaDataInTx_put(RDY_udpIpMetaDataInTx_put),
+        // Tx Channel
+        .s_udp_meta_valid   (tx_udp_meta_valid   ),
+        .s_udp_meta_ip_addr (tx_udp_meta_ip_addr ),
+        .s_udp_meta_ip_dscp (tx_udp_meta_ip_dscp ),
+        .s_udp_meta_ip_ecn  (tx_udp_meta_ip_ecn  ),
+        .s_udp_meta_dst_port(tx_udp_meta_dst_port),
+        .s_udp_meta_src_port(tx_udp_meta_src_port),
+        .s_udp_meta_data_len(tx_udp_meta_data_len),
+        .s_udp_meta_ready   (tx_udp_meta_ready   ),
 
-	    .dataStreamInTx_put(dataStreamInTx_put),
-	    .EN_dataStreamInTx_put(EN_dataStreamInTx_put & RDY_dataStreamInTx_put),
-	    .RDY_dataStreamInTx_put(RDY_dataStreamInTx_put),
+    
+        .s_data_stream_tvalid(tx_data_stream_tvalid),
+        .s_data_stream_tdata (tx_data_stream_tdata ),
+        .s_data_stream_tkeep (tx_data_stream_tkeep ),
+        .s_data_stream_tfirst(tx_data_stream_tfirst),
+        .s_data_stream_tlast (tx_data_stream_tlast ),
+        .s_data_stream_tready(tx_data_stream_tready),
 
-	    .EN_udpIpMetaDataOutRx_get(EN_udpIpMetaDataOutRx_get & RDY_udpIpMetaDataOutRx_get),
-	    .RDY_udpIpMetaDataOutRx_get(RDY_udpIpMetaDataOutRx_get),
-        .udpIpMetaDataOutRx_get(udpIpMetaDataOutRx_get),
+        // Rx Channel
+        .m_udp_meta_valid   (rx_udp_meta_valid   ),
+        .m_udp_meta_ip_addr (rx_udp_meta_ip_addr ),
+        .m_udp_meta_ip_dscp (rx_udp_meta_ip_dscp ),
+        .m_udp_meta_ip_ecn  (rx_udp_meta_ip_ecn  ),
+        .m_udp_meta_dst_port(rx_udp_meta_dst_port),
+        .m_udp_meta_src_port(rx_udp_meta_src_port),
+        .m_udp_meta_data_len(rx_udp_meta_data_len),
+        .m_udp_meta_ready   (rx_udp_meta_ready   ),
 
-	    .EN_dataStreamOutRx_get(EN_dataStreamOutRx_get & RDY_dataStreamOutRx_get),
-	    .RDY_dataStreamOutRx_get(RDY_dataStreamOutRx_get),
-        .dataStreamOutRx_get(dataStreamOutRx_get),
+        .m_data_stream_tvalid(rx_data_stream_tvalid),
+        .m_data_stream_tdata (rx_data_stream_tdata ),
+        .m_data_stream_tkeep (rx_data_stream_tkeep ),
+        .m_data_stream_tfirst(rx_data_stream_tfirst),
+        .m_data_stream_tlast (rx_data_stream_tlast ),
+        .m_data_stream_tready(rx_data_stream_tready),
 
+        // Serdes
         .gt_rxn_in (gt_n_loop),
         .gt_rxp_in (gt_p_loop),
         .gt_txn_out(gt_n_loop),
         .gt_txp_out(gt_p_loop)
     );
+    
+    initial
+    begin
+        gt_ref_clk_p =1;
+        forever #3200 gt_ref_clk_p = ~ gt_ref_clk_p;
+    end
+
+    initial
+    begin
+        gt_ref_clk_n =0;
+        forever #3200 gt_ref_clk_n = ~ gt_ref_clk_n;
+    end
+
+    initial
+    begin
+        udp_clk =0;
+        forever #1000 udp_clk = ~udp_clk;
+    end
+
+    initial
+    begin
+        udp_reset = 0;
+        #201000;
+        udp_reset = 1;
+    end
+
+    initial
+    begin
+        gt_init_clk = 0;
+        forever #5000 gt_init_clk = ~gt_init_clk;
+    end
+
+    initial
+    begin
+        gt_sys_reset = 1;
+        #1001000;
+        gt_sys_reset = 0;
+    end
 endmodule

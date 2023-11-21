@@ -1,740 +1,391 @@
 `timescale 1ps / 1ps
 
-module UdpIpArpEthCmacRxTxWrapper#(
-    parameter GT_LANE_WIDTH = 4,
-    parameter UDP_CONFIG_WIDTH = 144,
-    parameter UDP_IP_META_WIDTH = 88,
-    parameter DATA_STREAM_WIDTH = 290
-)(
+`define MAC_ADDR_WIDTH 48
+`define IP_ADDR_WIDTH  32
+`define IP_DSCP_WIDTH  6
+`define IP_ECN_WIDTH   2
+`define UDP_PORT_WIDTH 16
+`define UDP_LEN_WIDTH  16
+`define STREAM_DATA_WIDTH 256
+`define STREAM_KEEP_WIDTH 32
 
+module UdpIpArpEthCmacRxTxWrapper#(
+    parameter GT_LANE_WIDTH = 4
+)(
     input udp_clk,
     input udp_reset,
 
     input gt_ref_clk_p,
     input gt_ref_clk_n,
-    input init_clk,
-    input sys_reset,
+    input gt_init_clk,
+    input gt_sys_reset,
 
-	input [UDP_CONFIG_WIDTH - 1 : 0] udpConfig_put,
-	input EN_udpConfig_put,
-	output RDY_udpConfig_put,
+    // Config
+    input  s_udp_config_valid,
+    input  [`MAC_ADDR_WIDTH - 1 : 0] s_udp_config_mac_addr,
+    input  [`IP_ADDR_WIDTH  - 1 : 0] s_udp_config_ip_addr,
+    input  [`IP_ADDR_WIDTH  - 1 : 0] s_udp_config_net_mask,
+    input  [`IP_ADDR_WIDTH  - 1 : 0] s_udp_config_gate_way,
+    output s_udp_config_ready,
 
-	input [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataInTx_put,
-	input EN_udpIpMetaDataInTx_put,
-	output RDY_udpIpMetaDataInTx_put,
+    // Tx Channel
+    input  s_udp_meta_valid,
+    input  [`IP_ADDR_WIDTH  - 1 : 0] s_udp_meta_ip_addr,
+    input  [`IP_DSCP_WIDTH  - 1 : 0] s_udp_meta_ip_dscp,
+    input  [`IP_ECN_WIDTH   - 1 : 0] s_udp_meta_ip_ecn,
+    input  [`UDP_PORT_WIDTH - 1 : 0] s_udp_meta_dst_port,
+    input  [`UDP_PORT_WIDTH - 1 : 0] s_udp_meta_src_port,
+    input  [`UDP_LEN_WIDTH  - 1 : 0] s_udp_meta_data_len,
+    output s_udp_meta_ready,
 
-	input [DATA_STREAM_WIDTH - 1 : 0] dataStreamInTx_put,
-	input EN_dataStreamInTx_put,
-	output RDY_dataStreamInTx_put,
+    
+    input  s_data_stream_tvalid,
+    input  [`STREAM_DATA_WIDTH - 1 : 0] s_data_stream_tdata,
+    input  [`STREAM_KEEP_WIDTH - 1 : 0] s_data_stream_tkeep,
+    input  s_data_stream_tfirst,
+    input  s_data_stream_tlast,
+    output s_data_stream_tready,
 
-	input EN_udpIpMetaDataOutRx_get,
-	output RDY_udpIpMetaDataOutRx_get,
-    output [UDP_IP_META_WIDTH - 1 : 0] udpIpMetaDataOutRx_get,
+    // Rx Channel
+    output  m_udp_meta_valid,
+    output  [`IP_ADDR_WIDTH  - 1 : 0] m_udp_meta_ip_addr,
+    output  [`IP_DSCP_WIDTH  - 1 : 0] m_udp_meta_ip_dscp,
+    output  [`IP_ECN_WIDTH   - 1 : 0] m_udp_meta_ip_ecn,
+    output  [`UDP_PORT_WIDTH - 1 : 0] m_udp_meta_dst_port,
+    output  [`UDP_PORT_WIDTH - 1 : 0] m_udp_meta_src_port,
+    output  [`UDP_LEN_WIDTH  - 1 : 0] m_udp_meta_data_len,
+    input   m_udp_meta_ready,
 
-	input EN_dataStreamOutRx_get,
-	output RDY_dataStreamOutRx_get,
-    output [DATA_STREAM_WIDTH - 1 : 0] dataStreamOutRx_get,
+    
+    output  m_data_stream_tvalid,
+    output  [`STREAM_DATA_WIDTH - 1 : 0] m_data_stream_tdata,
+    output  [`STREAM_KEEP_WIDTH - 1 : 0] m_data_stream_tkeep,
+    output  m_data_stream_tfirst,
+    output  m_data_stream_tlast,
+    input   m_data_stream_tready,
 
     // Serdes
-    input [GT_LANE_WIDTH - 1 : 0] gt_rxn_in,
-    input [GT_LANE_WIDTH - 1 : 0] gt_rxp_in,
+    input  [GT_LANE_WIDTH - 1 : 0] gt_rxn_in,
+    input  [GT_LANE_WIDTH - 1 : 0] gt_rxp_in,
     output [GT_LANE_WIDTH - 1 : 0] gt_txn_out,
     output [GT_LANE_WIDTH - 1 : 0] gt_txp_out
 );
-    wire [(GT_LANE_WIDTH * 3)-1 :0]    gt_loopback_in;
+    localparam CMAC_AXIS_TDATA_WIDTH = 512;
+    localparam CMAC_AXIS_TKEEP_WIDTH = 64;
+    localparam CMAC_AXIS_TUSER_WIDTH = 1;
 
+
+    wire [(GT_LANE_WIDTH * 3)-1 :0] gt_loopback_in;
     //// For other GT loopback options please change the value appropriately
     //// For example, for Near End PMA loopback for 4 Lanes update the gt_loopback_in = {4{3'b010}};
     //// For more information and settings on loopback, refer GT Transceivers user guide
-
     assign gt_loopback_in  = {GT_LANE_WIDTH{3'b000}};
+    
+    wire   gtwiz_reset_tx_datapath;
+    wire   gtwiz_reset_rx_datapath;
+    assign gtwiz_reset_tx_datapath = 1'b0;
+    assign gtwiz_reset_rx_datapath = 1'b0;
 
-    wire            gt_ref_clk_out;
-    wire            txusrclk2;
-    wire            rxusrclk2;
+
+    wire            gt_txusrclk2;
     wire            usr_tx_reset;
     wire            usr_rx_reset;
 
-    wire            rx_axis_tvalid;
-    wire [511:0]    rx_axis_tdata;
-    wire            rx_axis_tlast;
-    wire [63:0]     rx_axis_tkeep;
-    wire            rx_axis_tuser;
+    wire            gt_tx_axis_tready;
+    wire            gt_tx_axis_tvalid;
+    wire            gt_tx_axis_tlast;
+    wire [CMAC_AXIS_TDATA_WIDTH - 1 : 0] gt_tx_axis_tdata;
+    wire [CMAC_AXIS_TKEEP_WIDTH - 1 : 0] gt_tx_axis_tkeep;
+    wire [CMAC_AXIS_TUSER_WIDTH - 1 : 0] gt_tx_axis_tuser;
 
-    wire            tx_axis_tready;
-    wire            tx_axis_tvalid;
-    wire [511:0]    tx_axis_tdata;
-    wire            tx_axis_tlast;
-    wire [63:0]     tx_axis_tkeep;
-    wire            tx_axis_tuser;
+    wire            gt_tx_ovfout;
+    wire            gt_tx_unfout;
+    wire            gt_ctl_tx_enable;
+    wire            gt_ctl_tx_test_pattern;
+    wire            gt_ctl_tx_send_idle;
+    wire            gt_ctl_tx_send_rfi;
+    wire            gt_ctl_tx_send_lfi;
+    wire [8:0]      gt_ctl_tx_pause_enable;
+    wire [15:0]     gt_ctl_tx_pause_quanta0;
+    wire [15:0]     gt_ctl_tx_pause_quanta1;
+    wire [15:0]     gt_ctl_tx_pause_quanta2;
+    wire [15:0]     gt_ctl_tx_pause_quanta3;
+    wire [15:0]     gt_ctl_tx_pause_quanta4;
+    wire [15:0]     gt_ctl_tx_pause_quanta5;
+    wire [15:0]     gt_ctl_tx_pause_quanta6;
+    wire [15:0]     gt_ctl_tx_pause_quanta7;
+    wire [15:0]     gt_ctl_tx_pause_quanta8;
+    wire [8:0]      gt_ctl_tx_pause_req;
 
-    wire            tx_ovfout;
-    wire            tx_unfout;
-    wire [55:0]     tx_preamblein;
-    wire [8:0]      stat_tx_pause_valid;
-    wire            stat_tx_pause;
-    wire            stat_tx_user_pause;
-    wire [8:0]      ctl_tx_pause_enable;
-    wire [15:0]     ctl_tx_pause_quanta0;
-    wire [15:0]     ctl_tx_pause_quanta1;
-    wire [15:0]     ctl_tx_pause_quanta2;
-    wire [15:0]     ctl_tx_pause_quanta3;
-    wire [15:0]     ctl_tx_pause_quanta4;
-    wire [15:0]     ctl_tx_pause_quanta5;
-    wire [15:0]     ctl_tx_pause_quanta6;
-    wire [15:0]     ctl_tx_pause_quanta7;
-    wire [15:0]     ctl_tx_pause_quanta8;
-    wire [15:0]     ctl_tx_pause_refresh_timer0;
-    wire [15:0]     ctl_tx_pause_refresh_timer1;
-    wire [15:0]     ctl_tx_pause_refresh_timer2;
-    wire [15:0]     ctl_tx_pause_refresh_timer3;
-    wire [15:0]     ctl_tx_pause_refresh_timer4;
-    wire [15:0]     ctl_tx_pause_refresh_timer5;
-    wire [15:0]     ctl_tx_pause_refresh_timer6;
-    wire [15:0]     ctl_tx_pause_refresh_timer7;
-    wire [15:0]     ctl_tx_pause_refresh_timer8;
-    wire [8:0]      ctl_tx_pause_req;
-    wire            ctl_tx_resend_pause;
-    wire            stat_rx_pause;
-    wire [15:0]     stat_rx_pause_quanta0;
-    wire [15:0]     stat_rx_pause_quanta1;
-    wire [15:0]     stat_rx_pause_quanta2;
-    wire [15:0]     stat_rx_pause_quanta3;
-    wire [15:0]     stat_rx_pause_quanta4;
-    wire [15:0]     stat_rx_pause_quanta5;
-    wire [15:0]     stat_rx_pause_quanta6;
-    wire [15:0]     stat_rx_pause_quanta7;
-    wire [15:0]     stat_rx_pause_quanta8;
-    wire [8:0]      stat_rx_pause_req;
-    wire [8:0]      stat_rx_pause_valid;
-    wire            stat_rx_user_pause;
-    wire            ctl_rx_check_etype_gcp;
-    wire            ctl_rx_check_etype_gpp;
-    wire            ctl_rx_check_etype_pcp;
-    wire            ctl_rx_check_etype_ppp;
-    wire            ctl_rx_check_mcast_gcp;
-    wire            ctl_rx_check_mcast_gpp;
-    wire            ctl_rx_check_mcast_pcp;
-    wire            ctl_rx_check_mcast_ppp;
-    wire            ctl_rx_check_opcode_gcp;
-    wire            ctl_rx_check_opcode_gpp;
-    wire            ctl_rx_check_opcode_pcp;
-    wire            ctl_rx_check_opcode_ppp;
-    wire            ctl_rx_check_sa_gcp;
-    wire            ctl_rx_check_sa_gpp;
-    wire            ctl_rx_check_sa_pcp;
-    wire            ctl_rx_check_sa_ppp;
-    wire            ctl_rx_check_ucast_gcp;
-    wire            ctl_rx_check_ucast_gpp;
-    wire            ctl_rx_check_ucast_pcp;
-    wire            ctl_rx_check_ucast_ppp;
-    wire            ctl_rx_enable_gcp;
-    wire            ctl_rx_enable_gpp;
-    wire            ctl_rx_enable_pcp;
-    wire            ctl_rx_enable_ppp;
-    wire [8:0]      ctl_rx_pause_ack;
-    wire [8:0]      ctl_rx_pause_enable;
-    wire            stat_rx_aligned;
-    wire            stat_rx_aligned_err;
-    wire [2:0]      stat_rx_bad_code;
-    wire [2:0]      stat_rx_bad_fcs;
-    wire            stat_rx_bad_preamble;
-    wire            stat_rx_bad_sfd;
-    wire            stat_rx_bip_err_0;
-    wire            stat_rx_bip_err_1;
-    wire            stat_rx_bip_err_10;
-    wire            stat_rx_bip_err_11;
-    wire            stat_rx_bip_err_12;
-    wire            stat_rx_bip_err_13;
-    wire            stat_rx_bip_err_14;
-    wire            stat_rx_bip_err_15;
-    wire            stat_rx_bip_err_16;
-    wire            stat_rx_bip_err_17;
-    wire            stat_rx_bip_err_18;
-    wire            stat_rx_bip_err_19;
-    wire            stat_rx_bip_err_2;
-    wire            stat_rx_bip_err_3;
-    wire            stat_rx_bip_err_4;
-    wire            stat_rx_bip_err_5;
-    wire            stat_rx_bip_err_6;
-    wire            stat_rx_bip_err_7;
-    wire            stat_rx_bip_err_8;
-    wire            stat_rx_bip_err_9;
-    wire [19:0]     stat_rx_block_lock;
-    wire            stat_rx_broadcast;
-    wire [2:0]      stat_rx_fragment;
-    wire [1:0]      stat_rx_framing_err_0;
-    wire [1:0]      stat_rx_framing_err_1;
-    wire [1:0]      stat_rx_framing_err_10;
-    wire [1:0]      stat_rx_framing_err_11;
-    wire [1:0]      stat_rx_framing_err_12;
-    wire [1:0]      stat_rx_framing_err_13;
-    wire [1:0]      stat_rx_framing_err_14;
-    wire [1:0]      stat_rx_framing_err_15;
-    wire [1:0]      stat_rx_framing_err_16;
-    wire [1:0]      stat_rx_framing_err_17;
-    wire [1:0]      stat_rx_framing_err_18;
-    wire [1:0]      stat_rx_framing_err_19;
-    wire [1:0]      stat_rx_framing_err_2;
-    wire [1:0]      stat_rx_framing_err_3;
-    wire [1:0]      stat_rx_framing_err_4;
-    wire [1:0]      stat_rx_framing_err_5;
-    wire [1:0]      stat_rx_framing_err_6;
-    wire [1:0]      stat_rx_framing_err_7;
-    wire [1:0]      stat_rx_framing_err_8;
-    wire [1:0]      stat_rx_framing_err_9;
-    wire            stat_rx_framing_err_valid_0;
-    wire            stat_rx_framing_err_valid_1;
-    wire            stat_rx_framing_err_valid_10;
-    wire            stat_rx_framing_err_valid_11;
-    wire            stat_rx_framing_err_valid_12;
-    wire            stat_rx_framing_err_valid_13;
-    wire            stat_rx_framing_err_valid_14;
-    wire            stat_rx_framing_err_valid_15;
-    wire            stat_rx_framing_err_valid_16;
-    wire            stat_rx_framing_err_valid_17;
-    wire            stat_rx_framing_err_valid_18;
-    wire            stat_rx_framing_err_valid_19;
-    wire            stat_rx_framing_err_valid_2;
-    wire            stat_rx_framing_err_valid_3;
-    wire            stat_rx_framing_err_valid_4;
-    wire            stat_rx_framing_err_valid_5;
-    wire            stat_rx_framing_err_valid_6;
-    wire            stat_rx_framing_err_valid_7;
-    wire            stat_rx_framing_err_valid_8;
-    wire            stat_rx_framing_err_valid_9;
-    wire            stat_rx_got_signal_os;
-    wire            stat_rx_hi_ber;
-    wire            stat_rx_inrangeerr;
-    wire            stat_rx_internal_local_fault;
-    wire            stat_rx_jabber;
-    wire            stat_rx_local_fault;
-    wire [19:0]     stat_rx_mf_err;
-    wire [19:0]     stat_rx_mf_len_err;
-    wire [19:0]     stat_rx_mf_repeat_err;
-    wire            stat_rx_misaligned;
-    wire            stat_rx_multicast;
-    wire            stat_rx_oversize;
-    wire            stat_rx_packet_1024_1518_bytes;
-    wire            stat_rx_packet_128_255_bytes;
-    wire            stat_rx_packet_1519_1522_bytes;
-    wire            stat_rx_packet_1523_1548_bytes;
-    wire            stat_rx_packet_1549_2047_bytes;
-    wire            stat_rx_packet_2048_4095_bytes;
-    wire            stat_rx_packet_256_511_bytes;
-    wire            stat_rx_packet_4096_8191_bytes;
-    wire            stat_rx_packet_512_1023_bytes;
-    wire            stat_rx_packet_64_bytes;
-    wire            stat_rx_packet_65_127_bytes;
-    wire            stat_rx_packet_8192_9215_bytes;
-    wire            stat_rx_packet_bad_fcs;
-    wire            stat_rx_packet_large;
-    wire [2:0]      stat_rx_packet_small;
-    wire            stat_rx_received_local_fault;
-    wire            stat_rx_remote_fault;
-    wire            stat_rx_status;
-    wire [2:0]      stat_rx_stomped_fcs;
-    wire [19:0]     stat_rx_synced;
-    wire [19:0]     stat_rx_synced_err;
-    wire [2:0]      stat_rx_test_pattern_mismatch;
-    wire            stat_rx_toolong;
-    wire [6:0]      stat_rx_total_bytes;
-    wire [13:0]     stat_rx_total_good_bytes;
-    wire            stat_rx_total_good_packets;
-    wire [2:0]      stat_rx_total_packets;
-    wire            stat_rx_truncated;
-    wire [2:0]      stat_rx_undersize;
-    wire            stat_rx_unicast;
-    wire            stat_rx_vlan;
-    wire [19:0]     stat_rx_pcsl_demuxed;
-    wire [4:0]      stat_rx_pcsl_number_0;
-    wire [4:0]      stat_rx_pcsl_number_1;
-    wire [4:0]      stat_rx_pcsl_number_10;
-    wire [4:0]      stat_rx_pcsl_number_11;
-    wire [4:0]      stat_rx_pcsl_number_12;
-    wire [4:0]      stat_rx_pcsl_number_13;
-    wire [4:0]      stat_rx_pcsl_number_14;
-    wire [4:0]      stat_rx_pcsl_number_15;
-    wire [4:0]      stat_rx_pcsl_number_16;
-    wire [4:0]      stat_rx_pcsl_number_17;
-    wire [4:0]      stat_rx_pcsl_number_18;
-    wire [4:0]      stat_rx_pcsl_number_19;
-    wire [4:0]      stat_rx_pcsl_number_2;
-    wire [4:0]      stat_rx_pcsl_number_3;
-    wire [4:0]      stat_rx_pcsl_number_4;
-    wire [4:0]      stat_rx_pcsl_number_5;
-    wire [4:0]      stat_rx_pcsl_number_6;
-    wire [4:0]      stat_rx_pcsl_number_7;
-    wire [4:0]      stat_rx_pcsl_number_8;
-    wire [4:0]      stat_rx_pcsl_number_9;
-    wire            stat_tx_bad_fcs;
-    wire            stat_tx_broadcast;
-    wire            stat_tx_frame_error;
-    wire            stat_tx_local_fault;
-    wire            stat_tx_multicast;
-    wire            stat_tx_packet_1024_1518_bytes;
-    wire            stat_tx_packet_128_255_bytes;
-    wire            stat_tx_packet_1519_1522_bytes;
-    wire            stat_tx_packet_1523_1548_bytes;
-    wire            stat_tx_packet_1549_2047_bytes;
-    wire            stat_tx_packet_2048_4095_bytes;
-    wire            stat_tx_packet_256_511_bytes;
-    wire            stat_tx_packet_4096_8191_bytes;
-    wire            stat_tx_packet_512_1023_bytes;
-    wire            stat_tx_packet_64_bytes;
-    wire            stat_tx_packet_65_127_bytes;
-    wire            stat_tx_packet_8192_9215_bytes;
-    wire            stat_tx_packet_large;
-    wire            stat_tx_packet_small;
-    wire [5:0]      stat_tx_total_bytes;
-    wire [13:0]     stat_tx_total_good_bytes;
-    wire            stat_tx_total_good_packets;
-    wire            stat_tx_total_packets;
-    wire            stat_tx_unicast;
-    wire            stat_tx_vlan;
+    wire            gt_rx_axis_tvalid;
+    wire            gt_rx_axis_tlast;
+    wire [CMAC_AXIS_TDATA_WIDTH - 1 : 0] gt_rx_axis_tdata;
+    wire [CMAC_AXIS_TKEEP_WIDTH - 1 : 0] gt_rx_axis_tkeep;
+    wire [CMAC_AXIS_TUSER_WIDTH - 1 : 0] gt_rx_axis_tuser;
 
-    wire [7:0]      rx_otn_bip8_0;
-    wire [7:0]      rx_otn_bip8_1;
-    wire [7:0]      rx_otn_bip8_2;
-    wire [7:0]      rx_otn_bip8_3;
-    wire [7:0]      rx_otn_bip8_4;
-    wire [65:0]     rx_otn_data_0;
-    wire [65:0]     rx_otn_data_1;
-    wire [65:0]     rx_otn_data_2;
-    wire [65:0]     rx_otn_data_3;
-    wire [65:0]     rx_otn_data_4;
-    wire            rx_otn_ena;
-    wire            rx_otn_lane0;
-    wire            rx_otn_vlmarker;
-    wire [55:0]     rx_preambleout;
+    wire            gt_stat_rx_aligned;
+    wire [8:0]      gt_stat_rx_pause_req;
+    wire            gt_ctl_rx_enable;
+    wire            gt_ctl_rx_force_resync;
+    wire            gt_ctl_rx_test_pattern;
+    wire            gt_ctl_rx_check_etype_gcp;
+    wire            gt_ctl_rx_check_etype_gpp;
+    wire            gt_ctl_rx_check_etype_pcp;
+    wire            gt_ctl_rx_check_etype_ppp;
+    wire            gt_ctl_rx_check_mcast_gcp;
+    wire            gt_ctl_rx_check_mcast_gpp;
+    wire            gt_ctl_rx_check_mcast_pcp;
+    wire            gt_ctl_rx_check_mcast_ppp;
+    wire            gt_ctl_rx_check_opcode_gcp;
+    wire            gt_ctl_rx_check_opcode_gpp;
+    wire            gt_ctl_rx_check_opcode_pcp;
+    wire            gt_ctl_rx_check_opcode_ppp;
+    wire            gt_ctl_rx_check_sa_gcp;
+    wire            gt_ctl_rx_check_sa_gpp;
+    wire            gt_ctl_rx_check_sa_pcp;
+    wire            gt_ctl_rx_check_sa_ppp;
+    wire            gt_ctl_rx_check_ucast_gcp;
+    wire            gt_ctl_rx_check_ucast_gpp;
+    wire            gt_ctl_rx_check_ucast_pcp;
+    wire            gt_ctl_rx_check_ucast_ppp;
+    wire            gt_ctl_rx_enable_gcp;
+    wire            gt_ctl_rx_enable_gpp;
+    wire            gt_ctl_rx_enable_pcp;
+    wire            gt_ctl_rx_enable_ppp;
+    wire [8:0]      gt_ctl_rx_pause_ack;
+    wire [8:0]      gt_ctl_rx_pause_enable;
 
+    mkRawUdpIpArpEthCmacRxTx udp_inst(
+        .udp_clk      (udp_clk        ),
+        .udp_reset    (udp_reset      ),
+        .cmac_rxtx_clk(gt_txusrclk2   ),
+        .cmac_rx_reset(~gt_usr_rx_reset),
+        .cmac_tx_reset(~gt_usr_tx_reset),
 
-    wire            ctl_rx_enable;
-    wire            ctl_rx_force_resync;
-    wire            ctl_rx_test_pattern;
-    wire            ctl_tx_enable;
-    wire            ctl_tx_test_pattern;
-    wire            ctl_tx_send_idle;
-    wire            ctl_tx_send_rfi;
-    wire            ctl_tx_send_lfi;
-    wire            rx_reset;
-    wire            tx_reset;
-    wire [GT_LANE_WIDTH - 1 :0]     gt_rxrecclkout;
-    wire [GT_LANE_WIDTH - 1 :0]     gt_powergoodout;
-    wire            gtwiz_reset_tx_datapath;
-    wire            gtwiz_reset_rx_datapath;
+        .s_udp_config_valid   (s_udp_config_valid   ),
+        .s_udp_config_mac_addr(s_udp_config_mac_addr),
+        .s_udp_config_ip_addr (s_udp_config_ip_addr ),
+        .s_udp_config_net_mask(s_udp_config_net_mask),
+        .s_udp_config_gate_way(s_udp_config_gate_way),
+        .s_udp_config_ready   (s_udp_config_ready   ),
+        
+        // User Tx Interface
+        .s_udp_meta_valid     (s_udp_meta_valid   ),
+        .s_udp_meta_ip_addr   (s_udp_meta_ip_addr ),
+        .s_udp_meta_ip_dscp   (s_udp_meta_ip_dscp ),
+        .s_udp_meta_ip_ecn    (s_udp_meta_ip_ecn  ),
+        .s_udp_meta_dst_port  (s_udp_meta_dst_port),
+        .s_udp_meta_src_port  (s_udp_meta_src_port),
+        .s_udp_meta_data_len  (s_udp_meta_data_len),
+        .s_udp_meta_ready     (s_udp_meta_ready   ),
 
+        .s_data_stream_tvalid (s_data_stream_tvalid),
+        .s_data_stream_tdata  (s_data_stream_tdata ),
+        .s_data_stream_tkeep  (s_data_stream_tkeep ),
+        .s_data_stream_tfirst (s_data_stream_tfirst),
+        .s_data_stream_tlast  (s_data_stream_tlast ),
+        .s_data_stream_tready (s_data_stream_tready),
 
-    assign gtwiz_reset_tx_datapath    = 1'b0;
-    assign gtwiz_reset_rx_datapath    = 1'b0;
+        // User Rx Interface
+        .m_udp_meta_valid     (m_udp_meta_valid   ),
+        .m_udp_meta_ip_addr   (m_udp_meta_ip_addr ),
+        .m_udp_meta_ip_dscp   (m_udp_meta_ip_dscp ),
+        .m_udp_meta_ip_ecn    (m_udp_meta_ip_ecn  ),
+        .m_udp_meta_dst_port  (m_udp_meta_dst_port),
+        .m_udp_meta_src_port  (m_udp_meta_src_port),
+        .m_udp_meta_data_len  (m_udp_meta_data_len),
+        .m_udp_meta_ready     (m_udp_meta_ready   ),
 
-    mkUdpIpArpEthCmacRxTxInst udp_inst(
-	    .udp_clk(udp_clk),
-        .udp_reset(udp_reset),
+        .m_data_stream_tvalid (m_data_stream_tvalid),
+        .m_data_stream_tdata  (m_data_stream_tdata ),
+        .m_data_stream_tkeep  (m_data_stream_tkeep ),
+        .m_data_stream_tfirst (m_data_stream_tfirst),
+        .m_data_stream_tlast  (m_data_stream_tlast ),
+        .m_data_stream_tready (m_data_stream_tready),
 
-        .cmac_rxtx_clk(txusrclk2),
-        .cmac_rx_reset(usr_rx_reset),
-        .cmac_tx_reset(usr_tx_reset),
+        // CMAC Interface
+        .cmac_tx_axis_tvalid    (gt_tx_axis_tvalid),
+        .cmac_tx_axis_tdata     (gt_tx_axis_tdata ),
+        .cmac_tx_axis_tkeep     (gt_tx_axis_tkeep ),
+        .cmac_tx_axis_tlast     (gt_tx_axis_tlast ),
+        .cmac_tx_axis_tuser     (gt_tx_axis_tuser ),
+        .cmac_tx_axis_tready    (gt_tx_axis_tready),
 
-        .udpConfig_put(udpConfig_put),
-        .EN_udpConfig_put(EN_udpConfig_put),
-        .RDY_udpConfig_put(RDY_udpConfig_put),
+        .tx_stat_ovfout         (gt_tx_ovfout),
+        .tx_stat_unfout         (gt_tx_unfout),
+        .tx_stat_rx_aligned     (gt_stat_rx_aligned),
 
-        .udpIpMetaDataInTx_put(udpIpMetaDataInTx_put),
-        .EN_udpIpMetaDataInTx_put(EN_udpIpMetaDataInTx_put),
-        .RDY_udpIpMetaDataInTx_put(RDY_udpIpMetaDataInTx_put),
+        .tx_ctl_enable          (gt_ctl_tx_enable      ),
+        .tx_ctl_test_pattern    (gt_ctl_tx_test_pattern),
+        .tx_ctl_send_idle       (gt_ctl_tx_send_idle   ),
+        .tx_ctl_send_lfi        (gt_ctl_tx_send_lfi    ),
+        .tx_ctl_send_rfi        (gt_ctl_tx_send_rfi    ),
+        .tx_ctl_reset           (),
 
-        .dataStreamInTx_put(dataStreamInTx_put),
-        .EN_dataStreamInTx_put(EN_dataStreamInTx_put),
-        .RDY_dataStreamInTx_put(RDY_dataStreamInTx_put),
+        .tx_ctl_pause_enable    (gt_ctl_tx_pause_enable ),
+        .tx_ctl_pause_req       (gt_ctl_tx_pause_req    ),
+        .tx_ctl_pause_quanta0   (gt_ctl_tx_pause_quanta0),
+        .tx_ctl_pause_quanta1   (gt_ctl_tx_pause_quanta1),
+        .tx_ctl_pause_quanta2   (gt_ctl_tx_pause_quanta2),
+        .tx_ctl_pause_quanta3   (gt_ctl_tx_pause_quanta3),
+        .tx_ctl_pause_quanta4   (gt_ctl_tx_pause_quanta4),
+        .tx_ctl_pause_quanta5   (gt_ctl_tx_pause_quanta5),
+        .tx_ctl_pause_quanta6   (gt_ctl_tx_pause_quanta6),
+        .tx_ctl_pause_quanta7   (gt_ctl_tx_pause_quanta7),
+        .tx_ctl_pause_quanta8   (gt_ctl_tx_pause_quanta8),
 
-        .EN_udpIpMetaDataOutRx_get(EN_udpIpMetaDataOutRx_get),
-        .udpIpMetaDataOutRx_get(udpIpMetaDataOutRx_get),
-        .RDY_udpIpMetaDataOutRx_get(RDY_udpIpMetaDataOutRx_get),
+        .cmac_rx_axis_tvalid    (gt_rx_axis_tvalid),
+        .cmac_rx_axis_tdata     (gt_rx_axis_tdata ),
+        .cmac_rx_axis_tkeep     (gt_rx_axis_tkeep ),
+        .cmac_rx_axis_tlast     (gt_rx_axis_tlast ),
+        .cmac_rx_axis_tuser     (gt_rx_axis_tuser ),
+        .cmac_rx_axis_tready    (),
 
-        .EN_dataStreamOutRx_get(EN_dataStreamOutRx_get),
-        .dataStreamOutRx_get(dataStreamOutRx_get),
-        .RDY_dataStreamOutRx_get(RDY_dataStreamOutRx_get),
+        .rx_stat_aligned        (gt_stat_rx_aligned    ),
+        .rx_stat_pause_req      (gt_stat_rx_pause_req  ),
+        .rx_ctl_enable          (gt_ctl_rx_enable      ),
+        .rx_ctl_force_resync    (gt_ctl_rx_force_resync),
+        .rx_ctl_test_pattern    (gt_ctl_rx_test_pattern),
+        .rx_ctl_reset           (),
+        .rx_ctl_pause_enable    (gt_ctl_rx_pause_enable),
+        .rx_ctl_pause_ack       (gt_ctl_rx_pause_ack   ),
 
+        .rx_ctl_enable_gcp      (gt_ctl_rx_enable_gcp),
+        .rx_ctl_check_mcast_gcp (gt_ctl_rx_check_mcast_gcp),
+        .rx_ctl_check_ucast_gcp (gt_ctl_rx_check_ucast_gcp),
+        .rx_ctl_check_sa_gcp    (gt_ctl_rx_check_sa_gcp),
+        .rx_ctl_check_etype_gcp (gt_ctl_rx_check_etype_gcp),
+        .rx_ctl_check_opcode_gcp(gt_ctl_rx_check_opcode_gcp),
 
-	    .tx_axis_tvalid(tx_axis_tvalid),
-		.tx_axis_tdata ( tx_axis_tdata),
-		.tx_axis_tkeep ( tx_axis_tkeep),
-		.tx_axis_tlast ( tx_axis_tlast),
-		.tx_axis_tuser ( tx_axis_tuser),
-		.tx_axis_tready(tx_axis_tready),
+        .rx_ctl_enable_pcp      (gt_ctl_rx_enable_pcp),
+        .rx_ctl_check_mcast_pcp (gt_ctl_rx_check_mcast_pcp),
+        .rx_ctl_check_ucast_pcp (gt_ctl_rx_check_ucast_pcp),
+        .rx_ctl_check_sa_pcp    (gt_ctl_rx_check_sa_pcp),
+        .rx_ctl_check_etype_pcp (gt_ctl_rx_check_etype_pcp),
+        .rx_ctl_check_opcode_pcp(gt_ctl_rx_check_opcode_pcp),
 
-		.tx_ctl_enable      (      ctl_tx_enable),
-		.tx_ctl_test_pattern(ctl_tx_test_pattern),
-		.tx_ctl_send_idle   (   ctl_tx_send_idle),
-		.tx_ctl_send_lfi    (    ctl_tx_send_lfi),
-		.tx_ctl_send_rfi    (    ctl_tx_send_rfi),
-		.tx_ctl_reset(),
+        .rx_ctl_enable_gpp      (gt_ctl_rx_enable_gpp),
+        .rx_ctl_check_mcast_gpp (gt_ctl_rx_check_mcast_gpp),
+        .rx_ctl_check_ucast_gpp (gt_ctl_rx_check_ucast_gpp),
+        .rx_ctl_check_sa_gpp    (gt_ctl_rx_check_sa_gpp),
+        .rx_ctl_check_etype_gpp (gt_ctl_rx_check_etype_gpp),
+        .rx_ctl_check_opcode_gpp(gt_ctl_rx_check_opcode_gpp),
 
-	    .tx_ctl_pause_enable (ctl_tx_pause_enable),
-	    .tx_ctl_pause_req    (ctl_tx_pause_req),
-	    .tx_ctl_pause_quanta0(ctl_tx_pause_quanta0),
-	    .tx_ctl_pause_quanta1(ctl_tx_pause_quanta1),
-	    .tx_ctl_pause_quanta2(ctl_tx_pause_quanta2),
-	    .tx_ctl_pause_quanta3(ctl_tx_pause_quanta3),
-		.tx_ctl_pause_quanta4(ctl_tx_pause_quanta4),
-		.tx_ctl_pause_quanta5(ctl_tx_pause_quanta5),
-		.tx_ctl_pause_quanta6(ctl_tx_pause_quanta6),
-		.tx_ctl_pause_quanta7(ctl_tx_pause_quanta7),
-		.tx_ctl_pause_quanta8(ctl_tx_pause_quanta8),
-
-		.tx_stat_ovfout    (tx_ovfout),
-		.tx_stat_unfout    (tx_unfout),
-		.tx_stat_rx_aligned(stat_rx_aligned),
-
-		.rx_axis_tvalid(rx_axis_tvalid),
-		.rx_axis_tdata (rx_axis_tdata),
-		.rx_axis_tkeep (rx_axis_tkeep),
-		.rx_axis_tlast (rx_axis_tlast),
-		.rx_axis_tuser (rx_axis_tuser),
-		.rx_axis_tready(),
-
-		.rx_ctl_enable      (ctl_rx_enable),
-		.rx_ctl_force_resync(ctl_rx_force_resync),
-		.rx_ctl_test_pattern(ctl_rx_test_pattern),
-		.rx_ctl_reset(),
-		
-		.rx_ctl_pause_enable    (ctl_rx_pause_enable),
-		.rx_ctl_pause_ack       (ctl_rx_pause_ack),
-		
-		.rx_ctl_enable_gcp      (ctl_rx_enable_gcp),
-		.rx_ctl_check_mcast_gcp (ctl_rx_check_mcast_gcp),
-		.rx_ctl_check_ucast_gcp (ctl_rx_check_ucast_gcp),
-		.rx_ctl_check_sa_gcp    (ctl_rx_check_sa_gcp),
-		.rx_ctl_check_etype_gcp (ctl_rx_check_etype_gcp),
-		.rx_ctl_check_opcode_gcp(ctl_rx_check_opcode_gcp),
-		
-		.rx_ctl_enable_pcp      (ctl_rx_enable_pcp),
-		.rx_ctl_check_mcast_pcp (ctl_rx_check_mcast_pcp),
-		.rx_ctl_check_ucast_pcp (ctl_rx_check_ucast_pcp),
-		.rx_ctl_check_sa_pcp    (ctl_rx_check_sa_pcp),
-		.rx_ctl_check_etype_pcp (ctl_rx_etype_pcp),
-		.rx_ctl_check_opcode_pcp(ctl_rx_check_opcode_pcp),
-		
-		.rx_ctl_enable_gpp      (ctl_rx_enable_gpp),
-		.rx_ctl_check_mcast_gpp (ctl_rx_check_mcast_gpp),
-		.rx_ctl_check_ucast_gpp (ctl_rx_check_ucast_gpp),
-		.rx_ctl_check_sa_gpp    (ctl_rx_check_sa_gpp),
-		.rx_ctl_check_etype_gpp (ctl_rx_check_etype_gpp),
-		.rx_ctl_check_opcode_gpp(ctl_rx_check_opcode_gpp),
-		
-		.rx_ctl_enable_ppp      (ctl_rx_enable_ppp),
-		.rx_ctl_check_mcast_ppp (ctl_rx_check_mcast_ppp),
-		.rx_ctl_check_ucast_ppp (ctl_rx_check_ucast_ppp),
-		.rx_ctl_check_sa_ppp    (ctl_rx_check_sa_ppp),
-		.rx_ctl_check_etype_ppp (ctl_rx_check_etype_ppp),
-		.rx_ctl_check_opcode_ppp(ctl_rx_check_opcode_ppp),
-
-		.rx_stat_aligned  (stat_rx_aligned),
-		.rx_stat_pause_req(stat_rx_pause_req)
+        .rx_ctl_enable_ppp      (gt_ctl_rx_enable_ppp),
+        .rx_ctl_check_mcast_ppp (gt_ctl_rx_check_mcast_ppp),
+        .rx_ctl_check_ucast_ppp (gt_ctl_rx_check_ucast_ppp),
+        .rx_ctl_check_sa_ppp    (gt_ctl_rx_check_sa_ppp),
+        .rx_ctl_check_etype_ppp (gt_ctl_rx_check_etype_ppp),
+        .rx_ctl_check_opcode_ppp(gt_ctl_rx_check_opcode_ppp)
     );
 
-    cmac_usplus_0 cmac_inst(
-        .gt_rxp_in                            (gt_rxp_in),
-        .gt_rxn_in                            (gt_rxn_in),
-        .gt_txp_out                           (gt_txp_out),
-        .gt_txn_out                           (gt_txn_out),
-        
-        .gt_txusrclk2                         (txusrclk2),
+    cmac_usplus_0 cmac_inst1(
+        .gt_rxp_in                            (gt_rxp_in     ),
+        .gt_rxn_in                            (gt_rxn_in     ),
+        .gt_txp_out                           (gt_txp_out    ),
+        .gt_txn_out                           (gt_txn_out    ),
         .gt_loopback_in                       (gt_loopback_in),
-        .gt_rxrecclkout                       (gt_rxrecclkout),
-        .gt_powergoodout                      (gt_powergoodout),
+        
         .gtwiz_reset_tx_datapath              (gtwiz_reset_tx_datapath),
         .gtwiz_reset_rx_datapath              (gtwiz_reset_rx_datapath),
-        .sys_reset                            (sys_reset),
+        .sys_reset                            (gt_sys_reset),
         .gt_ref_clk_p                         (gt_ref_clk_p),
         .gt_ref_clk_n                         (gt_ref_clk_n),
-        .init_clk                             (init_clk),
-        .gt_ref_clk_out                       (gt_ref_clk_out),
+        .init_clk                             (gt_init_clk ),
 
-        .rx_axis_tvalid                       (rx_axis_tvalid),
-        .rx_axis_tdata                        (rx_axis_tdata),
-        .rx_axis_tkeep                        (rx_axis_tkeep),
-        .rx_axis_tlast                        (rx_axis_tlast),
-        .rx_axis_tuser                        (rx_axis_tuser),
-        
-        .rx_otn_bip8_0                        (rx_otn_bip8_0),
-        .rx_otn_bip8_1                        (rx_otn_bip8_1),
-        .rx_otn_bip8_2                        (rx_otn_bip8_2),
-        .rx_otn_bip8_3                        (rx_otn_bip8_3),
-        .rx_otn_bip8_4                        (rx_otn_bip8_4),
-        .rx_otn_data_0                        (rx_otn_data_0),
-        .rx_otn_data_1                        (rx_otn_data_1),
-        .rx_otn_data_2                        (rx_otn_data_2),
-        .rx_otn_data_3                        (rx_otn_data_3),
-        .rx_otn_data_4                        (rx_otn_data_4),
-        .rx_otn_ena                           (rx_otn_ena),
-        .rx_otn_lane0                         (rx_otn_lane0),
-        .rx_otn_vlmarker                      (rx_otn_vlmarker),
-        .rx_preambleout                       (rx_preambleout),
-        .usr_rx_reset                         (usr_rx_reset),
-        .gt_rxusrclk2                         (rxusrclk2),
+        .gt_txusrclk2                         (gt_txusrclk2),
+        .usr_rx_reset                         (gt_usr_rx_reset),
+        .usr_tx_reset                         (gt_usr_tx_reset),
 
-        .stat_rx_aligned                      (stat_rx_aligned),
-        .stat_rx_aligned_err                  (stat_rx_aligned_err),
-        .stat_rx_bad_code                     (stat_rx_bad_code),
-        .stat_rx_bad_fcs                      (stat_rx_bad_fcs),
-        .stat_rx_bad_preamble                 (stat_rx_bad_preamble),
-        .stat_rx_bad_sfd                      (stat_rx_bad_sfd),
-        .stat_rx_bip_err_0                    (stat_rx_bip_err_0),
-        .stat_rx_bip_err_1                    (stat_rx_bip_err_1),
-        .stat_rx_bip_err_10                   (stat_rx_bip_err_10),
-        .stat_rx_bip_err_11                   (stat_rx_bip_err_11),
-        .stat_rx_bip_err_12                   (stat_rx_bip_err_12),
-        .stat_rx_bip_err_13                   (stat_rx_bip_err_13),
-        .stat_rx_bip_err_14                   (stat_rx_bip_err_14),
-        .stat_rx_bip_err_15                   (stat_rx_bip_err_15),
-        .stat_rx_bip_err_16                   (stat_rx_bip_err_16),
-        .stat_rx_bip_err_17                   (stat_rx_bip_err_17),
-        .stat_rx_bip_err_18                   (stat_rx_bip_err_18),
-        .stat_rx_bip_err_19                   (stat_rx_bip_err_19),
-        .stat_rx_bip_err_2                    (stat_rx_bip_err_2),
-        .stat_rx_bip_err_3                    (stat_rx_bip_err_3),
-        .stat_rx_bip_err_4                    (stat_rx_bip_err_4),
-        .stat_rx_bip_err_5                    (stat_rx_bip_err_5),
-        .stat_rx_bip_err_6                    (stat_rx_bip_err_6),
-        .stat_rx_bip_err_7                    (stat_rx_bip_err_7),
-        .stat_rx_bip_err_8                    (stat_rx_bip_err_8),
-        .stat_rx_bip_err_9                    (stat_rx_bip_err_9),
-        .stat_rx_block_lock                   (stat_rx_block_lock),
-        .stat_rx_broadcast                    (stat_rx_broadcast),
-        .stat_rx_fragment                     (stat_rx_fragment),
-        .stat_rx_framing_err_0                (stat_rx_framing_err_0),
-        .stat_rx_framing_err_1                (stat_rx_framing_err_1),
-        .stat_rx_framing_err_10               (stat_rx_framing_err_10),
-        .stat_rx_framing_err_11               (stat_rx_framing_err_11),
-        .stat_rx_framing_err_12               (stat_rx_framing_err_12),
-        .stat_rx_framing_err_13               (stat_rx_framing_err_13),
-        .stat_rx_framing_err_14               (stat_rx_framing_err_14),
-        .stat_rx_framing_err_15               (stat_rx_framing_err_15),
-        .stat_rx_framing_err_16               (stat_rx_framing_err_16),
-        .stat_rx_framing_err_17               (stat_rx_framing_err_17),
-        .stat_rx_framing_err_18               (stat_rx_framing_err_18),
-        .stat_rx_framing_err_19               (stat_rx_framing_err_19),
-        .stat_rx_framing_err_2                (stat_rx_framing_err_2),
-        .stat_rx_framing_err_3                (stat_rx_framing_err_3),
-        .stat_rx_framing_err_4                (stat_rx_framing_err_4),
-        .stat_rx_framing_err_5                (stat_rx_framing_err_5),
-        .stat_rx_framing_err_6                (stat_rx_framing_err_6),
-        .stat_rx_framing_err_7                (stat_rx_framing_err_7),
-        .stat_rx_framing_err_8                (stat_rx_framing_err_8),
-        .stat_rx_framing_err_9                (stat_rx_framing_err_9),
-        .stat_rx_framing_err_valid_0          (stat_rx_framing_err_valid_0),
-        .stat_rx_framing_err_valid_1          (stat_rx_framing_err_valid_1),
-        .stat_rx_framing_err_valid_10         (stat_rx_framing_err_valid_10),
-        .stat_rx_framing_err_valid_11         (stat_rx_framing_err_valid_11),
-        .stat_rx_framing_err_valid_12         (stat_rx_framing_err_valid_12),
-        .stat_rx_framing_err_valid_13         (stat_rx_framing_err_valid_13),
-        .stat_rx_framing_err_valid_14         (stat_rx_framing_err_valid_14),
-        .stat_rx_framing_err_valid_15         (stat_rx_framing_err_valid_15),
-        .stat_rx_framing_err_valid_16         (stat_rx_framing_err_valid_16),
-        .stat_rx_framing_err_valid_17         (stat_rx_framing_err_valid_17),
-        .stat_rx_framing_err_valid_18         (stat_rx_framing_err_valid_18),
-        .stat_rx_framing_err_valid_19         (stat_rx_framing_err_valid_19),
-        .stat_rx_framing_err_valid_2          (stat_rx_framing_err_valid_2),
-        .stat_rx_framing_err_valid_3          (stat_rx_framing_err_valid_3),
-        .stat_rx_framing_err_valid_4          (stat_rx_framing_err_valid_4),
-        .stat_rx_framing_err_valid_5          (stat_rx_framing_err_valid_5),
-        .stat_rx_framing_err_valid_6          (stat_rx_framing_err_valid_6),
-        .stat_rx_framing_err_valid_7          (stat_rx_framing_err_valid_7),
-        .stat_rx_framing_err_valid_8          (stat_rx_framing_err_valid_8),
-        .stat_rx_framing_err_valid_9          (stat_rx_framing_err_valid_9),
-        .stat_rx_got_signal_os                (stat_rx_got_signal_os),
-        .stat_rx_hi_ber                       (stat_rx_hi_ber),
-        .stat_rx_inrangeerr                   (stat_rx_inrangeerr),
-        .stat_rx_internal_local_fault         (stat_rx_internal_local_fault),
-        .stat_rx_jabber                       (stat_rx_jabber),
-        .stat_rx_local_fault                  (stat_rx_local_fault),
-        .stat_rx_mf_err                       (stat_rx_mf_err),
-        .stat_rx_mf_len_err                   (stat_rx_mf_len_err),
-        .stat_rx_mf_repeat_err                (stat_rx_mf_repeat_err),
-        .stat_rx_misaligned                   (stat_rx_misaligned),
-        .stat_rx_multicast                    (stat_rx_multicast),
-        .stat_rx_oversize                     (stat_rx_oversize),
-        .stat_rx_packet_1024_1518_bytes       (stat_rx_packet_1024_1518_bytes),
-        .stat_rx_packet_128_255_bytes         (stat_rx_packet_128_255_bytes),
-        .stat_rx_packet_1519_1522_bytes       (stat_rx_packet_1519_1522_bytes),
-        .stat_rx_packet_1523_1548_bytes       (stat_rx_packet_1523_1548_bytes),
-        .stat_rx_packet_1549_2047_bytes       (stat_rx_packet_1549_2047_bytes),
-        .stat_rx_packet_2048_4095_bytes       (stat_rx_packet_2048_4095_bytes),
-        .stat_rx_packet_256_511_bytes         (stat_rx_packet_256_511_bytes),
-        .stat_rx_packet_4096_8191_bytes       (stat_rx_packet_4096_8191_bytes),
-        .stat_rx_packet_512_1023_bytes        (stat_rx_packet_512_1023_bytes),
-        .stat_rx_packet_64_bytes              (stat_rx_packet_64_bytes),
-        .stat_rx_packet_65_127_bytes          (stat_rx_packet_65_127_bytes),
-        .stat_rx_packet_8192_9215_bytes       (stat_rx_packet_8192_9215_bytes),
-        .stat_rx_packet_bad_fcs               (stat_rx_packet_bad_fcs),
-        .stat_rx_packet_large                 (stat_rx_packet_large),
-        .stat_rx_packet_small                 (stat_rx_packet_small),
-        .stat_rx_pause                        (stat_rx_pause),
-        .stat_rx_pause_quanta0                (stat_rx_pause_quanta0),
-        .stat_rx_pause_quanta1                (stat_rx_pause_quanta1),
-        .stat_rx_pause_quanta2                (stat_rx_pause_quanta2),
-        .stat_rx_pause_quanta3                (stat_rx_pause_quanta3),
-        .stat_rx_pause_quanta4                (stat_rx_pause_quanta4),
-        .stat_rx_pause_quanta5                (stat_rx_pause_quanta5),
-        .stat_rx_pause_quanta6                (stat_rx_pause_quanta6),
-        .stat_rx_pause_quanta7                (stat_rx_pause_quanta7),
-        .stat_rx_pause_quanta8                (stat_rx_pause_quanta8),
-        .stat_rx_pause_req                    (stat_rx_pause_req),
-        .stat_rx_pause_valid                  (stat_rx_pause_valid),
-        .stat_rx_user_pause                   (stat_rx_user_pause),
+        // RX
+        .rx_axis_tvalid                       (gt_rx_axis_tvalid),
+        .rx_axis_tdata                        (gt_rx_axis_tdata),
+        .rx_axis_tkeep                        (gt_rx_axis_tkeep),
+        .rx_axis_tlast                        (gt_rx_axis_tlast),
+        .rx_axis_tuser                        (gt_rx_axis_tuser),
         
-        .ctl_rx_check_etype_gcp               (ctl_rx_check_etype_gcp),
-        .ctl_rx_check_etype_gpp               (ctl_rx_check_etype_gpp),
-        .ctl_rx_check_etype_pcp               (ctl_rx_check_etype_pcp),
-        .ctl_rx_check_etype_ppp               (ctl_rx_check_etype_ppp),
-        .ctl_rx_check_mcast_gcp               (ctl_rx_check_mcast_gcp),
-        .ctl_rx_check_mcast_gpp               (ctl_rx_check_mcast_gpp),
-        .ctl_rx_check_mcast_pcp               (ctl_rx_check_mcast_pcp),
-        .ctl_rx_check_mcast_ppp               (ctl_rx_check_mcast_ppp),
-        .ctl_rx_check_opcode_gcp              (ctl_rx_check_opcode_gcp),
-        .ctl_rx_check_opcode_gpp              (ctl_rx_check_opcode_gpp),
-        .ctl_rx_check_opcode_pcp              (ctl_rx_check_opcode_pcp),
-        .ctl_rx_check_opcode_ppp              (ctl_rx_check_opcode_ppp),
-        .ctl_rx_check_sa_gcp                  (ctl_rx_check_sa_gcp),
-        .ctl_rx_check_sa_gpp                  (ctl_rx_check_sa_gpp),
-        .ctl_rx_check_sa_pcp                  (ctl_rx_check_sa_pcp),
-        .ctl_rx_check_sa_ppp                  (ctl_rx_check_sa_ppp),
-        .ctl_rx_check_ucast_gcp               (ctl_rx_check_ucast_gcp),
-        .ctl_rx_check_ucast_gpp               (ctl_rx_check_ucast_gpp),
-        .ctl_rx_check_ucast_pcp               (ctl_rx_check_ucast_pcp),
-        .ctl_rx_check_ucast_ppp               (ctl_rx_check_ucast_ppp),
-        .ctl_rx_enable_gcp                    (ctl_rx_enable_gcp),
-        .ctl_rx_enable_gpp                    (ctl_rx_enable_gpp),
-        .ctl_rx_enable_pcp                    (ctl_rx_enable_pcp),
-        .ctl_rx_enable_ppp                    (ctl_rx_enable_ppp),
-        .ctl_rx_pause_ack                     (ctl_rx_pause_ack),
-        .ctl_rx_pause_enable                  (ctl_rx_pause_enable),
-        
-        .ctl_rx_enable                        (ctl_rx_enable),
-        .ctl_rx_force_resync                  (ctl_rx_force_resync),
-        .ctl_rx_test_pattern                  (ctl_rx_test_pattern),
-        
-        .core_rx_reset                        (1'b0),
-        .rx_clk                               (txusrclk2),
-        .stat_rx_received_local_fault         (stat_rx_received_local_fault),
-        .stat_rx_remote_fault                 (stat_rx_remote_fault),
-        .stat_rx_status                       (stat_rx_status),
-        .stat_rx_stomped_fcs                  (stat_rx_stomped_fcs),
-        .stat_rx_synced                       (stat_rx_synced),
-        .stat_rx_synced_err                   (stat_rx_synced_err),
-        .stat_rx_test_pattern_mismatch        (stat_rx_test_pattern_mismatch),
-        .stat_rx_toolong                      (stat_rx_toolong),
-        .stat_rx_total_bytes                  (stat_rx_total_bytes),
-        .stat_rx_total_good_bytes             (stat_rx_total_good_bytes),
-        .stat_rx_total_good_packets           (stat_rx_total_good_packets),
-        .stat_rx_total_packets                (stat_rx_total_packets),
-        .stat_rx_truncated                    (stat_rx_truncated),
-        .stat_rx_undersize                    (stat_rx_undersize),
-        .stat_rx_unicast                      (stat_rx_unicast),
-        .stat_rx_vlan                         (stat_rx_vlan),
-        .stat_rx_pcsl_demuxed                 (stat_rx_pcsl_demuxed),
-        .stat_rx_pcsl_number_0                (stat_rx_pcsl_number_0),
-        .stat_rx_pcsl_number_1                (stat_rx_pcsl_number_1),
-        .stat_rx_pcsl_number_10               (stat_rx_pcsl_number_10),
-        .stat_rx_pcsl_number_11               (stat_rx_pcsl_number_11),
-        .stat_rx_pcsl_number_12               (stat_rx_pcsl_number_12),
-        .stat_rx_pcsl_number_13               (stat_rx_pcsl_number_13),
-        .stat_rx_pcsl_number_14               (stat_rx_pcsl_number_14),
-        .stat_rx_pcsl_number_15               (stat_rx_pcsl_number_15),
-        .stat_rx_pcsl_number_16               (stat_rx_pcsl_number_16),
-        .stat_rx_pcsl_number_17               (stat_rx_pcsl_number_17),
-        .stat_rx_pcsl_number_18               (stat_rx_pcsl_number_18),
-        .stat_rx_pcsl_number_19               (stat_rx_pcsl_number_19),
-        .stat_rx_pcsl_number_2                (stat_rx_pcsl_number_2),
-        .stat_rx_pcsl_number_3                (stat_rx_pcsl_number_3),
-        .stat_rx_pcsl_number_4                (stat_rx_pcsl_number_4),
-        .stat_rx_pcsl_number_5                (stat_rx_pcsl_number_5),
-        .stat_rx_pcsl_number_6                (stat_rx_pcsl_number_6),
-        .stat_rx_pcsl_number_7                (stat_rx_pcsl_number_7),
-        .stat_rx_pcsl_number_8                (stat_rx_pcsl_number_8),
-        .stat_rx_pcsl_number_9                (stat_rx_pcsl_number_9),
-        .stat_tx_bad_fcs                      (stat_tx_bad_fcs),
-        .stat_tx_broadcast                    (stat_tx_broadcast),
-        .stat_tx_frame_error                  (stat_tx_frame_error),
-        .stat_tx_local_fault                  (stat_tx_local_fault),
-        .stat_tx_multicast                    (stat_tx_multicast),
-        .stat_tx_packet_1024_1518_bytes       (stat_tx_packet_1024_1518_bytes),
-        .stat_tx_packet_128_255_bytes         (stat_tx_packet_128_255_bytes),
-        .stat_tx_packet_1519_1522_bytes       (stat_tx_packet_1519_1522_bytes),
-        .stat_tx_packet_1523_1548_bytes       (stat_tx_packet_1523_1548_bytes),
-        .stat_tx_packet_1549_2047_bytes       (stat_tx_packet_1549_2047_bytes),
-        .stat_tx_packet_2048_4095_bytes       (stat_tx_packet_2048_4095_bytes),
-        .stat_tx_packet_256_511_bytes         (stat_tx_packet_256_511_bytes),
-        .stat_tx_packet_4096_8191_bytes       (stat_tx_packet_4096_8191_bytes),
-        .stat_tx_packet_512_1023_bytes        (stat_tx_packet_512_1023_bytes),
-        .stat_tx_packet_64_bytes              (stat_tx_packet_64_bytes),
-        .stat_tx_packet_65_127_bytes          (stat_tx_packet_65_127_bytes),
-        .stat_tx_packet_8192_9215_bytes       (stat_tx_packet_8192_9215_bytes),
-        .stat_tx_packet_large                 (stat_tx_packet_large),
-        .stat_tx_packet_small                 (stat_tx_packet_small),
-        .stat_tx_total_bytes                  (stat_tx_total_bytes),
-        .stat_tx_total_good_bytes             (stat_tx_total_good_bytes),
-        .stat_tx_total_good_packets           (stat_tx_total_good_packets),
-        .stat_tx_total_packets                (stat_tx_total_packets),
-        .stat_tx_unicast                      (stat_tx_unicast),
-        .stat_tx_vlan                         (stat_tx_vlan),
+        .stat_rx_aligned                      (gt_stat_rx_aligned),
+        .stat_rx_pause_req                    (gt_stat_rx_pause_req),
+        .ctl_rx_enable                        (gt_ctl_rx_enable),
+        .ctl_rx_force_resync                  (gt_ctl_rx_force_resync),
+        .ctl_rx_test_pattern                  (gt_ctl_rx_test_pattern),
+        .ctl_rx_check_etype_gcp               (gt_ctl_rx_check_etype_gcp),
+        .ctl_rx_check_etype_gpp               (gt_ctl_rx_check_etype_gpp),
+        .ctl_rx_check_etype_pcp               (gt_ctl_rx_check_etype_pcp),
+        .ctl_rx_check_etype_ppp               (gt_ctl_rx_check_etype_ppp),
+        .ctl_rx_check_mcast_gcp               (gt_ctl_rx_check_mcast_gcp),
+        .ctl_rx_check_mcast_gpp               (gt_ctl_rx_check_mcast_gpp),
+        .ctl_rx_check_mcast_pcp               (gt_ctl_rx_check_mcast_pcp),
+        .ctl_rx_check_mcast_ppp               (gt_ctl_rx_check_mcast_ppp),
+        .ctl_rx_check_opcode_gcp              (gt_ctl_rx_check_opcode_gcp),
+        .ctl_rx_check_opcode_gpp              (gt_ctl_rx_check_opcode_gpp),
+        .ctl_rx_check_opcode_pcp              (gt_ctl_rx_check_opcode_pcp),
+        .ctl_rx_check_opcode_ppp              (gt_ctl_rx_check_opcode_ppp),
+        .ctl_rx_check_sa_gcp                  (gt_ctl_rx_check_sa_gcp),
+        .ctl_rx_check_sa_gpp                  (gt_ctl_rx_check_sa_gpp),
+        .ctl_rx_check_sa_pcp                  (gt_ctl_rx_check_sa_pcp),
+        .ctl_rx_check_sa_ppp                  (gt_ctl_rx_check_sa_ppp),
+        .ctl_rx_check_ucast_gcp               (gt_ctl_rx_check_ucast_gcp),
+        .ctl_rx_check_ucast_gpp               (gt_ctl_rx_check_ucast_gpp),
+        .ctl_rx_check_ucast_pcp               (gt_ctl_rx_check_ucast_pcp),
+        .ctl_rx_check_ucast_ppp               (gt_ctl_rx_check_ucast_ppp),
+        .ctl_rx_enable_gcp                    (gt_ctl_rx_enable_gcp),
+        .ctl_rx_enable_gpp                    (gt_ctl_rx_enable_gpp),
+        .ctl_rx_enable_pcp                    (gt_ctl_rx_enable_pcp),
+        .ctl_rx_enable_ppp                    (gt_ctl_rx_enable_ppp),
+        .ctl_rx_pause_ack                     (gt_ctl_rx_pause_ack),
+        .ctl_rx_pause_enable                  (gt_ctl_rx_pause_enable),
+    
 
-
-        .ctl_tx_enable                        (ctl_tx_enable),
-        .ctl_tx_test_pattern                  (ctl_tx_test_pattern),
-        .ctl_tx_send_idle                     (ctl_tx_send_idle),
-        .ctl_tx_send_rfi                      (ctl_tx_send_rfi),
-        .ctl_tx_send_lfi                      (ctl_tx_send_lfi),
-        .core_tx_reset                        (1'b0),
-        .stat_tx_pause_valid                  (stat_tx_pause_valid),
-        .stat_tx_pause                        (stat_tx_pause),
-        .stat_tx_user_pause                   (stat_tx_user_pause),
+        // TX
+        .tx_axis_tready                       (gt_tx_axis_tready),
+        .tx_axis_tvalid                       (gt_tx_axis_tvalid),
+        .tx_axis_tdata                        (gt_tx_axis_tdata),
+        .tx_axis_tkeep                        (gt_tx_axis_tkeep),
+        .tx_axis_tlast                        (gt_tx_axis_tlast),
+        .tx_axis_tuser                        (gt_tx_axis_tuser),
         
-        .ctl_tx_pause_enable                  (ctl_tx_pause_enable),
-        .ctl_tx_pause_req                     (ctl_tx_pause_req),
-        .ctl_tx_pause_quanta0                 (ctl_tx_pause_quanta0),
-        .ctl_tx_pause_quanta1                 (ctl_tx_pause_quanta1),
-        .ctl_tx_pause_quanta2                 (ctl_tx_pause_quanta2),
-        .ctl_tx_pause_quanta3                 (ctl_tx_pause_quanta3),
-        .ctl_tx_pause_quanta4                 (ctl_tx_pause_quanta4),
-        .ctl_tx_pause_quanta5                 (ctl_tx_pause_quanta5),
-        .ctl_tx_pause_quanta6                 (ctl_tx_pause_quanta6),
-        .ctl_tx_pause_quanta7                 (ctl_tx_pause_quanta7),
-        .ctl_tx_pause_quanta8                 (ctl_tx_pause_quanta8),
-        .ctl_tx_pause_refresh_timer0          (0),
-        .ctl_tx_pause_refresh_timer1          (0),
-        .ctl_tx_pause_refresh_timer2          (0),
-        .ctl_tx_pause_refresh_timer3          (0),
-        .ctl_tx_pause_refresh_timer4          (0),
-        .ctl_tx_pause_refresh_timer5          (0),
-        .ctl_tx_pause_refresh_timer6          (0),
-        .ctl_tx_pause_refresh_timer7          (0),
-        .ctl_tx_pause_refresh_timer8          (0),
-        .ctl_tx_resend_pause                  (0),
-        
-        .tx_axis_tready                       (tx_axis_tready),
-        .tx_axis_tvalid                       (tx_axis_tvalid),
-        .tx_axis_tdata                        (tx_axis_tdata),
-        .tx_axis_tkeep                        (tx_axis_tkeep),
-        .tx_axis_tlast                        (tx_axis_tlast),
-        .tx_axis_tuser                        (tx_axis_tuser),
-        .tx_ovfout                            (tx_ovfout),
-        .tx_unfout                            (tx_unfout),
-        .tx_preamblein                        (0),
-        .usr_tx_reset                         (usr_tx_reset),
+        .tx_ovfout                            (gt_tx_ovfout),
+        .tx_unfout                            (gt_tx_unfout),
+        .ctl_tx_enable                        (gt_ctl_tx_enable),
+        .ctl_tx_test_pattern                  (gt_ctl_tx_test_pattern),
+        .ctl_tx_send_idle                     (gt_ctl_tx_send_idle),
+        .ctl_tx_send_rfi                      (gt_ctl_tx_send_rfi),
+        .ctl_tx_send_lfi                      (gt_ctl_tx_send_lfi),
+        .ctl_tx_pause_enable                  (gt_ctl_tx_pause_enable),
+        .ctl_tx_pause_req                     (gt_ctl_tx_pause_req),
+        .ctl_tx_pause_quanta0                 (gt_ctl_tx_pause_quanta0),
+        .ctl_tx_pause_quanta1                 (gt_ctl_tx_pause_quanta1),
+        .ctl_tx_pause_quanta2                 (gt_ctl_tx_pause_quanta2),
+        .ctl_tx_pause_quanta3                 (gt_ctl_tx_pause_quanta3),
+        .ctl_tx_pause_quanta4                 (gt_ctl_tx_pause_quanta4),
+        .ctl_tx_pause_quanta5                 (gt_ctl_tx_pause_quanta5),
+        .ctl_tx_pause_quanta6                 (gt_ctl_tx_pause_quanta6),
+        .ctl_tx_pause_quanta7                 (gt_ctl_tx_pause_quanta7),
+        .ctl_tx_pause_quanta8                 (gt_ctl_tx_pause_quanta8),
 
-
-        .core_drp_reset                       (1'b0),
-        .drp_clk                              (1'b0),
+        .ctl_tx_pause_refresh_timer0          (16'd0),
+        .ctl_tx_pause_refresh_timer1          (16'd0),
+        .ctl_tx_pause_refresh_timer2          (16'd0),
+        .ctl_tx_pause_refresh_timer3          (16'd0),
+        .ctl_tx_pause_refresh_timer4          (16'd0),
+        .ctl_tx_pause_refresh_timer5          (16'd0),
+        .ctl_tx_pause_refresh_timer6          (16'd0),
+        .ctl_tx_pause_refresh_timer7          (16'd0),
+        .ctl_tx_pause_refresh_timer8          (16'd0),
+        .ctl_tx_resend_pause                  (1'b0 ),
+        .tx_preamblein                        (56'd0),
+        .core_rx_reset                        (1'b0 ),
+        .core_tx_reset                        (1'b0 ),
+        .rx_clk                               (gt_txusrclk2),
+        .core_drp_reset                       (1'b0 ),
+        .drp_clk                              (1'b0 ),
         .drp_addr                             (10'b0),
         .drp_di                               (16'b0),
-        .drp_en                               (1'b0),
+        .drp_en                               (1'b0 ),
         .drp_do                               (),
         .drp_rdy                              (),
-        .drp_we                               (1'b0)
+        .drp_we                               (1'b0 )
     );
-
 
 endmodule

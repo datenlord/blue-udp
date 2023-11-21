@@ -283,6 +283,92 @@ endmodule
 // endmodule
 
 
+module mkDoubleAxiStreamPipeOut#(
+    AxiStream256PipeOut axiStreamIn
+)(AxiStream512PipeOut);
+    Reg#(Bit#(AXIS256_TDATA_WIDTH)) dataBuf <- mkRegU;
+    Reg#(Bit#(AXIS256_TKEEP_WIDTH)) keepBuf <- mkRegU;
+    Reg#(Bool) bufValid <- mkReg(False);
+
+    FIFOF#(AxiStream512) axiStreamOutBuf <- mkFIFOF;
+
+    rule doStreamExtension;
+        let axiStream = axiStreamIn.first;
+        axiStreamIn.deq;
+        if (bufValid) begin
+            AxiStream512 axiStreamExt = AxiStream {
+                tData: {axiStream.tData, dataBuf},
+                tKeep: {axiStream.tKeep, keepBuf},
+                tUser: 0,
+                tLast: axiStream.tLast
+            };
+            axiStreamOutBuf.enq(axiStreamExt);
+            bufValid <= False;
+        end
+        else begin
+            if (axiStream.tLast) begin
+                AxiStream512 axiStreamExt = AxiStream {
+                    tData: zeroExtend(axiStream.tData),
+                    tKeep: zeroExtend(axiStream.tKeep),
+                    tUser: 0,
+                    tLast: True
+                };
+                axiStreamOutBuf.enq(axiStreamExt);
+            end
+            else begin
+                dataBuf <= axiStream.tData;
+                keepBuf <= axiStream.tKeep;
+                bufValid <= True;
+            end
+        end
+    endrule
+
+    return convertFifoToPipeOut(axiStreamOutBuf);
+endmodule
+
+module mkDoubleAxiStreamPipeIn#(
+    AxiStream256PipeIn axiStreamOut
+)(AxiStream512PipeIn);
+    Reg#(Maybe#(AxiStream256)) axiStreamInterBuf <- mkReg(Invalid);
+
+    FIFOF#(AxiStream512) axiStreamInBuf <- mkFIFOF;
+
+    rule doStreamReduction;
+        if (axiStreamInterBuf matches tagged Valid .axiStream) begin
+            axiStreamOut.enq(axiStream);
+            axiStreamInterBuf <= tagged Invalid;
+        end
+        else begin
+            let axiStream = axiStreamInBuf.first;
+            axiStreamInBuf.deq;
+
+            AxiStream256 axiStreamMSB = AxiStream {
+                tData: truncateLSB(axiStream.tData),
+                tKeep: truncateLSB(axiStream.tKeep),
+                tUser: axiStream.tUser,
+                tLast: axiStream.tLast
+            };
+
+            AxiStream256 axiStreamLSB = AxiStream {
+                tData: truncate(axiStream.tData),
+                tKeep: truncate(axiStream.tKeep),
+                tUser: axiStream.tUser,
+                tLast: False
+            };
+
+            if (axiStreamMSB.tKeep == 0) begin
+                axiStreamLSB.tLast = True;
+            end
+            else begin
+                axiStreamInterBuf <= tagged Valid axiStreamMSB;
+            end
+            axiStreamOut.enq(axiStreamLSB);
+        end
+    endrule
+
+    return convertFifoToPipeIn(axiStreamInBuf);
+endmodule
+
 module mkDataStreamToAxiStream512#(DataStreamPipeOut dataStreamIn)(AxiStream512PipeOut);
     Reg#(Data) dataBuf <- mkRegU;
     Reg#(ByteEn) byteEnBuf <- mkRegU;
@@ -367,5 +453,4 @@ module mkAxiStream512ToDataStream#(AxiStream512PipeOut axiStreamIn)(DataStreamPi
     endrule
 
     return convertFifoToPipeOut(dataStreamOutBuf);
-
 endmodule

@@ -31,7 +31,7 @@ typedef 1000 UDP_CLK_HALF_PERIOD;
 typedef  100 SYS_RST_DURATION;
 typedef  100 UDP_RESET_DURATION;
 
-interface TestXdmaUdpIpArpEthRxTx;
+interface TestXdmaUdpIpArpEthCmacRxTx;
     (* prefix = "xdma_tx_axis" *)
     interface RawAxiStreamMaster#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) xdmaAxiStreamOutTx;
     (* prefix = "xdma_rx_axis" *)
@@ -39,7 +39,7 @@ interface TestXdmaUdpIpArpEthRxTx;
 endinterface
 
 (* synthesize *)
-module mkTestXdmaUdpIpArpEthRxTx(TestXdmaUdpIpArpEthRxTx);
+module mkTestXdmaUdpIpArpEthCmacRxTx(TestXdmaUdpIpArpEthCmacRxTx);
     Integer testCaseNum = valueOf(TEST_CASE_NUM);
     Integer payloadFrameNum = valueOf(PAYLOAD_FRAME_NUM);
 
@@ -153,67 +153,67 @@ module mkTestXdmaUdpIpArpEthRxTx(TestXdmaUdpIpArpEthRxTx);
 endmodule
 
 // Drive testcases and generate clk and reset signals
-interface TestXdmaUdpIpArpEthRxTxWithCmac;
-    (* prefix = "" *)
-    interface TestXdmaUdpIpArpEthRxTx testStimulus;
+// interface TestXdmaUdpIpArpEthRxTxWithCmac;
+//     (* prefix = "" *)
+//     interface TestXdmaUdpIpArpEthRxTx testStimulus;
     
-    // Clock and Reset
-    (* prefix = "gt_ref_clk_p" *)
-    interface Clock gtPositiveRefClk;
-    (* prefix = "gt_ref_clk_n" *) 
-    interface Clock gtNegativeRefClk;
-    (* prefix = "init_clk" *) 
-    interface Clock initClk;
-    (* prefix = "sys_reset"  *) 
-    interface Reset sysReset;
-    (* prefix = "udp_clk" *) 
-    interface Clock udpClk;
-    (* prefix = "udp_reset" *) 
-    interface Reset udpReset;
-endinterface
+//     // Clock and Reset
+//     (* prefix = "gt_ref_clk_p" *)
+//     interface Clock gtPositiveRefClk;
+//     (* prefix = "gt_ref_clk_n" *) 
+//     interface Clock gtNegativeRefClk;
+//     (* prefix = "init_clk" *) 
+//     interface Clock initClk;
+//     (* prefix = "sys_reset"  *) 
+//     interface Reset sysReset;
+//     (* prefix = "udp_clk" *) 
+//     interface Clock udpClk;
+//     (* prefix = "udp_reset" *) 
+//     interface Reset udpReset;
+// endinterface
 
-(* synthesize, clock_prefix = "", reset_prefix = "", gate_prefix = "gate", no_default_clock, no_default_reset *)
-module mkTestXdmaUdpIpArpEthRxTxWithCmac(TestXdmaUdpIpArpEthRxTxWithCmac);
-    // Clock and Reset Generation
-    let gtPositiveRefClkOsc <- mkAbsoluteClockFull(
-        valueOf(GT_REF_CLK_HALF_PERIOD),
-        fromInteger(valueOf(CLK_POSITIVE_INIT_VAL)),
-        valueOf(GT_REF_CLK_HALF_PERIOD),
-        valueOf(GT_REF_CLK_HALF_PERIOD)
-    );
+// (* synthesize, clock_prefix = "", reset_prefix = "", gate_prefix = "gate", no_default_clock, no_default_reset *)
+// module mkTestXdmaUdpIpArpEthRxTxWithCmac(TestXdmaUdpIpArpEthRxTxWithCmac);
+//     // Clock and Reset Generation
+//     let gtPositiveRefClkOsc <- mkAbsoluteClockFull(
+//         valueOf(GT_REF_CLK_HALF_PERIOD),
+//         fromInteger(valueOf(CLK_POSITIVE_INIT_VAL)),
+//         valueOf(GT_REF_CLK_HALF_PERIOD),
+//         valueOf(GT_REF_CLK_HALF_PERIOD)
+//     );
 
-    let gtNegativeRefClkOsc <- mkAbsoluteClockFull(
-        valueOf(GT_REF_CLK_HALF_PERIOD),
-        fromInteger(valueOf(CLK_NEGATIVE_INIT_VAL)),
-        valueOf(GT_REF_CLK_HALF_PERIOD),
-        valueOf(GT_REF_CLK_HALF_PERIOD)
-    );
+//     let gtNegativeRefClkOsc <- mkAbsoluteClockFull(
+//         valueOf(GT_REF_CLK_HALF_PERIOD),
+//         fromInteger(valueOf(CLK_NEGATIVE_INIT_VAL)),
+//         valueOf(GT_REF_CLK_HALF_PERIOD),
+//         valueOf(GT_REF_CLK_HALF_PERIOD)
+//     );
 
-    let initClkSrc <- mkAbsoluteClockFull(
-        valueOf(INIT_CLK_HALF_PERIOD),
-        fromInteger(valueOf(CLK_POSITIVE_INIT_VAL)),
-        valueOf(INIT_CLK_HALF_PERIOD),
-        valueOf(INIT_CLK_HALF_PERIOD)
-    );
+//     let initClkSrc <- mkAbsoluteClockFull(
+//         valueOf(INIT_CLK_HALF_PERIOD),
+//         fromInteger(valueOf(CLK_POSITIVE_INIT_VAL)),
+//         valueOf(INIT_CLK_HALF_PERIOD),
+//         valueOf(INIT_CLK_HALF_PERIOD)
+//     );
 
-    let sysResetSrc <- mkInitialReset(valueOf(SYS_RST_DURATION), clocked_by initClkSrc);
+//     let sysResetSrc <- mkInitialReset(valueOf(SYS_RST_DURATION), clocked_by initClkSrc);
 
-    let udpClkSrc <- mkAbsoluteClockFull(
-        valueOf(UDP_CLK_HALF_PERIOD),
-        fromInteger(valueOf(CLK_POSITIVE_INIT_VAL)),
-        valueOf(UDP_CLK_HALF_PERIOD),
-        valueOf(UDP_CLK_HALF_PERIOD)
-    );
-    let udpResetSrc <- mkInitialReset(valueOf(UDP_RESET_DURATION), clocked_by udpClkSrc);
+//     let udpClkSrc <- mkAbsoluteClockFull(
+//         valueOf(UDP_CLK_HALF_PERIOD),
+//         fromInteger(valueOf(CLK_POSITIVE_INIT_VAL)),
+//         valueOf(UDP_CLK_HALF_PERIOD),
+//         valueOf(UDP_CLK_HALF_PERIOD)
+//     );
+//     let udpResetSrc <- mkInitialReset(valueOf(UDP_RESET_DURATION), clocked_by udpClkSrc);
 
 
-    let testXdmaUdpIpArpEthRxTx <- mkTestXdmaUdpIpArpEthRxTx(clocked_by udpClkSrc, reset_by udpResetSrc);
+//     let testXdmaUdpIpArpEthRxTx <- mkTestXdmaUdpIpArpEthRxTx(clocked_by udpClkSrc, reset_by udpResetSrc);
 
-    interface testStimulus = testXdmaUdpIpArpEthRxTx;
-    interface gtPositiveRefClk = gtPositiveRefClkOsc;
-    interface gtNegativeRefClk = gtNegativeRefClkOsc;
-    interface initClk = initClkSrc;
-    interface udpClk  = udpClkSrc;
-    interface sysReset = sysResetSrc;
-    interface udpReset = udpResetSrc;
-endmodule
+//     interface testStimulus = testXdmaUdpIpArpEthRxTx;
+//     interface gtPositiveRefClk = gtPositiveRefClkOsc;
+//     interface gtNegativeRefClk = gtNegativeRefClkOsc;
+//     interface initClk = initClkSrc;
+//     interface udpClk  = udpClkSrc;
+//     interface sysReset = sysResetSrc;
+//     interface udpReset = udpResetSrc;
+// endmodule

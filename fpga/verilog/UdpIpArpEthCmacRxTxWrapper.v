@@ -7,6 +7,9 @@ module UdpIpArpEthCmacRxTxWrapper#(
     parameter XDMA_AXIS_TKEEP_WIDTH = 64,
     parameter XDMA_AXIS_TUSER_WIDTH = 1
 )(
+    input xdma_clk,
+    input xdma_reset,
+
     input udp_clk,
     input udp_reset,
 
@@ -94,7 +97,6 @@ module UdpIpArpEthCmacRxTxWrapper#(
     wire [8:0]      gt_ctl_rx_pause_ack;
     wire [8:0]      gt_ctl_rx_pause_enable;
 
-
     wire            gt_tx_axis_tready;
     wire            gt_tx_axis_tvalid;
     wire            gt_tx_axis_tlast;
@@ -119,24 +121,17 @@ module UdpIpArpEthCmacRxTxWrapper#(
     wire [15:0]     gt_ctl_tx_pause_quanta6;
     wire [15:0]     gt_ctl_tx_pause_quanta7;
     wire [15:0]     gt_ctl_tx_pause_quanta8;
-    wire [15:0]     gt_ctl_tx_pause_refresh_timer0;
-    wire [15:0]     gt_ctl_tx_pause_refresh_timer1;
-    wire [15:0]     gt_ctl_tx_pause_refresh_timer2;
-    wire [15:0]     gt_ctl_tx_pause_refresh_timer3;
-    wire [15:0]     gt_ctl_tx_pause_refresh_timer4;
-    wire [15:0]     gt_ctl_tx_pause_refresh_timer5;
-    wire [15:0]     gt_ctl_tx_pause_refresh_timer6;
-    wire [15:0]     gt_ctl_tx_pause_refresh_timer7;
-    wire [15:0]     gt_ctl_tx_pause_refresh_timer8;
     wire [8:0]      gt_ctl_tx_pause_req;
     wire            gt_ctl_tx_resend_pause;
 
     mkXdmaUdpIpArpEthCmacRxTx udp_inst1 (
-        .cmac_rxtx_clk          (gt_txusrclk2   ),
+        .xdma_clk               (xdma_clk        ),
+        .xdma_reset             (xdma_reset      ),
+        .cmac_rxtx_clk          (gt_txusrclk2    ),
         .cmac_rx_reset          (~gt_usr_rx_reset),
         .cmac_tx_reset          (~gt_usr_tx_reset),
-        .udp_clk                (udp_clk),
-        .udp_reset              (udp_reset),
+        .udp_clk                (udp_clk         ),
+        .udp_reset              (udp_reset       ),
 
         .cmac_tx_axis_tvalid    (gt_tx_axis_tvalid),
         .cmac_tx_axis_tdata     (gt_tx_axis_tdata ),

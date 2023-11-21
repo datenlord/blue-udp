@@ -8,8 +8,6 @@ import Randomizable :: *;
 import Ports :: *;
 import Utils :: *;
 import EthernetTypes :: *;
-import XilinxCmacRxTxWrapper :: *;
-import PfcUdpIpArpEthRxTx :: *;
 
 import SemiFifo :: *;
 
@@ -30,11 +28,6 @@ typedef VIRTUAL_CHANNEL_NUM CHANNEL_NUM;
 typedef 400 PAUSE_CYCLE_NUM;
 
 typedef 4  TEST_CHANNEL_IDX;
-typedef 16 BUF_PACKET_NUM;
-typedef 32 MAX_PACKET_FRAME_NUM;
-typedef 4  PFC_THRESHOLD;
-typedef 8  SYNC_BRAM_BUF_DEPTH;
-
 typedef 256 REF_BUF_DEPTH;
 
 // Clock and Reset Signal Configuration(unit: 1ps/1ps)
@@ -50,15 +43,15 @@ interface TestPfcUdpIpArpEthCmacRxTx;
     // Configuration
     interface Get#(UdpConfig) udpConfig;
     // Tx
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(DataStream)) dataStreamOutTxVec;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataOutTxVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(DataStream)) dataStreamTxOutVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataTxOutVec;
     // Rx
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Put#(DataStream)) dataStreamInRxVec;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Put#(UdpIpMetaData)) udpIpMetaDataInRxVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, Put#(DataStream)) dataStreamRxInVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, Put#(UdpIpMetaData)) udpIpMetaDataRxInVec;
 endinterface
 
 
-(* synthesize, default_clock_osc = "clk", default_reset = "reset" *)
+(* synthesize, default_clock_osc = "udp_clk", default_reset = "udp_reset" *)
 module mkTestPfcUdpIpArpEthCmacRxTx(TestPfcUdpIpArpEthCmacRxTx);
     Bool isTxWaitRxAligned = True;
     Integer testCaseNum = valueOf(TEST_CASE_NUM);
@@ -87,10 +80,10 @@ module mkTestPfcUdpIpArpEthCmacRxTx(TestPfcUdpIpArpEthCmacRxTx);
     FIFOF#(DataStream) refDataStreamBuf <- mkSizedFIFOF(valueOf(REF_BUF_DEPTH));
 
     FIFOF#(UdpConfig) udpConfigBuf <- mkFIFOF;
-    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(DataStream)) dataStreamOutTxBufVec <- replicateM(mkFIFOF);
-    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(UdpIpMetaData)) udpIpMetaDataOutTxBufVec <- replicateM(mkFIFOF);
-    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(DataStream)) dataStreamInRxBufVec <- replicateM(mkFIFOF);
-    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(UdpIpMetaData)) udpIpMetaDataInRxBufVec <- replicateM(mkFIFOF);
+    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(DataStream)) dataStreamTxOutBufVec <- replicateM(mkFIFOF);
+    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(UdpIpMetaData)) udpIpMetaDataTxOutBufVec <- replicateM(mkFIFOF);
+    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(DataStream)) dataStreamRxInBufVec <- replicateM(mkFIFOF);
+    Vector#(VIRTUAL_CHANNEL_NUM, FIFOF#(UdpIpMetaData)) udpIpMetaDataRxInBufVec <- replicateM(mkFIFOF);
 
 
     // Initialize Testbench
@@ -150,7 +143,7 @@ module mkTestPfcUdpIpArpEthCmacRxTx(TestPfcUdpIpArpEthCmacRxTx);
         };
 
         refMetaDataBuf.enq(udpIpMetaData);
-        udpIpMetaDataOutTxBufVec[testChannelIdx].enq(udpIpMetaData);
+        udpIpMetaDataTxOutBufVec[testChannelIdx].enq(udpIpMetaData);
 
         frameNumReg <= frameNum;
         frameCounter <= 0;
@@ -170,7 +163,7 @@ module mkTestPfcUdpIpArpEthCmacRxTx(TestPfcUdpIpArpEthCmacRxTx);
 
         
         refDataStreamBuf.enq(dataStream);
-        dataStreamOutTxBufVec[testChannelIdx].enq(dataStream);
+        dataStreamTxOutBufVec[testChannelIdx].enq(dataStream);
         frameCounter <= nextFrameCount;
         
         if (dataStream.isLast) begin
@@ -182,8 +175,8 @@ module mkTestPfcUdpIpArpEthCmacRxTx(TestPfcUdpIpArpEthCmacRxTx);
     endrule
 
     rule recvAndCheckMetaData if (!isRxPauseReg);
-        let dutMetaData = udpIpMetaDataInRxBufVec[testChannelIdx].first;
-        udpIpMetaDataInRxBufVec[testChannelIdx].deq;
+        let dutMetaData = udpIpMetaDataRxInBufVec[testChannelIdx].first;
+        udpIpMetaDataRxInBufVec[testChannelIdx].deq;
         let refMetaData = refMetaDataBuf.first;
         refMetaDataBuf.deq;
         $display("Testbench: Channel %3d: Receive %d UdpIpMetaData", testChannelIdx, outputCaseCounter);
@@ -197,8 +190,8 @@ module mkTestPfcUdpIpArpEthCmacRxTx(TestPfcUdpIpArpEthCmacRxTx);
     endrule
 
     rule recvAndCheckDataStream if (!isRxPauseReg);
-        let dutDataStream = dataStreamInRxBufVec[testChannelIdx].first;
-        dataStreamInRxBufVec[testChannelIdx].deq;
+        let dutDataStream = dataStreamRxInBufVec[testChannelIdx].first;
+        dataStreamRxInBufVec[testChannelIdx].deq;
         let refDataStream = refDataStreamBuf.first;
         refDataStreamBuf.deq;
         $display("Testbench: Channel %3d: Receive %d DataStream:", testChannelIdx, outputCaseCounter);
@@ -220,98 +213,8 @@ module mkTestPfcUdpIpArpEthCmacRxTx(TestPfcUdpIpArpEthCmacRxTx);
     endrule
 
     interface udpConfig = toGet(udpConfigBuf);
-    interface dataStreamOutTxVec = map(toGet, dataStreamOutTxBufVec);
-    interface udpIpMetaDataOutTxVec = map(toGet, udpIpMetaDataOutTxBufVec);
-    interface dataStreamInRxVec = map(toPut, dataStreamInRxBufVec);
-    interface udpIpMetaDataInRxVec = map(toPut, udpIpMetaDataInRxBufVec);
-endmodule
-
-interface TestPfcUdpIpArpEthCmacRxTxWithClkRst;
-    (* prefix = "" *)
-    interface TestPfcUdpIpArpEthCmacRxTx testStimulus;
-
-    // Clock and Reset
-    (* prefix = "gt_ref_clk_p" *)
-    interface Clock gtPositiveRefClk;
-    (* prefix = "gt_ref_clk_n" *) 
-    interface Clock gtNegativeRefClk;
-    (* prefix = "init_clk" *) 
-    interface Clock initClk;
-    (* prefix = "sys_reset"  *) 
-    interface Reset sysReset;
-    (* prefix = "udp_clk" *) 
-    interface Clock udpClk;
-    (* prefix = "udp_reset" *) 
-    interface Reset udpReset;
-endinterface
-
-(* synthesize, clock_prefix = "", reset_prefix = "", gate_prefix = "gate", no_default_clock, no_default_reset *)
-module mkTestPfcUdpIpArpEthCmacRxTxWithClkRst(TestPfcUdpIpArpEthCmacRxTxWithClkRst);
-    // Clock and Reset Generation
-    let gtPositiveRefClkOsc <- mkAbsoluteClockFull(
-        valueOf(GT_REF_CLK_HALF_PERIOD),
-        fromInteger(valueOf(CLK_POSITIVE_INIT_VAL)),
-        valueOf(GT_REF_CLK_HALF_PERIOD),
-        valueOf(GT_REF_CLK_HALF_PERIOD)
-    );
-
-    let gtNegativeRefClkOsc <- mkAbsoluteClockFull(
-        valueOf(GT_REF_CLK_HALF_PERIOD),
-        fromInteger(valueOf(CLK_NEGATIVE_INIT_VAL)),
-        valueOf(GT_REF_CLK_HALF_PERIOD),
-        valueOf(GT_REF_CLK_HALF_PERIOD)
-    );
-
-    let initClkSrc <- mkAbsoluteClockFull(
-        valueOf(INIT_CLK_HALF_PERIOD),
-        fromInteger(valueOf(CLK_POSITIVE_INIT_VAL)),
-        valueOf(INIT_CLK_HALF_PERIOD),
-        valueOf(INIT_CLK_HALF_PERIOD)
-    );
-
-    let sysResetSrc <- mkInitialReset(valueOf(SYS_RST_DURATION), clocked_by initClkSrc);
-
-    let udpClkSrc <- mkAbsoluteClockFull(
-        valueOf(UDP_CLK_HALF_PERIOD),
-        fromInteger(valueOf(CLK_POSITIVE_INIT_VAL)),
-        valueOf(UDP_CLK_HALF_PERIOD),
-        valueOf(UDP_CLK_HALF_PERIOD)
-    );
-    let udpResetSrc <- mkInitialReset(valueOf(UDP_RESET_DURATION), clocked_by udpClkSrc);
-
-
-    let testPfcUdpIpArpEthCmacRxTx <- mkTestPfcUdpIpArpEthCmacRxTx(clocked_by udpClkSrc, reset_by udpResetSrc);
-
-    interface testStimulus = testPfcUdpIpArpEthCmacRxTx;
-    interface gtPositiveRefClk = gtPositiveRefClkOsc;
-    interface gtNegativeRefClk = gtNegativeRefClkOsc;
-    interface initClk = initClkSrc;
-    interface udpClk  = udpClkSrc;
-    interface sysReset = sysResetSrc;
-    interface udpReset = udpResetSrc;
-endmodule
-
-typedef PfcUdpIpArpEthCmacRxTx#(BUF_PACKET_NUM, MAX_PACKET_FRAME_NUM, PFC_THRESHOLD) PfcUdpIpArpEthCmacRxTxTestInst;
-
-(* synthesize, no_default_clock, no_default_reset *)
-module mkPfcUdpIpArpEthCmacRxTxInst(
-    (* osc = "udp_clk"  *)        Clock udpClk,
-    (* osc = "cmac_rxtx_clk" *)   Clock cmacRxTxClk,
-    (* reset = "udp_reset" *)     Reset udpReset,
-    (* reset = "cmac_rx_reset" *) Reset cmacRxReset,
-    (* reset = "cmac_tx_reset" *) Reset cmacTxReset,
-    PfcUdpIpArpEthCmacRxTxTestInst ifc
-);
-    Bool isTxWaitRxAligned = True;
-    PfcUdpIpArpEthCmacRxTxTestInst pfcUdpIpArpEthCmacRxTx <- mkPfcUdpIpArpEthCmacRxTx(
-        `IS_SUPPORT_RDMA,
-        isTxWaitRxAligned,
-        valueOf(SYNC_BRAM_BUF_DEPTH),
-        cmacRxTxClk,
-        cmacRxReset,
-        cmacTxReset,
-        clocked_by udpClk,
-        reset_by udpReset
-    );
-    return pfcUdpIpArpEthCmacRxTx;
+    interface dataStreamTxOutVec = map(toGet, dataStreamTxOutBufVec);
+    interface udpIpMetaDataTxOutVec = map(toGet, udpIpMetaDataTxOutBufVec);
+    interface dataStreamRxInVec = map(toPut, dataStreamRxInBufVec);
+    interface udpIpMetaDataRxInVec = map(toPut, udpIpMetaDataRxInBufVec);
 endmodule

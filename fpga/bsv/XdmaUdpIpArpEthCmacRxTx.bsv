@@ -5,6 +5,7 @@ import BRAMFIFO :: *;
 import Connectable :: *;
 
 import Ports :: *;
+import Utils :: *;
 import BusConversion :: *;
 import StreamHandler :: *;
 import UdpIpArpEthRxTx :: *;
@@ -97,20 +98,18 @@ module mkXdmaUdpIpArpEthRxTx(XdmaUdpIpArpEthRxTx);
 endmodule
 
 interface UdpIpArpEthRxTxForXdma;
+    interface AxiStream512PipeIn  xdmaAxiStreamTxIn;
     interface AxiStream512PipeOut xdmaAxiStreamRxOut;
-    interface AxiStream512PipeIn xdmaAxiStreamTxIn;
-    interface Put#(AxiStream256)  cmacAxiStreamRxIn;
-    interface AxiStream256PipeOut cmacAxiStreamTxOut;
+    interface AxiStream512PipeIn  cmacAxiStreamRxIn;
+    interface AxiStream512PipeOut cmacAxiStreamTxOut;
 endinterface
 
 module mkUdpIpArpEthRxTxForXdma(UdpIpArpEthRxTxForXdma);
     Reg#(Bool) isUdpConfig <- mkReg(False);
 
-    FIFOF#(AxiStream512) xdmaAxiStreamTxInBuf <- mkFIFOF;
+    FIFOF#(AxiStream256) xdmaAxiStreamTxInBuf <- mkFIFOF;
+    let dataStreamTxIn <- mkAxiStream256ToDataStream(convertFifoToPipeOut(xdmaAxiStreamTxInBuf));
     let udpIpArpEthRxTx <- mkGenericUdpIpArpEthRxTx(`IS_SUPPORT_RDMA);
-
-    let xdmaAxiStreamOut <- mkDataStreamToAxiStream512(udpIpArpEthRxTx.dataStreamRxOut);
-    let dataStreamTxIn <- mkAxiStream512ToDataStream(convertFifoToPipeOut(xdmaAxiStreamTxInBuf));
 
     rule udpConfig if (!isUdpConfig);
         udpIpArpEthRxTx.udpConfig.put(
@@ -147,10 +146,18 @@ module mkUdpIpArpEthRxTxForXdma(UdpIpArpEthRxTxForXdma);
         udpIpArpEthRxTx.udpIpMetaDataRxOut.deq;
     endrule
 
-    interface xdmaAxiStreamTxIn  = convertFifoToPipeIn(xdmaAxiStreamTxInBuf);
-    interface xdmaAxiStreamRxOut = xdmaAxiStreamOut;
-    interface cmacAxiStreamRxIn  = udpIpArpEthRxTx.axiStreamRxIn;
-    interface cmacAxiStreamTxOut = udpIpArpEthRxTx.axiStreamTxOut;
+    let xdmaAxiStream256TxIn = convertFifoToPipeIn(xdmaAxiStreamTxInBuf);
+    let xdmaAxiStream256RxOut = convertDataStreamToAxiStream256(udpIpArpEthRxTx.dataStreamRxOut);
+    let xdmaAxiStream512TxIn <- mkDoubleAxiStreamPipeIn(xdmaAxiStream256TxIn);
+    let xdmaAxiStream512RxOut <- mkDoubleAxiStreamPipeOut(xdmaAxiStream256RxOut);
+
+    let cmacAxiStream256RxIn <- mkPutToPipeIn(udpIpArpEthRxTx.axiStreamRxIn);
+    let cmacAxiStream512RxIn <- mkDoubleAxiStreamPipeIn(cmacAxiStream256RxIn);
+    let cmacAxiStream512TxOut <- mkDoubleAxiStreamPipeOut(udpIpArpEthRxTx.axiStreamTxOut);
+    interface xdmaAxiStreamTxIn  = xdmaAxiStream512TxIn;
+    interface xdmaAxiStreamRxOut = xdmaAxiStream512RxOut;
+    interface cmacAxiStreamRxIn  = cmacAxiStream512RxIn;
+    interface cmacAxiStreamTxOut = cmacAxiStream512TxOut;
 endmodule
 
 
@@ -169,9 +176,12 @@ interface XdmaUdpIpArpEthCmacRxTx;
 endinterface
 
 // (* synthesize, no_default_clock, no_default_reset *)
-(* synthesize, default_clock_osc = "udp_clk", default_reset = "udp_reset" *)
+(* synthesize, no_default_clock, no_default_reset *)
 module mkXdmaUdpIpArpEthCmacRxTx(
-    // (* osc   = "udp_clk"       *) Clock udpClk,
+    (* osc   = "udp_clk"       *) Clock udpClk,
+    (* reset = "udp_reset"     *) Reset udpReset,
+    (* osc   = "xdma_clk"      *) Clock xdmaClk,
+    (* reset = "xdma_reset"    *) Reset xdmaReset,
     (* osc   = "cmac_rxtx_clk" *) Clock cmacRxTxClk,
     (* reset = "cmac_rx_reset" *) Reset cmacRxReset,
     (* reset = "cmac_tx_reset" *) Reset cmacTxReset,
@@ -182,25 +192,35 @@ module mkXdmaUdpIpArpEthCmacRxTx(
     let asyncFifoDepth = valueOf(ASYNC_FIFO_DEPTH);
     let asyncCdcStages = valueOf(ASYNC_CDC_STAGES);
 
-    let udpClk <- exposeCurrentClock();
-    let udpReset <- exposeCurrentReset();
+    let udpIpArpEthRxTxForXdma <- mkUdpIpArpEthRxTxForXdma(clocked_by udpClk, reset_by udpReset);
+    
+    // XDMA Clock Region
+    let xdmaAxiStreamSync <- mkDuplexAxiStreamAsyncFifo(
+        asyncFifoDepth,
+        asyncCdcStages,
+        udpClk,
+        udpReset,
+        xdmaClk,
+        xdmaReset,
+        xdmaReset,
+        udpIpArpEthRxTxForXdma.xdmaAxiStreamTxIn,
+        udpIpArpEthRxTxForXdma.xdmaAxiStreamRxOut
+    );
 
-    SyncFIFOIfc#(AxiStream256) txAxiStreamSyncBuf <- mkXilinxAxiStreamAsyncFifo(
+    let rawXdmaAxiStreamRxOut <- mkPipeOutToRawAxiStreamMaster(xdmaAxiStreamSync.dstPipeOut, clocked_by xdmaClk, reset_by xdmaReset);
+    let rawXdmaAxiStreamTxIn <- mkPipeInToRawAxiStreamSlave(xdmaAxiStreamSync.dstPipeIn, clocked_by xdmaClk, reset_by xdmaReset);
+
+    // CMAC Clock Region
+    let cmacAxiStreamSync <- mkDuplexAxiStreamAsyncFifo(
         asyncFifoDepth,
         asyncCdcStages,
         udpClk,
         udpReset,
         cmacRxTxClk,
-        cmacTxReset
-    );
-
-    SyncFIFOIfc#(AxiStream256) rxAxiStreamSyncBuf <- mkXilinxAxiStreamAsyncFifo(
-        asyncFifoDepth,
-        asyncCdcStages,
-        cmacRxTxClk,
         cmacRxReset,
-        udpClk,
-        udpReset
+        cmacTxReset,
+        udpIpArpEthRxTxForXdma.cmacAxiStreamRxIn,
+        udpIpArpEthRxTxForXdma.cmacAxiStreamTxOut
     );
 
     PipeOut#(FlowControlReqVec) txFlowCtrlReqVec <- mkDummyPipeOut;
@@ -209,8 +229,8 @@ module mkXdmaUdpIpArpEthCmacRxTx(
     let xilinxCmacCtrl <- mkXilinxCmacController(
         isEnableFlowControl,
         isCmacTxWaitRxAligned,
-        convertSyncFifoToPipeOut(txAxiStreamSyncBuf),
-        convertSyncFifoToPipeIn (rxAxiStreamSyncBuf),
+        cmacAxiStreamSync.dstPipeOut,
+        cmacAxiStreamSync.dstPipeIn,
         txFlowCtrlReqVec,
         rxFlowCtrlReqVec,
         cmacRxReset,
@@ -218,16 +238,8 @@ module mkXdmaUdpIpArpEthCmacRxTx(
         clocked_by cmacRxTxClk
     );
 
-    let udpIpArpEthRxTxForXdma <- mkUdpIpArpEthRxTxForXdma(clocked_by udpClk, reset_by udpReset);
-    mkConnection(convertSyncFifoToPipeIn(txAxiStreamSyncBuf), udpIpArpEthRxTxForXdma.cmacAxiStreamTxOut);
-    mkConnection(toGet(convertSyncFifoToPipeOut(rxAxiStreamSyncBuf)), udpIpArpEthRxTxForXdma.cmacAxiStreamRxIn);
-    
-    let rawXdmaAxiStreamOut <- mkPipeOutToRawAxiStreamMaster(udpIpArpEthRxTxForXdma.xdmaAxiStreamRxOut, clocked_by udpClk, reset_by udpReset);
-    let rawXdmaAxiStreamIn <- mkPipeInToRawAxiStreamSlave(udpIpArpEthRxTxForXdma.xdmaAxiStreamTxIn, clocked_by udpClk, reset_by udpReset);
-
     interface cmacController = xilinxCmacCtrl;
-    interface xdmaAxiStreamTxIn  = rawXdmaAxiStreamIn;
-    interface xdmaAxiStreamRxOut = rawXdmaAxiStreamOut;
-    //interface udpResetOut = udpReset;
+    interface xdmaAxiStreamTxIn  = rawXdmaAxiStreamTxIn;
+    interface xdmaAxiStreamRxOut = rawXdmaAxiStreamRxOut;
 endmodule
 

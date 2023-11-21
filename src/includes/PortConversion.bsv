@@ -101,6 +101,18 @@ interface RawUdpConfigBusSlave;
     (* result = "ready" *) method Bool ready;
 endinterface
 
+(* always_ready, always_enabled *)
+interface RawUdpConfigBusMaster;
+    (* result = "valid"    *) method Bool       valid;
+    (* result = "mac_addr" *) method EthMacAddr macAddr;
+    (* result = "ip_addr"  *) method IpAddr     ipAddr;
+    (* result = "net_mask" *) method IpNetMask  netMask;
+    (* result = "gate_way" *) method IpGateWay  gateWay;
+
+    (* prefix = "" *)
+    method Action ready((* port = "ready" *) Bool rdy);
+endinterface
+
 
 module mkRawUdpIpMetaDataBusMaster#(UdpIpMetaDataPipeOut pipeIn)(RawUdpIpMetaDataBusMaster);
     RawBusMaster#(UdpIpMetaData) rawBus <- mkPipeOutToRawBusMaster(pipeIn);
@@ -228,5 +240,19 @@ module mkRawUdpConfigBusSlave#(Put#(UdpConfig) put)(RawUdpConfigBusSlave);
         rawBus.validData(valid, udpConfig);
     endmethod
     method Bool ready = rawBus.ready;
+endmodule
+
+module mkRawUdpConfigBusMaster#(PipeOut#(UdpConfig) pipe)(RawUdpConfigBusMaster);
+    RawBusMaster#(UdpConfig) rawBus <- mkPipeOutToRawBusMaster(pipe);
+
+    method valid = rawBus.valid;
+    method EthMacAddr macAddr = rawBus.data.macAddr;
+    method IpAddr ipAddr = rawBus.data.ipAddr;
+    method IpNetMask netMask = rawBus.data.netMask;
+    method IpGateWay gateWay = rawBus.data.gateWay;
+    
+    method Action ready(Bool rdy);
+        rawBus.ready(rdy);
+    endmethod
 endmodule
 

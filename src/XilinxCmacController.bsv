@@ -1,4 +1,3 @@
-import Cntrs :: *;
 import FIFOF :: *;
 import GetPut :: *;
 import Vector :: *;
@@ -8,8 +7,10 @@ import Connectable :: *;
 import Ports :: *;
 import Utils :: *;
 import EthernetTypes :: *;
+import StreamHandler :: *;
 
 import SemiFifo :: *;
+import BusConversion :: *;
 import AxiStreamTypes :: *;
 
 typedef 9 CMAC_TX_INIT_COUNT_WIDTH;
@@ -19,7 +20,7 @@ typedef 6 CMAC_TX_PAUSE_REQ_COUNT_WIDTH;
 
 //
 typedef 2500 MAX_PKT_BYTE_NUM;
-typedef TDiv#(MAX_PKT_BYTE_NUM, AXIS_TKEEP_WIDTH) MAX_PKT_FRAME_NUM;
+typedef TDiv#(MAX_PKT_BYTE_NUM, AXIS512_TKEEP_WIDTH) MAX_PKT_FRAME_NUM;
 typedef TLog#(MAX_PKT_FRAME_NUM) FRAME_INDEX_WIDTH;
 typedef MAX_PKT_FRAME_NUM CMAC_INTER_BUF_DEPTH;
 typedef TLog#(CMAC_INTER_BUF_DEPTH) PKT_INDEX_WIDTH;
@@ -28,13 +29,11 @@ typedef 9 CMAC_PAUSE_ENABLE_WIDTH;
 typedef 9 CMAC_PAUSE_REQ_WIDTH;
 typedef 9 CMAC_PAUSE_ACK_WIDTH;
 
-
 (* always_ready, always_enabled *)
-interface XilinxCmacTxWrapper;
-
-    // AxiStream Interface
-    (* prefix = "tx_axis" *)
-    interface RawAxiStreamMaster#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) txRawAxiStreamOut;
+interface XilinxCmacTxController;
+    // CMAC AXI-Stream Bus
+    (* prefix = "cmac_tx_axis" *)
+    interface RawAxiStreamMaster#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawCmacAxiStreamOut;
 
     // CMAC Control Output
     (* result = "tx_ctl_enable" *) 
@@ -80,7 +79,6 @@ interface XilinxCmacTxWrapper;
         (* port = "tx_stat_unfout" *) Bool txUnderFlow,
         (* port = "tx_stat_rx_aligned" *) Bool rxAligned
     );
-
 endinterface
 
 typedef enum {
@@ -90,14 +88,15 @@ typedef enum {
     TX_STATE_PKT_TRANSFER_INIT,
     TX_STATE_AXIS_ENABLE,
     TX_STATE_HALT
-} CmacTxWrapperState deriving(Bits, Eq, FShow);
+} CmacTxControllerState deriving(Bits, Eq, FShow);
 
-module mkXilinxCmacTxWrapper#(
+module mkXilinxCmacTxController#(
     Bool isEnableFlowControl,
     Bool isWaitRxAligned,
-    AxiStream512PipeOut txAxiStreamIn,
-    PipeOut#(FlowControlReqVec) txFlowCtrlReqVec
-)(XilinxCmacTxWrapper);
+    AxiStream512PipeOut userAxiStreamIn,
+    PipeOut#(FlowControlReqVec) userFlowCtrlReqVecIn
+)(XilinxCmacTxController);
+
     Reg#(Bool) ctlTxEnableReg <- mkReg(False);
     Reg#(Bool) ctlTxTestPatternReg <- mkReg(False);
     Reg#(Bool) ctlTxSendIdleReg <- mkReg(False);
@@ -112,15 +111,17 @@ module mkXilinxCmacTxWrapper#(
     Reg#(Bool) txUnderFlowReg <- mkReg(False);
     Reg#(Bool) rxAlignedReg <- mkReg(False);
 
-    FIFOF#(AxiStream512) txAxiStreamOutBuf <- mkFIFOF;
-    FIFOF#(AxiStream512) txAxiStreamInterBuf <- mkSizedBRAMFIFOF(valueOf(CMAC_INTER_BUF_DEPTH));
+    FIFOF#(AxiStream512) cmacAxiStreamOutBuf <- mkFIFOF;
+    FIFOF#(AxiStream512) interAxiStreamBuf <- mkSizedBRAMFIFOF(valueOf(CMAC_INTER_BUF_DEPTH));
     FIFOF#(Bool) packetReadyInfoBuf <- mkSizedFIFOF(valueOf(CMAC_INTER_BUF_DEPTH));
+    // interAxiStreamBuf and packetReadyInfoBuf is used to guarantee that:
+    // AxiStream bus interacting with CMAC transfers one ethernet packet continuously without any empty cycles;
+    // If there are any bubbles during the transfer of one packet, CMAC will fails;
 
-    Reg#(CmacTxWrapperState) txStateReg <- mkReg(TX_STATE_IDLE);
+    Reg#(CmacTxControllerState) txStateReg <- mkReg(TX_STATE_IDLE);
     Reg#(Bit#(CMAC_TX_INIT_COUNT_WIDTH)) initCounter <- mkReg(0);
     Reg#(Bool) isTxPauseReqBusy <- mkReg(False);
     Reg#(Bit#(CMAC_TX_PAUSE_REQ_COUNT_WIDTH)) txPauseReqCounter <- mkReg(0);
-
 
     rule stateIdle if (txStateReg == TX_STATE_IDLE);
         ctlTxEnableReg <= False;
@@ -138,13 +139,13 @@ module mkXilinxCmacTxWrapper#(
         ctlTxSendLocalFaultIndicationReg <= False;
         ctlTxSendRemoteFaultIndicationReg <= True;
         txStateReg <= TX_STATE_WAIT_RX_ALIGNED;
-        $display("CmacTxWrapper: Wait CMAC Rx Algined Ready");
+        $display("CmacTxController: Wait CMAC Rx Algined Ready");
     endrule
 
     rule stateWaitRxAligned if (txStateReg == TX_STATE_WAIT_RX_ALIGNED);
         if (rxAlignedReg) begin
             txStateReg <= TX_STATE_PKT_TRANSFER_INIT;
-            $display("CmacTxWrapper: Init CMAC Tx Datapath");
+            $display("CmacTxController: Init CMAC Tx Datapath");
         end
     endrule
 
@@ -169,27 +170,27 @@ module mkXilinxCmacTxWrapper#(
             txStateReg <= TX_STATE_IDLE;
         end
         else if (initDone && !txOverFlowReg && !txUnderFlowReg) begin
-            $display("CmacTxWrapper: Start Transmitting Ethernet Packet");
+            $display("CmacTxController: Start Transmitting Ethernet Packet");
             txStateReg <= TX_STATE_AXIS_ENABLE;
             initCounter <= 0;
         end
     endrule
 
     rule stateAxisEnable if (txStateReg == TX_STATE_AXIS_ENABLE);
-        let axiStream = txAxiStreamIn.first;
-        txAxiStreamIn.deq;
-        txAxiStreamInterBuf.enq(axiStream);
+        let axiStream = userAxiStreamIn.first;
+        userAxiStreamIn.deq;
+        interAxiStreamBuf.enq(axiStream);
         if (axiStream.tLast) begin
             packetReadyInfoBuf.enq(axiStream.tLast);
         end
         
-        $display("CmacTxWrapper: CMAC Tx transmit ", fshow(axiStream));
+        $display("CmacTxController: CMAC Tx transmit ", fshow(axiStream));
         if (!rxAlignedReg) begin
             txStateReg <= TX_STATE_IDLE;
-            $display("CmacTxWrapper: CMAC Tx IDLE");
+            $display("CmacTxController: CMAC Tx IDLE");
         end
         else if (txOverFlowReg || txUnderFlowReg) begin
-            $display("CmacTxWrapper: CMAC TX Path Halted !!");
+            $display("CmacTxController: CMAC TX Path Halted !!");
             txStateReg <= TX_STATE_HALT;
         end
     endrule
@@ -201,7 +202,7 @@ module mkXilinxCmacTxWrapper#(
         end
         else if ((!txOverFlowReg) && (!txUnderFlowReg)) begin
             txStateReg <= TX_STATE_AXIS_ENABLE;
-            $display("CmacTxWrapper: Restart Transmitting Ethernet Packet");
+            $display("CmacTxController: Restart Transmitting Ethernet Packet");
         end
 
     endrule
@@ -215,8 +216,8 @@ module mkXilinxCmacTxWrapper#(
             end
         end
         else begin
-            let flowControlReqVec = txFlowCtrlReqVec.first;
-            txFlowCtrlReqVec.deq;
+            let flowControlReqVec = userFlowCtrlReqVecIn.first;
+            userFlowCtrlReqVecIn.deq;
             Vector#(VIRTUAL_CHANNEL_NUM, Bool) txPauseReqVec = replicate(False);
             for (Integer i = 0; i < valueOf(VIRTUAL_CHANNEL_NUM); i = i + 1) begin
                 if (flowControlReqVec[i] matches tagged Valid .ctrlReq) begin
@@ -236,16 +237,16 @@ module mkXilinxCmacTxWrapper#(
 
     rule genFullPacketAxiStreamOut;
         let packetReady = packetReadyInfoBuf.first;
-        let axiStream = txAxiStreamInterBuf.first;
-        txAxiStreamInterBuf.deq;
-        txAxiStreamOutBuf.enq(axiStream);
+        let axiStream = interAxiStreamBuf.first;
+        interAxiStreamBuf.deq;
+        cmacAxiStreamOutBuf.enq(axiStream);
         if (axiStream.tLast == packetReady) begin
             packetReadyInfoBuf.deq;
         end
     endrule
     
-    let rawAxiStreamBus <- mkPipeOutToRawAxiStreamMaster(convertFifoToPipeOut(txAxiStreamOutBuf));
-    interface txRawAxiStreamOut = rawAxiStreamBus;
+    let rawCmacAxiStream <- mkPipeOutToRawAxiStreamMaster(convertFifoToPipeOut(cmacAxiStreamOutBuf));
+    interface rawCmacAxiStreamOut = rawCmacAxiStream;
 
     method Bool ctlTxReset = False;
     method Bool ctlTxEnable = ctlTxEnableReg;
@@ -275,10 +276,10 @@ module mkXilinxCmacTxWrapper#(
 endmodule
 
 (* always_ready, always_enabled *)
-interface XilinxCmacRxWrapper;
-    // Raw AxiStream Interface
-    (* prefix = "rx_axis" *)
-    interface RawAxiStreamSlave#(AXIS_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rxRawAxiStreamIn;
+interface XilinxCmacRxController;
+    // CMAC AXI-Stream Bus
+    (* prefix = "cmac_rx_axis" *)
+    interface RawAxiStreamSlave#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rxRawAxiStreamIn;
 
     // CMAC Control Output
     (* result = "rx_ctl_enable" *)
@@ -290,7 +291,7 @@ interface XilinxCmacRxWrapper;
     (* result = "rx_ctl_reset" *)
     method Bool ctlRxReset;
 
-    // Pause Control Output
+    // CMAC Pause Control Output
     (* result =  "rx_ctl_pause_enable" *)
     method Bit#(CMAC_PAUSE_ENABLE_WIDTH) ctlRxPauseEnable;
     (* result =  "rx_ctl_pause_ack" *)
@@ -360,7 +361,7 @@ typedef enum {
     RX_STATE_GT_LOCKED,
     RX_STATE_WAIT_RX_ALIGNED,
     RX_STATE_AXIS_ENABLE
-} CmacRxWrapperState deriving(Bits, Eq, FShow);
+} CmacRxControllerState deriving(Bits, Eq, FShow);
 
 typedef struct {
     Bit#(PKT_INDEX_WIDTH) pktIdx;
@@ -373,11 +374,11 @@ typedef struct {
     Bit#(FRAME_INDEX_WIDTH) frameNum;
 } FaultPktInfo deriving(Bits, Eq, FShow);
 
-module mkXilinxCmacRxWrapper#(
+module mkXilinxCmacRxController#(
     Bool isEnableFlowControl,
-    AxiStream512PipeIn rxAxiStreamOut,
-    PipeIn#(FlowControlReqVec) rxFlowCtrlReqVec
-)(XilinxCmacRxWrapper);
+    AxiStream512PipeIn userAxiStreamOut,
+    PipeIn#(FlowControlReqVec) userFlowCtrlReqVecOut
+)(XilinxCmacRxController);
     Reg#(Bool) ctlRxEnableReg <- mkReg(False);
     Reg#(Bool) ctlRxForceResyncReg <- mkReg(False);
     Reg#(Bool) ctlRxTestPatternReg <- mkReg(False);
@@ -392,11 +393,11 @@ module mkXilinxCmacRxWrapper#(
     Reg#(Bool) isThrowFaultFrame <- mkReg(False);
     Reg#(Bit#(PKT_INDEX_WIDTH)) bufInputPktCount <- mkReg(0);
     Reg#(Bit#(FRAME_INDEX_WIDTH)) bufInputFrameCount <- mkReg(0);
+    
     FIFOF#(FaultPktInfo) faultPktInfoBuf <- mkSizedFIFOF(valueOf(CMAC_INTER_BUF_DEPTH));
     FIFOF#(AxiStream512WithTag) rxAxiStreamInterBuf <- mkSizedBRAMFIFOF(valueOf(CMAC_INTER_BUF_DEPTH));
 
-
-    Reg#(CmacRxWrapperState) rxStateReg <- mkReg(RX_STATE_IDLE);
+    Reg#(CmacRxControllerState) rxStateReg <- mkReg(RX_STATE_IDLE);
 
     rule stateIdle if (rxStateReg == RX_STATE_IDLE);
         ctlRxEnableReg <= False;
@@ -417,13 +418,13 @@ module mkXilinxCmacRxWrapper#(
             ctlRxPauseEnableReg <= 0;
         end
         rxStateReg <= RX_STATE_WAIT_RX_ALIGNED;
-        $display("CmacRxWrapper: Wait CMAC Rx Aligned");
+        $display("CmacRxController: Wait CMAC Rx Aligned");
     endrule
 
     rule stateWaitRxAligned if (rxStateReg == RX_STATE_WAIT_RX_ALIGNED);
         if (rxAlignedReg) begin
             rxStateReg <= RX_STATE_AXIS_ENABLE;
-            $display("CmacRxWrapper: Start Receiving Ethernet Packet");
+            $display("CmacRxController: Start Receiving Ethernet Packet");
         end
     endrule
 
@@ -487,11 +488,11 @@ module mkXilinxCmacRxWrapper#(
                 end
             end
             else begin
-                rxAxiStreamOut.enq(axiStream);
+                userAxiStreamOut.enq(axiStream);
             end
         end
         else begin
-            rxAxiStreamOut.enq(axiStream);
+            userAxiStreamOut.enq(axiStream);
         end
     endrule
 
@@ -510,7 +511,7 @@ module mkXilinxCmacRxWrapper#(
             end
         end
         ctlRxPauseAckReg <= nextCtlRxPauseAck;
-        rxFlowCtrlReqVec.enq(flowCtrlReqVec);
+        userFlowCtrlReqVecOut.enq(flowCtrlReqVec);
     endrule
 
     method Bool ctlRxEnable = ctlRxEnableReg;
@@ -560,9 +561,9 @@ module mkXilinxCmacRxWrapper#(
     interface RawAxiStreamSlave rxRawAxiStreamIn;
         method Bool tReady = True;
         method Action tValid(
-            Bool valid, 
-            Bit#(AXIS_TDATA_WIDTH) tData, 
-            Bit#(AXIS_TKEEP_WIDTH) tKeep, 
+            Bool valid,
+            Bit#(AXIS512_TDATA_WIDTH) tData, 
+            Bit#(AXIS512_TKEEP_WIDTH) tKeep, 
             Bool tLast, 
             Bit#(AXIS_TUSER_WIDTH) tUser
         );
@@ -583,31 +584,110 @@ module mkXilinxCmacRxWrapper#(
 endmodule
 
 
-interface XilinxCmacRxTxWrapper;
+interface XilinxCmacController;
     (* prefix = "" *)
-    interface XilinxCmacTxWrapper cmacTxWrapper;
+    interface XilinxCmacTxController cmacTxController;
     (* prefix = "" *)
-    interface XilinxCmacRxWrapper cmacRxWrapper;
+    interface XilinxCmacRxController cmacRxController;
 endinterface
 
-
-(* no_default_reset *)
-module mkXilinxCmacRxTxWrapper#(
+module mkXilinxCmacController#(
     Bool isEnableFlowControl,
     Bool isTxWaitRxAligned,
-    AxiStream512PipeOut txAxiStream,
-    AxiStream512PipeIn  rxAxiStream,
-    PipeOut#(FlowControlReqVec) txFlowCtrlReqVec,
-    PipeIn#(FlowControlReqVec) rxFlowCtrlReqVec
+    AxiStream512PipeOut userAxiStreamIn,
+    AxiStream512PipeIn  userAxiStreamOut,
+    PipeOut#(FlowControlReqVec) userFlowCtrlReqVecIn,
+    PipeIn#(FlowControlReqVec) userFlowCtrlReqVecOut
 )(
-    Reset cmacRxReset, 
-    Reset cmacTxReset, 
-    XilinxCmacRxTxWrapper ifc
+    (* reset = "cmac_rx_reset" *) Reset cmacRxReset,
+    (* reset = "cmac_tx_reset" *) Reset cmacTxReset,
+    XilinxCmacController ifc
 );
-    let txWrapper <- mkXilinxCmacTxWrapper(isEnableFlowControl, isTxWaitRxAligned, txAxiStream, txFlowCtrlReqVec, reset_by cmacTxReset);
-    let rxWrapper <- mkXilinxCmacRxWrapper(isEnableFlowControl, rxAxiStream, rxFlowCtrlReqVec, reset_by cmacRxReset);
 
-    interface cmacTxWrapper = txWrapper;
-    interface cmacRxWrapper = rxWrapper;
+    let txController <- mkXilinxCmacTxController(
+        isEnableFlowControl, 
+        isTxWaitRxAligned,
+        userAxiStreamIn,
+        userFlowCtrlReqVecIn,
+        reset_by cmacTxReset
+    );
+
+    let rxController <- mkXilinxCmacRxController(
+        isEnableFlowControl,
+        userAxiStreamOut,
+        userFlowCtrlReqVecOut,
+        reset_by cmacRxReset
+    );
+
+    interface cmacRxController = rxController;
+    interface cmacTxController = txController;
+endmodule
+
+interface RawXilinxCmacController;
+    // Interface with User Logic
+    (* prefix = "user_tx_axis" *)
+    interface RawAxiStreamSlave#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawUserAxiStreamTxIn;
+    (* prefix = "user_tx_flowctrl" *)
+    interface RawBusSlave#(FlowControlReqVec) rawUserFlowCtrlReqVecTxIn;
+    
+    (* prefix = "user_rx_axis" *)
+    interface RawAxiStreamMaster#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawUserAxiStreamRxOut;
+    (* prefix = "user_rx_flowctrl" *)
+    interface RawBusMaster#(FlowControlReqVec) rawUserFlowCtrlReqVecRxOut;
+    
+    // Interface with CMAC
+    (* prefix = "" *)
+    interface XilinxCmacController xilinxCmacRxTx;
+endinterface
+
+(* synthesize, no_default_reset, default_clock_osc = "cmac_clk" *)
+module mkRawXilinxCmacController(
+    (* reset = "cmac_rx_reset" *) Reset cmacRxReset,
+    (* reset = "cmac_tx_reset" *) Reset cmacTxReset,
+    RawXilinxCmacController ifc
+);
+
+    Bool isEnableFlowControl = False;
+    Bool isTxWaitRxAligned = True;
+
+    FIFOF#(AxiStream512) userAxiStreamTxInBuf <- mkFIFOF(reset_by cmacTxReset);
+    FIFOF#(AxiStream512) userAxiStreamRxOutBuf <- mkFIFOF(reset_by cmacRxReset);
+    FIFOF#(FlowControlReqVec) userFlowCtrlReqVecTxInBuf <- mkFIFOF(reset_by cmacTxReset);
+    FIFOF#(FlowControlReqVec) userFlowCtrlReqVecRxOutBuf <- mkFIFOF(reset_by cmacRxReset);
+
+    let cmacController <- mkXilinxCmacController(
+        isEnableFlowControl,
+        isTxWaitRxAligned,
+        convertFifoToPipeOut(userAxiStreamTxInBuf ),
+        convertFifoToPipeIn (userAxiStreamRxOutBuf),
+        convertFifoToPipeOut(userFlowCtrlReqVecTxInBuf),
+        convertFifoToPipeIn (userFlowCtrlReqVecRxOutBuf),
+        cmacRxReset,
+        cmacTxReset
+    );
+
+    let userAxiStreamTxIn <- mkPipeInToRawAxiStreamSlave(
+        convertFifoToPipeIn(userAxiStreamTxInBuf),
+        reset_by cmacTxReset
+    );
+    let userAxiStreamRxOut <- mkPipeOutToRawAxiStreamMaster(
+        convertFifoToPipeOut(userAxiStreamRxOutBuf),
+        reset_by cmacRxReset
+    );
+    let userFlowCtrlReqVecTxIn <- mkPipeInToRawBusSlave(
+        convertFifoToPipeIn(userFlowCtrlReqVecTxInBuf),
+        reset_by cmacTxReset
+    );
+    let userFlowCtrlReqVecRxOut <- mkPipeOutToRawBusMaster(
+        convertFifoToPipeOut(userFlowCtrlReqVecRxOutBuf),
+        reset_by cmacRxReset
+    );
+    
+    interface xilinxCmacRxTx = cmacController;
+    interface rawUserAxiStreamTxIn = userAxiStreamTxIn;
+    interface rawUserAxiStreamRxOut = userAxiStreamRxOut;
+    interface rawUserFlowCtrlReqVecTxIn = userFlowCtrlReqVecTxIn;
+    interface rawUserFlowCtrlReqVecRxOut = userFlowCtrlReqVecRxOut;
+
 endmodule
 

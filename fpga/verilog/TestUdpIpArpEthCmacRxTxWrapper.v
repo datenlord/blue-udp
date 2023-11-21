@@ -6,6 +6,17 @@ module TestUdpIpArpEthCmacRxTxWrapper();
     localparam XDMA_AXIS_TKEEP_WIDTH = 64;
     localparam XDMA_AXIS_TUSER_WIDTH = 1;
 
+    // Clock Period (ps)
+    localparam UDP_CLK_HALF_PERIOD     = 1000; // 500MHz
+    localparam XDMA_CLK_HALF_PERIOD    = 2000; // 250MHz
+    localparam GT_INIT_CLK_HALF_PERIOD = 5000; // 100MHz
+    localparam GT_REF_CLK_HALF_PERIOD  = 3200; // 151MHz
+    
+    localparam GT_SYS_RST_CYCLE        = 100;
+    localparam UDP_RST_CYCLE           = 100;
+    localparam XDMA_RST_CYCLE          = 100;
+
+
     // wire udp_clk;
     // wire udp_reset;
 
@@ -16,6 +27,8 @@ module TestUdpIpArpEthCmacRxTxWrapper();
 
     reg udp_clk;
     reg udp_reset;
+    reg xdma_clk;
+    reg xdma_reset;
     reg gt_ref_clk_p;
     reg gt_ref_clk_n;
     reg gt_init_clk;
@@ -44,8 +57,10 @@ module TestUdpIpArpEthCmacRxTxWrapper();
         XDMA_AXIS_TKEEP_WIDTH,
         XDMA_AXIS_TUSER_WIDTH
     ) udp_cmac_inst1(
-        .udp_clk   (  udp_clk),
-        .udp_reset (udp_reset),
+        .xdma_clk  (xdma_clk  ),
+        .xdma_reset(xdma_reset),
+        .udp_clk   (udp_clk   ),
+        .udp_reset (udp_reset ),
 
         .gt_ref_clk_p(gt_ref_clk_p),
         .gt_ref_clk_n(gt_ref_clk_n),
@@ -79,8 +94,10 @@ module TestUdpIpArpEthCmacRxTxWrapper();
         XDMA_AXIS_TKEEP_WIDTH,
         XDMA_AXIS_TUSER_WIDTH
     ) udp_cmac_inst2(
-        .udp_clk   (  udp_clk),
-        .udp_reset (udp_reset),
+        .xdma_clk  (xdma_clk  ),
+        .xdma_reset(xdma_reset),
+        .udp_clk   (udp_clk   ),
+        .udp_reset (udp_reset ),
 
         .gt_ref_clk_p(gt_ref_clk_p),
         .gt_ref_clk_n(gt_ref_clk_n),
@@ -108,7 +125,7 @@ module TestUdpIpArpEthCmacRxTxWrapper();
         .gt_txp_out(gt1_rx_p)
     );
 
-    mkTestXdmaUdpIpArpEthRxTx testbench (
+    mkTestXdmaUdpIpArpEthCmacRxTx testbench (
         
         .xdma_rx_axis_tready(xdma_rx_axis_tready),
         .xdma_rx_axis_tvalid(xdma_rx_axis_tvalid),
@@ -124,45 +141,50 @@ module TestUdpIpArpEthCmacRxTxWrapper();
         .xdma_tx_axis_tkeep (xdma_tx_axis_tkeep),
         .xdma_tx_axis_tuser (xdma_tx_axis_tuser),
 
-        .CLK(udp_clk),
-        .RST_N(udp_reset)
+        .CLK  (xdma_clk  ),
+        .RST_N(xdma_reset)
     );
 
-    initial
-    begin
+    initial begin
         gt_ref_clk_p =1;
-        forever #3200 gt_ref_clk_p = ~ gt_ref_clk_p;
+        forever #GT_REF_CLK_HALF_PERIOD gt_ref_clk_p = ~ gt_ref_clk_p;
     end
 
-    initial
-    begin
+    initial begin
         gt_ref_clk_n =0;
-        forever #3200 gt_ref_clk_n = ~ gt_ref_clk_n;
+        forever #GT_REF_CLK_HALF_PERIOD gt_ref_clk_n = ~ gt_ref_clk_n;
     end
 
-    initial
-    begin
+    initial begin
         udp_clk =0;
-        forever #1000 udp_clk = ~udp_clk;
+        forever #UDP_CLK_HALF_PERIOD udp_clk = ~udp_clk;
     end
 
-    initial
-    begin
+    initial begin
         udp_reset = 0;
-        #201000;
+        #(2 * UDP_CLK_HALF_PERIOD * UDP_RST_CYCLE);
         udp_reset = 1;
     end
 
-    initial
-    begin
+    initial begin
         gt_init_clk = 0;
-        forever #5000 gt_init_clk = ~gt_init_clk;
+        forever #GT_INIT_CLK_HALF_PERIOD gt_init_clk = ~gt_init_clk;
     end
 
-    initial
-    begin
+    initial begin
         gt_sys_reset = 1;
-        #1001000;
+        #(2 * GT_INIT_CLK_HALF_PERIOD * GT_SYS_RST_CYCLE);
         gt_sys_reset = 0;
+    end
+
+    initial begin
+        xdma_clk = 0;
+        forever #XDMA_CLK_HALF_PERIOD xdma_clk = ~xdma_clk;
+    end
+
+    initial begin
+        xdma_reset = 0;
+        #(2 * XDMA_CLK_HALF_PERIOD * XDMA_RST_CYCLE);
+        xdma_reset = 1;
     end
 endmodule
