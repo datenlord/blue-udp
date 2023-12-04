@@ -1,4 +1,7 @@
-create_ip -name xdma -vendor xilinx.com -library ip -version 4.1 -module_name xdma_0
+# XDMA IP
+
+create_ip -name xdma -vendor xilinx.com -library ip -version 4.1 \
+          -module_name xdma_0 -dir $dir_ip_gen -force
 set_property -dict [list \
   CONFIG.mode_selection {Basic} \
   CONFIG.pf0_msi_enabled {false} \

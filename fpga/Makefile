@@ -7,7 +7,6 @@ CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
 TARGET = XdmaUdpIpArpEthCmacRxTx
 BSV_DIR = ./bsv
-GEN_VLOG_DIR = generated
 DUT_TOP ?= mk$(TARGET)
 TB_FILE = $(BSV_DIR)/Test$(TARGET).bsv
 TB_TOP = mkTest$(TARGET)
@@ -19,14 +18,25 @@ CMAC_CTRL_FILE = $(ROOT_DIR)/src/XilinxCmacController.bsv
 SUPPORT_RDMA ?= False
 MACROFLAGS = -D IS_SUPPORT_RDMA=$(SUPPORT_RDMA)
 
-# Pass parameters to vivado
+# Pass arguments to vivado
+export PART = xcvu13p-fhgb2104-2-i
+export DIR_VLOG = ./verilog
+export DIR_VLOG_GEN = ./generated/verilog
+export DIR_XDC = ./xdc
+export DIR_IP_TCL = ./tcl/ips
+export DIR_IP_GEN = ./generated/ips
+export DIR_OUTPUT = output
+export GEN_IP_TCL = ./tcl/create_synth_ip.tcl
+
+export SYNTH_ONLY = 0
+export BUILD_TOP = XdmaUdpIpArpEthCmacRxTxWrapper
 export SIM_TOP = TestUdpIpArpEthCmacRxTxWrapper
+export TARGET_CLOCKS = clk_out1_clk_wiz_0
+export MAX_NET_PATH_NUM = 1000
+
 export PROJ_NAME = cmac_test
-export INCLUDE_DIR = $(ROOT_DIR)/test/vivado/verilog/includes
-export CONFIG_FILE = $(INCLUDE_DIR)/sim_config.vh
-export SRC_DIR = ./verilog/
-export GEN_SRC_DIR = $(GEN_VLOG_DIR)
-export IP_TCL = create_ips.tcl
+export CONFIG_FILE = ./verilog/sim_config.vh
+
 ifeq ($(SUPPORT_RDMA), True)
 export READ_MEM_FILE = 1
 else
@@ -41,25 +51,24 @@ endif
 verilog:
 	mkdir -p $(BUILDDIR)
 	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g $(DUT_TOP) $(BSV_DIR)/$(TARGET).bsv
-	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g $(CMAC_CTRL_TOP) $(CMAC_CTRL_FILE)
-	
-	mkdir -p $(GEN_VLOG_DIR)
-	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(DUT_TOP) $(DUT_TOP) | grep -i '\.v' | xargs -I {} cp {} $(GEN_VLOG_DIR)
-	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(CMAC_CTRL_TOP) $(CMAC_CTRL_TOP) | grep -i '\.v' | xargs -I {} cp {} $(GEN_VLOG_DIR)
+	mkdir -p $(DIR_VLOG_GEN)
+	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(DUT_TOP) $(DUT_TOP) | grep -i '\.v' | xargs -I {} cp {} $(DIR_VLOG_GEN)
 
 tb_verilog:
 	mkdir -p $(BUILDDIR)
-	mkdir -p $(GEN_VLOG_DIR)
+	mkdir -p $(DIR_VLOG_GEN)
 	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g $(TB_TOP) $(TB_FILE)	
-	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(TB_TOP) $(TB_TOP) | grep -i '\.v' | xargs -I {} cp {} $(GEN_VLOG_DIR)
+	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(TB_TOP) $(TB_TOP) | grep -i '\.v' | xargs -I {} cp {} $(DIR_VLOG_GEN)
 
-
-sim: #table verilog tb_verilog
-	vivado -mode batch -source vivado_sim.tcl 2>&1 | tee ./run.log
+sim: table verilog tb_verilog
+	vivado -mode batch -source ./tcl/vivado_sim.tcl 2>&1 | tee ./sim_run.log
 #   rm -rf $(PROJ_NAME)
 
+build: verilog
+	vivado -mode batch -source ./tcl/vivado_build.tcl 2>&1 | tee ./build_run.log
+
 clean:
-	rm -rf $(BUILDDIR) $(GEN_VLOG_DIR) *.mem *.jou *.log $(PROJ_NAME) .Xil
+	rm -rf $(BUILDDIR) $(DIR_VLOG_GEN) *.mem *.jou *.log $(PROJ_NAME) .Xil output
 
 
 .PHONY: table verilog clean
