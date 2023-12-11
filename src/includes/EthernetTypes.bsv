@@ -89,7 +89,7 @@ typedef struct {
 } UdpHeader deriving( Bits, FShow, Eq, Bounded);
 
 
-//////////////// 
+////////////////
 typedef 14 ETH_HDR_BYTE_WIDTH;                 // 14 bytes
 typedef TMul#(IP_IHL_VAL,4) IP_HDR_BYTE_WIDTH; // 20 bytes
 typedef 8  UDP_HDR_BYTE_WIDTH;                 // 8 bytes
