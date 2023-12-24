@@ -1,5 +1,6 @@
 
 
+
 module XdmaUdpCmacPerfMonWrapper#(
     parameter PCIE_GT_LANE_WIDTH = 16,
     parameter CMAC_GT_LANE_WIDTH = 4
@@ -183,6 +184,7 @@ module XdmaUdpCmacPerfMonWrapper#(
     ila_1 udp_rx_ila (
         .clk(xdma_axi_aclk), // input wire clk
 
+
         .probe0(udp_rx_axis_tvalid), // input wire [0:0]  probe0  
         .probe1(udp_rx_axis_tready), // input wire [0:0]  probe1 
         .probe2(udp_rx_axis_tdata ), // input wire [511:0]  probe2 
@@ -263,17 +265,14 @@ module XdmaUdpCmacPerfMonWrapper#(
         .m_axis_tuser (udp_tx_axis_tuser_piped )
     );
 
-    UdpIpArpEthCmacRxTxWrapper#(
+    CmacRxTxWrapper#(
         CMAC_GT_LANE_WIDTH,
         XDMA_AXIS_TDATA_WIDTH,
         XDMA_AXIS_TKEEP_WIDTH,
         XDMA_AXIS_TUSER_WIDTH
-    ) udp_cmac_inst1(
+    ) cmac_wrapper_inst1(
         .xdma_clk  (xdma_axi_aclk   ),
         .xdma_reset(xdma_axi_aresetn),
-
-        .udp_clk  (udp_clk  ),
-        .udp_reset(udp_reset),
 
         .gt_ref_clk_p(qsfp1_ref_clk_p   ),
         .gt_ref_clk_n(qsfp1_ref_clk_n   ),
@@ -301,18 +300,15 @@ module XdmaUdpCmacPerfMonWrapper#(
         .gt_txp_out(qsfp1_txp_out)
     );
 
-    UdpIpArpEthCmacRxTxWrapper#(
+    CmacRxTxWrapper#(
         CMAC_GT_LANE_WIDTH,
         XDMA_AXIS_TDATA_WIDTH,
         XDMA_AXIS_TKEEP_WIDTH,
         XDMA_AXIS_TUSER_WIDTH
-    ) udp_cmac_inst2(
+    ) cmac_wrapper_inst2(
 
         .xdma_clk  (xdma_axi_aclk   ),
         .xdma_reset(xdma_axi_aresetn),
-
-        .udp_clk   (udp_clk  ),
-        .udp_reset (udp_reset),
 
         .gt_ref_clk_p(qsfp2_ref_clk_p   ),
         .gt_ref_clk_n(qsfp2_ref_clk_n   ),

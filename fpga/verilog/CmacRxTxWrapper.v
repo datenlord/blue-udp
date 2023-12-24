@@ -1,7 +1,7 @@
 `timescale 1ps / 1ps
 
 
-module UdpIpArpEthCmacRxTxWrapper#(
+module CmacRxTxWrapper#(
     parameter GT_LANE_WIDTH = 4,
     parameter XDMA_AXIS_TDATA_WIDTH = 512,
     parameter XDMA_AXIS_TKEEP_WIDTH = 64,
@@ -9,11 +9,6 @@ module UdpIpArpEthCmacRxTxWrapper#(
 )(
     input xdma_clk,
     input xdma_reset,
-
-    input udp_clk,
-    input udp_reset,
-
-
 
     input gt_ref_clk_p,
     input gt_ref_clk_n,
@@ -127,14 +122,12 @@ module UdpIpArpEthCmacRxTxWrapper#(
     wire [8:0]      gt_ctl_tx_pause_req;
     wire            gt_ctl_tx_resend_pause;
 
-    mkXdmaUdpIpArpEthCmacRxTx udp_inst1 (
+    mkXdmaCmacRxTx xdma_cmac_inst (
         .xdma_clk               (xdma_clk        ),
         .xdma_reset             (xdma_reset      ),
         .cmac_rxtx_clk          (gt_txusrclk2    ),
         .cmac_rx_reset          (~gt_usr_rx_reset),
         .cmac_tx_reset          (~gt_usr_tx_reset),
-        .udp_clk                (udp_clk         ),
-        .udp_reset              (udp_reset       ),
 
         .cmac_tx_axis_tvalid    (gt_tx_axis_tvalid),
         .cmac_tx_axis_tdata     (gt_tx_axis_tdata ),
@@ -226,7 +219,7 @@ module UdpIpArpEthCmacRxTxWrapper#(
     );
 
 
-    cmac_usplus_0 cmac_inst1(
+    cmac_usplus_0 cmac_inst(
         .gt_rxp_in                            (gt_rxp_in     ),
         .gt_rxn_in                            (gt_rxn_in     ),
         .gt_txp_out                           (gt_txp_out    ),
@@ -336,22 +329,47 @@ module UdpIpArpEthCmacRxTxWrapper#(
     );
 
     //Cmac Recv Monitor
-    wire [31:0] pkt_num, lost_beat_num, total_beat_num;
+    wire [31:0] recv_pkt_num, recv_lost_beat_num, recv_total_beat_num;
+    wire recv_monitor_idle;
     mkCmacRecvMonitor cmacRecvMonitor(
         .valid(gt_rx_axis_tvalid  ),
         .ready(gt_rx_axis_tready  ),
-		.last (gt_rx_axis_tlast   ),
-		.clk  (gt_txusrclk2       ),
-		.reset(~gt_usr_rx_reset   ),
-		.pktCounterOut(pkt_num),
-		.lostBeatCounterOut(lost_beat_num),
-        .totalBeatCounterOut(total_beat_num)
+        .last (gt_rx_axis_tlast   ),
+        .clk  (gt_txusrclk2       ),
+        .reset(~gt_usr_rx_reset   ),
+        .isMonitorIdleOut   (recv_monitor_idle),
+        .pktCounterOut      (recv_pkt_num   ),
+        .lostBeatCounterOut (recv_lost_beat_num),
+        .totalBeatCounterOut(recv_total_beat_num)
     );
+    
     ila_2 cmac_recv_mon(
-	    .clk   (gt_txusrclk2  ), // input wire clk
-	    .probe0(pkt_num       ), // input wire [31:0]  probe0  
-	    .probe1(lost_beat_num ), // input wire [31:0]  probe1
-        .probe2(total_beat_num)
+        .clk   (gt_txusrclk2       ), // input wire clk
+        .probe0(recv_pkt_num       ), // input wire [31:0]  probe0  
+        .probe1(recv_lost_beat_num ),  // input wire [31:0]  probe1
+        .probe2(recv_total_beat_num),
+        .probe3(recv_monitor_idle  )
     );
 
+    wire [31:0] send_pkt_num, send_pkt_size, send_total_beat_num;
+    wire send_monitor_idle;
+    mkCmacSendMonitor cmacSendMonitor(
+        .valid(gt_tx_axis_tvalid),
+        .ready(gt_tx_axis_tready),
+        .last (gt_tx_axis_tlast ),
+        .clk  (gt_txusrclk2     ),
+        .reset(~gt_usr_tx_reset ),
+        .isMonitorIdleOut   (send_monitor_idle),
+        .pktCounterOut      (send_pkt_num ),
+        .pktSizeCounterOut  (send_pkt_size),
+        .totalBeatCounterOut(send_total_beat_num)
+    );
+
+    ila_2 cmac_send_mon(
+        .clk   (gt_txusrclk2       ), // input wire clk
+        .probe0(send_pkt_num       ), // input wire [31:0]  probe0  
+        .probe1(send_pkt_size      ),  // input wire [31:0]  probe1
+        .probe2(send_total_beat_num),
+        .probe3(send_monitor_idle  )
+    );
 endmodule
