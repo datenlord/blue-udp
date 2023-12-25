@@ -42,6 +42,6 @@ docker run --rm -v `pwd`:`pwd` -w `pwd` --net=mymacvlan --ip=$CONTAINER_CLIENT_I
 #make TARGET=UdpIpArpEthRxTx IP_ADDR=$CONTAINER_SERVER_IP UDP_PORT=$PORT_NUM
 
 # Clean containers and delete network
-#docker kill `docker ps -a -q` || true
+docker kill `docker ps -a -q` || true
 docker network rm $DOCKER_NETWORK
 rm $TEST_CONFIG_FILE
