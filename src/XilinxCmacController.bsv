@@ -560,7 +560,7 @@ module mkXilinxCmacRxController#(
     endmethod
 
     interface RawAxiStreamSlave rxRawAxiStreamIn;
-        method Bool tReady = True;
+        method Bool tReady = rxAxiStreamInterBuf.notFull;
         method Action tValid(
             Bool valid,
             Bit#(AXIS512_TDATA_WIDTH) tData, 
