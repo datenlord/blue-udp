@@ -337,12 +337,14 @@ module UdpIpArpEthCmacRxTxWrapper#(
 
     //Cmac Recv Monitor
     wire [31:0] recv_pkt_num, recv_lost_beat_num, recv_total_beat_num;
+    wire recv_monitor_idle;
     mkCmacRecvMonitor cmacRecvMonitor(
         .valid(gt_rx_axis_tvalid  ),
         .ready(gt_rx_axis_tready  ),
 		.last (gt_rx_axis_tlast   ),
 		.clk  (gt_txusrclk2       ),
 		.reset(~gt_usr_rx_reset   ),
+		.isMonitorIdleOut(recv_monitor_idle),
 		.pktCounterOut(recv_pkt_num),
 		.lostBeatCounterOut(recv_lost_beat_num),
         .totalBeatCounterOut(recv_total_beat_num)
@@ -351,7 +353,8 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .clk   (gt_txusrclk2       ), // input wire clk
         .probe0(recv_pkt_num       ), // input wire [31:0]  probe0  
         .probe1(recv_lost_beat_num ), // input wire [31:0]  probe1
-        .probe2(recv_total_beat_num)
+        .probe2(recv_total_beat_num),
+        .probe3(recv_monitor_idle)
     );
 
     wire [31:0] send_pkt_num, send_pkt_size, send_total_beat_num;

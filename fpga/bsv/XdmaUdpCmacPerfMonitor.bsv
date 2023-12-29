@@ -8,12 +8,15 @@ import AxiStreamTypes :: *;
 
 typedef 32 PERF_CYCLE_COUNT_WIDTH;
 typedef 32 PERF_BEAT_COUNT_WIDTH;
-typedef 250000000 CLOCK_FREQUENCY;
+typedef 500000000 CLOCK_FREQUENCY;
 typedef 32 PKT_NUM_COUNT_WIDTH;
 typedef 32 PKT_SIZE_COUNT_WIDTH;
 
 interface PerfMonitorRegister;
-    method Bit#(PKT_SIZE_COUNT_WIDTH) pktSizeOut;
+    // Dynamic Configuration Register
+    method Bit#(PKT_SIZE_COUNT_WIDTH)   pktSizeOut;
+    method Bit#(PERF_CYCLE_COUNT_WIDTH) pktIntervalOut;
+    // Performance Counter
     method Bit#(PERF_CYCLE_COUNT_WIDTH) perfCycleCounterTxOut;
     method Bit#(PERF_CYCLE_COUNT_WIDTH) perfCycleCounterRxOut;
     method Bit#(PERF_BEAT_COUNT_WIDTH) perfBeatCounterTxOut;
@@ -53,17 +56,21 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
     FIFOF#(AxiStream512) xdmaAxiStreamOutBuf <- mkFIFOF;
     FIFOF#(AxiStream512) udpAxiStreamRxInBuf <- mkFIFOF;
     FIFOF#(AxiStream512) udpAxiStreamTxOutBuf <- mkFIFOF;
+    
+    Reg#(Bool) isPktIntervalReg <- mkReg(False);
+    Reg#(Bit#(PERF_CYCLE_COUNT_WIDTH)) pktIntervalReg <- mkReg(0);
+    Reg#(Bit#(PERF_CYCLE_COUNT_WIDTH)) pktIntervalCounter <- mkReg(0);
 
     Reg#(Bool) perfCycleCountFullTx[2] <- mkCReg(2, False);
     Reg#(Bool) perfCycleCountFullRx <- mkReg(False);
     
     Reg#(Bit#(PERF_CYCLE_COUNT_WIDTH)) perfCycleCounterTx <- mkReg(0);
-    Reg#(Bit#(PERF_BEAT_COUNT_WIDTH)) perfBeatCounterTx <- mkReg(0);
-    Reg#(Bit#(PERF_BEAT_COUNT_WIDTH)) totalBeatCounterTx <- mkReg(0);
+    Reg#(Bit#(PERF_BEAT_COUNT_WIDTH))  perfBeatCounterTx <- mkReg(0);
+    Reg#(Bit#(PERF_BEAT_COUNT_WIDTH))  totalBeatCounterTx <- mkReg(0);
 
     Reg#(Bit#(PERF_CYCLE_COUNT_WIDTH)) perfCycleCounterRx <- mkReg(0);
-    Reg#(Bit#(PERF_BEAT_COUNT_WIDTH)) perfBeatCounterRx[2] <- mkCReg(2, 0);
-    Reg#(Bit#(PERF_BEAT_COUNT_WIDTH)) totalBeatCounterRx[2] <- mkCReg(2, 0);
+    Reg#(Bit#(PERF_BEAT_COUNT_WIDTH))  perfBeatCounterRx[2] <- mkCReg(2, 0);
+    Reg#(Bit#(PERF_BEAT_COUNT_WIDTH))  totalBeatCounterRx[2] <- mkCReg(2, 0);
 
     Reg#(Bit#(PKT_SIZE_COUNT_WIDTH)) pktSizeReg <- mkReg(0);
     Reg#(Bit#(PKT_SIZE_COUNT_WIDTH)) sendPktBeatCounter <- mkReg(0);
@@ -82,10 +89,12 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
 
     rule getPktBeatNum if (!monitorBusy);
         let axiFrame = xdmaAxiStreamInBuf.first;
-        let pktSize = axiFrame.tData;
+        let perfMonConfig = axiFrame.tData;
         xdmaAxiStreamInBuf.deq;
-        pktSizeReg <= truncate(pktSize);
-        if (pktSize != 0) begin
+        pktSizeReg <= truncate(perfMonConfig);
+        perfMonConfig = perfMonConfig >> valueOf(PKT_SIZE_COUNT_WIDTH);
+        pktIntervalReg <= truncate(perfMonConfig);
+        if (perfMonConfig != 0) begin
             sendPktEnableReg <= True;
             recvPktEnableReg <= True;
             perfCycleCountFullTx[1] <= False;
@@ -103,7 +112,7 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
         end
     endrule
 
-    rule sendPacket if (sendPktEnableReg);
+    rule sendPacket if (sendPktEnableReg && !isPktIntervalReg);
         let axiFrame = AxiStream512 {
             tData: zeroExtend(sendPktBeatCounter),
             tKeep: setAllBits,
@@ -117,6 +126,9 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
             if (perfCycleCountFullTx[1]) begin
                 sendPktEnableReg <= False;
             end
+            else if (pktIntervalReg != 0) begin
+                isPktIntervalReg <= True;
+            end
             sendPktNumCounter <= sendPktNumCounter + 1;
         end
         else begin
@@ -127,6 +139,16 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
         totalBeatCounterTx <= totalBeatCounterTx + 1;
         if (!perfCycleCountFullTx[1]) begin
             perfBeatCounterTx <= perfBeatCounterTx + 1;
+        end
+    endrule
+
+    rule countPktInterval if (sendPktEnableReg && isPktIntervalReg);
+        if (pktIntervalCounter == pktIntervalReg - 1) begin
+            pktIntervalCounter <= 0;
+            isPktIntervalReg <= False;
+        end
+        else begin
+            pktIntervalCounter <= pktIntervalCounter + 1;
         end
     endrule
 
@@ -194,6 +216,7 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
 
     interface PerfMonitorRegister perfMonReg;
         method pktSizeOut = pktSizeReg;
+        method pktIntervalOut = pktIntervalReg;
         method perfCycleCounterTxOut = perfCycleCounterTx;
         method perfBeatCounterTxOut = perfBeatCounterTx;
         method perfCycleCounterRxOut = perfCycleCounterRx;
