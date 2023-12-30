@@ -152,6 +152,29 @@ function PipeOut#(anyType) continuePipeOutWhen(PipeOut#(anyType) pipeIn, Bool co
             endinterface);
 endfunction
 
+typeclass OneHotMux#(numeric type num, numeric type width);
+    function Bit#(width) oneHotMux(Vector#(num, Bool) selVec, Vector#(num, Bit#(width)) dataVec);
+endtypeclass
+
+instance OneHotMux#(1, width);
+    function oneHotMux(selVec, dataVec) = selVec[0] ? dataVec[0] : 0;
+endinstance
+
+instance OneHotMux#(dNum, dWidth)
+    provisos (
+        Div#(dNum, 2, firstHalf),
+        Add#(firstHalf, secondHalf, dNum),
+        OneHotMux#(firstHalf, dWidth),
+        OneHotMux#(secondHalf, dWidth)
+    );
+    function oneHotMux(selVec, dataVec);
+        Vector#(firstHalf, Bool)  firstSelVec = take(selVec);
+        Vector#(secondHalf, Bool) secondSelVec = takeTail(selVec);
+        Vector#(firstHalf, Bit#(dWidth))  firstDataVec = take(dataVec);
+        Vector#(secondHalf, Bit#(dWidth)) secondDataVec = takeTail(dataVec);
+        return oneHotMux(firstSelVec, firstDataVec) | oneHotMux(secondSelVec, secondDataVec);
+    endfunction
+endinstance
 
 typeclass CombAdderTree#(numeric type num, numeric type width);
     function Bit#(TAdd#(TLog#(num), width)) combAdderTree(Vector#(num, Bit#(width)) vecIn);

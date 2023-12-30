@@ -56,7 +56,7 @@ module mkArpProcessor#(
         let arpFrame = arpFrameAndPadding.extractDataOut.first;
         arpFrameAndPadding.extractDataOut.deq;
         arpCache.arpClient.response.put(
-            ArpResp{
+            ArpResp {
                 ipAddr: arpFrame.arpSpa,
                 macAddr: arpFrame.arpSha
             }

@@ -100,7 +100,7 @@ typedef struct {
 } ArpResp deriving(Bits, Eq, FShow);
 
 typedef struct {
-    Maybe#(CacheWayIndex) wayIdx;
+    Bit#(CACHE_WAY_NUM) hitVec;
     CacheData data;
     CacheAddr addr;
 } CheckTagResult deriving(Bits, Eq, FShow);
@@ -167,20 +167,20 @@ module mkArpCache(ArpCache);
         let addr = cacheRdBuf.first;
         cacheRdBuf.deq;
         let tag = getTag(addr);
-        Maybe#(CacheWayIndex) wayIdx = tagged Invalid;
-        CacheData data = 0;
 
+        Vector#(CACHE_WAY_NUM, CacheData) cacheWayDataVec;
+        Vector#(CACHE_WAY_NUM, Bool) cacheWayHitVec;
         for (Integer i = 0; i < valueOf(CACHE_WAY_NUM); i = i + 1) begin
             let cacheTag <- tagSet[i].readServer.response.get();
             let cacheData <- dataSet[i].readServer.response.get();
-            if (cacheTag matches tagged Valid .x &&& x == tag) begin
-                wayIdx = tagged Valid fromInteger(i);
-                data = cacheData;
-            end
+            cacheWayDataVec[i] = cacheData;
+            cacheWayHitVec[i] = isValid(cacheTag) && (unwrapMaybe(cacheTag) == tag);
         end
+        
+        CacheData data = oneHotMux(cacheWayHitVec, cacheWayDataVec);
 
         let checkTagRes = CheckTagResult {
-            wayIdx: wayIdx,
+            hitVec: pack(cacheWayHitVec),
             data: data,
             addr: addr
         };
@@ -192,17 +192,19 @@ module mkArpCache(ArpCache);
         checkTagResBuf.deq;
 
         let token <- respCBuf.reserve();
-        let addr = checkTagRes.addr;
-        let data = checkTagRes.data;
+        let addr   = checkTagRes.addr;
+        let data   = checkTagRes.data;
+        let hitVec = checkTagRes.hitVec;
+        let wayIdx = findElem(True, unpack(hitVec));
 
-        if (checkTagRes.wayIdx matches tagged Valid .wayIdx) begin
+        if (wayIdx matches tagged Valid .idx) begin
             let cacheIdx = getIndex(addr);
             hitBuf.enq(
-                HitMessage{
+                HitMessage {
                     token: token,
                     data: data,
                     index: cacheIdx,
-                    wayIndex: wayIdx
+                    wayIndex: pack(idx)
                 }
             );
             $display("ArpCache: Hit Directly: addr=%x", addr);
