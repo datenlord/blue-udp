@@ -91,10 +91,11 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
         let axiFrame = xdmaAxiStreamInBuf.first;
         let perfMonConfig = axiFrame.tData;
         xdmaAxiStreamInBuf.deq;
-        pktSizeReg <= truncate(perfMonConfig);
-        perfMonConfig = perfMonConfig >> valueOf(PKT_SIZE_COUNT_WIDTH);
-        pktIntervalReg <= truncate(perfMonConfig);
-        if (perfMonConfig != 0) begin
+        Bit#(PKT_SIZE_COUNT_WIDTH) pktSize = truncate(perfMonConfig);
+        let pktInterval = perfMonConfig >> valueOf(PKT_SIZE_COUNT_WIDTH);
+        pktSizeReg <= pktSize;
+        pktIntervalReg <= truncate(pktInterval);
+        if (pktSize != 0) begin
             sendPktEnableReg <= True;
             recvPktEnableReg <= True;
             perfCycleCountFullTx[1] <= False;
@@ -113,8 +114,9 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
     endrule
 
     rule sendPacket if (sendPktEnableReg && !isPktIntervalReg);
+
         let axiFrame = AxiStream512 {
-            tData: zeroExtend(sendPktBeatCounter),
+            tData: {sendPktNumCounter, 0} | {0, sendPktBeatCounter},
             tKeep: setAllBits,
             tLast: False,
             tUser: 0
@@ -170,7 +172,9 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
         end
 
         let isRecvBeatError = False;
-        if (truncate(axiFrame.tData) != recvPktBeatCounter) begin
+        let pktIdxMismatch = truncateLSB(axiFrame.tData) != recvPktNumCounter[0];
+        let beatIdxMismatch = truncate(axiFrame.tData) != recvPktBeatCounter;
+        if (pktIdxMismatch || beatIdxMismatch) begin
             isRecvBeatError = True;
         end
 
@@ -180,14 +184,10 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
                 errPktNumCounter[0] <= errPktNumCounter[0] + 1;
             end
             isPktHasErrorReg <= False;
-        end
-        else begin
-            if (!isPktHasErrorReg) isPktHasErrorReg <= isRecvBeatError;
-        end
-        if (recvPktBeatCounter == pktSizeReg - 1) begin
             recvPktBeatCounter <= 0;
         end
         else begin
+            if (!isPktHasErrorReg) isPktHasErrorReg <= isRecvBeatError;
             recvPktBeatCounter <= recvPktBeatCounter + 1;
         end
         isRecvFirstPktReg[0] <= True;

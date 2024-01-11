@@ -79,6 +79,7 @@ module XdmaUdpCmacPerfMonWrapper#(
 
     // Perfamance Counter
     wire [15:0] pkt_size_reg;
+    wire [31:0] pkt_interval_reg;
     wire [31:0] perf_cycle_count_reg_tx;
     wire [31:0] perf_cycle_count_reg_rx;
     wire [31:0] perf_beat_count_reg_tx;
@@ -165,6 +166,7 @@ module XdmaUdpCmacPerfMonWrapper#(
         .udp_tx_axis_tready (udp_tx_axis_tready),
 
         .pktSizeOut             (pkt_size_reg),
+        .pktIntervalOut         (pkt_interval_reg),
         .perfCycleCounterTxOut  (perf_cycle_count_reg_tx),
         .perfCycleCounterRxOut  (perf_cycle_count_reg_rx),
         .perfBeatCounterTxOut   (perf_beat_count_reg_tx ),
@@ -218,7 +220,8 @@ module XdmaUdpCmacPerfMonWrapper#(
         .probe11(recv_pkt_num_count_reg),
         .probe12(err_pkt_num_count_reg),
         .probe13(total_beat_count_reg_tx),
-        .probe14(total_beat_count_reg_rx)
+        .probe14(total_beat_count_reg_rx),
+        .probe15(pkt_interval_reg)
     );
     
     clk_wiz_0 clk_wiz_inst (
