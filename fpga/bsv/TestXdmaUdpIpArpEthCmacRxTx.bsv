@@ -5,7 +5,7 @@ import Vector :: *;
 import Randomizable :: *;
 
 import Ports :: *;
-import Utils :: *;
+import EthUtils :: *;
 
 import SemiFifo :: *;
 import AxiStreamTypes :: *;

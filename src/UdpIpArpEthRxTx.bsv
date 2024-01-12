@@ -4,7 +4,7 @@ import BRAMFIFO :: *;
 import Connectable :: *;
 
 // import Utils :: *;
-import Utils :: *;
+import EthUtils :: *;
 import Ports :: *;
 import ArpCache :: *;
 import MacLayer :: *;

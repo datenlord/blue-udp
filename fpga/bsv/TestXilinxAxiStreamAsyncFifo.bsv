@@ -3,7 +3,7 @@ import Clocks :: *;
 import Connectable :: *;
 import Randomizable :: *;
 
-import Utils :: *;
+import EthUtils :: *;
 import XilinxAxiStreamAsyncFifo :: *;
 
 import AxiStreamTypes :: *;

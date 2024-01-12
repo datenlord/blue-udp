@@ -4,7 +4,7 @@ import BRAMFIFO :: *;
 import Connectable :: *;
 
 import Ports :: *;
-import Utils :: *;
+import EthUtils :: *;
 import StreamHandler :: *;
 import UdpIpArpEthRxTx :: *;
 import PortConversion :: *;

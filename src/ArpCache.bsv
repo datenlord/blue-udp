@@ -4,7 +4,7 @@ import Vector :: *;
 import ClientServer :: *;
 
 import RFile :: *;
-import Utils :: *;
+import EthUtils :: *;
 import CompletionBuf :: *;
 import EthernetTypes :: *;
 import ContentAddressMem :: *;

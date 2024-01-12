@@ -5,7 +5,7 @@ import Connectable :: *;
 import Randomizable :: *;
 
 import Ports :: *;
-import Utils :: *;
+import EthUtils :: *;
 import EthernetTypes :: *;
 import PfcUdpIpArpEthRxTx :: *;
 

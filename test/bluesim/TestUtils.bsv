@@ -5,7 +5,7 @@ import ClientServer :: *;
 import Randomizable :: *;
 
 import Ports :: *;
-import Utils :: *;
+import EthUtils :: *;
 import SemiFifo :: *;
 
 typedef Server#(

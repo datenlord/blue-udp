@@ -37,7 +37,7 @@ Here is a list of some critical source files:
 │   ├── Ports.bsv              # numeric and struct types about in/output ports of modules
 │   ├── RFile.bsv
 │   ├── StreamHandler.bsv      # modules implemented for manipulating data stream
-│   └── Utils.bsv              # utility functions and modules
+│   └── EthUtils.bsv           # utility functions and modules
 ├── MacLayer.bsv               # generator and parser for Ethernet packet
 ├── PfcUdpIpArpEthRxTx.bsv     # generator and parser for UDP/IP/Ethernet packet with PFC
 ├── PriorityFlowControl.bsv    # modules handling PFC

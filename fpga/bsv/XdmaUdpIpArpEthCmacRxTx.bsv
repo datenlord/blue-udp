@@ -5,7 +5,7 @@ import BRAMFIFO :: *;
 import Connectable :: *;
 
 import Ports :: *;
-import Utils :: *;
+import EthUtils :: *;
 import BusConversion :: *;
 import StreamHandler :: *;
 import EthernetTypes :: *;

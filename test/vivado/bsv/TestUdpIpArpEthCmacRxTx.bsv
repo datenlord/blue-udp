@@ -5,7 +5,7 @@ import Clocks :: *;
 import Randomizable :: *;
 
 import Ports :: *;
-import Utils :: *;
+import EthUtils :: *;
 import PortConversion :: *;
 
 import SemiFifo :: *;

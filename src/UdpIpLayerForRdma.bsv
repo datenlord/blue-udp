@@ -1,7 +1,7 @@
 import FIFOF :: *;
 
 import Ports :: *;
-import Utils :: *;
+import EthUtils :: *;
 import UdpIpLayer :: *;
 import EthernetTypes :: *;
 import StreamHandler :: *;

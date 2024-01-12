@@ -1,4 +1,4 @@
-import Utils :: *;
+import EthUtils :: *;
 import FIFOF :: *;
 import CompletionBuf :: *;
 import Randomizable :: *;

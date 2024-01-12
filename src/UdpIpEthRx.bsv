@@ -3,7 +3,7 @@ import GetPut :: *;
 import Connectable :: *;
 
 import Ports :: *;
-import Utils :: *;
+import EthUtils :: *;
 import MacLayer :: *;
 import UdpIpLayer :: *;
 import StreamHandler :: *;

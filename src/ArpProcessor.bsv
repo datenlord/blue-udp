@@ -3,7 +3,7 @@ import GetPut :: *;
 import ClientServer :: *;
 
 import Ports :: *;
-import Utils :: *;
+import EthUtils :: *;
 import ArpCache :: *;
 import StreamHandler :: *;
 import EthernetTypes :: *;

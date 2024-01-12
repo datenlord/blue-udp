@@ -1,6 +1,6 @@
 import FIFOF :: *;
 
-import Utils :: *;
+import EthUtils :: *;
 import Ports :: *;
 
 import SemiFifo :: *;
