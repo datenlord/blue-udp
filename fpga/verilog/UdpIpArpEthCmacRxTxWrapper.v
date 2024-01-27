@@ -13,8 +13,6 @@ module UdpIpArpEthCmacRxTxWrapper#(
     input udp_clk,
     input udp_reset,
 
-
-
     input gt_ref_clk_p,
     input gt_ref_clk_n,
     input gt_init_clk,
@@ -70,6 +68,8 @@ module UdpIpArpEthCmacRxTxWrapper#(
 
     wire            gt_stat_rx_aligned;
     wire [8:0]      gt_stat_rx_pause_req;
+    wire [2:0]      gt_stat_rx_bad_fcs;
+    wire [2:0]      gt_stat_rx_stomped_fcs;
     wire            gt_ctl_rx_enable;
     wire            gt_ctl_rx_force_resync;
     wire            gt_ctl_rx_test_pattern;
@@ -251,6 +251,8 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .rx_axis_tlast                        (gt_rx_axis_tlast ),
         .rx_axis_tuser                        (gt_rx_axis_tuser ),
         
+        .stat_rx_bad_fcs                      (gt_stat_rx_bad_fcs),
+        .stat_rx_stomped_fcs                  (gt_stat_rx_stomped_fcs),
         .stat_rx_aligned                      (gt_stat_rx_aligned),
         .stat_rx_pause_req                    (gt_stat_rx_pause_req),
         .ctl_rx_enable                        (gt_ctl_rx_enable),
@@ -337,46 +339,62 @@ module UdpIpArpEthCmacRxTxWrapper#(
 
     //Cmac Recv Monitor
     wire [31:0] recv_pkt_num, recv_lost_beat_num, recv_total_beat_num;
+    wire [15:0] recv_bad_fcs_num, recv_max_pkt_len;
     wire recv_monitor_idle;
     mkCmacRecvMonitor cmacRecvMonitor(
         .valid(gt_rx_axis_tvalid  ),
         .ready(gt_rx_axis_tready  ),
 		.last (gt_rx_axis_tlast   ),
+        .user (gt_rx_axis_tuser   ),
+        .badFCS(gt_stat_rx_bad_fcs),
+        .stompedFCS(gt_stat_rx_stomped_fcs),
 		.clk  (gt_txusrclk2       ),
 		.reset(~gt_usr_rx_reset   ),
 		.isMonitorIdleOut(recv_monitor_idle),
 		.pktCounterOut(recv_pkt_num),
 		.lostBeatCounterOut(recv_lost_beat_num),
-        .totalBeatCounterOut(recv_total_beat_num)
+        .totalBeatCounterOut(recv_total_beat_num),
+        .badFCSCounterOut(recv_bad_fcs_num),
+        .maxPktSizeOut(recv_max_pkt_len)
     );
+    
     ila_2 cmac_recv_mon(
         .clk   (gt_txusrclk2       ), // input wire clk
         .probe0(recv_pkt_num       ), // input wire [31:0]  probe0  
         .probe1(recv_lost_beat_num ), // input wire [31:0]  probe1
         .probe2(recv_total_beat_num),
-        .probe3(recv_monitor_idle)
+        .probe3(recv_monitor_idle  ),
+        .probe4(recv_bad_fcs_num   ),
+        .probe5(recv_max_pkt_len)
     );
 
-    wire [31:0] send_pkt_num, send_pkt_size, send_total_beat_num;
+    wire [31:0] send_pkt_num, send_total_beat_num;
+    wire [15:0] send_max_pkt_size, send_underflow_num, send_overflow_num;
     wire send_monitor_idle;
     mkCmacSendMonitor cmacSendMonitor(
         .valid(gt_tx_axis_tvalid),
         .ready(gt_tx_axis_tready),
         .last (gt_tx_axis_tlast ),
+        .txOverflow(gt_tx_ovfout),
+        .txUnderflow(gt_tx_unfout),
         .clk  (gt_txusrclk2     ),
         .reset(~gt_usr_tx_reset ),
         .isMonitorIdleOut   (send_monitor_idle),
         .pktCounterOut      (send_pkt_num ),
-        .pktSizeCounterOut  (send_pkt_size),
-        .totalBeatCounterOut(send_total_beat_num)
+        .maxPktSizeOut      (send_max_pkt_size),
+        .totalBeatCounterOut(send_total_beat_num),
+        .overflowCounterOut (send_overflow_num),
+        .underflowCounterOut(send_underflow_num)
     );
 
     ila_2 cmac_send_mon(
         .clk   (gt_txusrclk2       ), // input wire clk
         .probe0(send_pkt_num       ), // input wire [31:0]  probe0  
-        .probe1(send_pkt_size      ),  // input wire [31:0]  probe1
+        .probe1(send_max_pkt_size  ),  // input wire [31:0]  probe1
         .probe2(send_total_beat_num),
-        .probe3(send_monitor_idle  )
+        .probe3(send_monitor_idle  ),
+        .probe4(send_overflow_num  ),
+        .probe5(send_underflow_num )
     );
 
 endmodule

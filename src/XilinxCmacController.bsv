@@ -450,7 +450,8 @@ module mkXilinxCmacRxController#(
             isThrowFaultFrame <= !rxAxiStream.tLast;
         end
         else begin
-            if (rxAxiStreamInterBuf.notFull) begin
+            // check if frame is corrupted or inter buffer is full
+            if (rxAxiStreamInterBuf.notFull && rxAxiStream.tUser==0) begin
                 rxAxiStreamInterBuf.enq(
                     AxiStream512WithTag {
                         pktIdx: bufInputPktCount,
@@ -460,7 +461,7 @@ module mkXilinxCmacRxController#(
                 );
             end
             else begin
-                if (bufInputFrameCount != 0 ) begin
+                if (bufInputFrameCount != 0) begin
                     faultPktInfoBuf.enq(
                         FaultPktInfo {
                             pktIdx: bufInputPktCount,

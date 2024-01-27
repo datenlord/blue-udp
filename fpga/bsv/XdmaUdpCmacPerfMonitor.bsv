@@ -8,7 +8,6 @@ import AxiStreamTypes :: *;
 
 typedef 32 PERF_CYCLE_COUNT_WIDTH;
 typedef 32 PERF_BEAT_COUNT_WIDTH;
-typedef 500000000 CLOCK_FREQUENCY;
 typedef 32 PKT_NUM_COUNT_WIDTH;
 typedef 32 PKT_SIZE_COUNT_WIDTH;
 
@@ -64,6 +63,8 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
     Reg#(Bool) perfCycleCountFullTx[2] <- mkCReg(2, False);
     Reg#(Bool) perfCycleCountFullRx <- mkReg(False);
     
+    Reg#(Bit#(PERF_CYCLE_COUNT_WIDTH)) maxPerfCycleNumReg <- mkReg(0);
+
     Reg#(Bit#(PERF_CYCLE_COUNT_WIDTH)) perfCycleCounterTx <- mkReg(0);
     Reg#(Bit#(PERF_BEAT_COUNT_WIDTH))  perfBeatCounterTx <- mkReg(0);
     Reg#(Bit#(PERF_BEAT_COUNT_WIDTH))  totalBeatCounterTx <- mkReg(0);
@@ -93,8 +94,10 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
         xdmaAxiStreamInBuf.deq;
         Bit#(PKT_SIZE_COUNT_WIDTH) pktSize = truncate(perfMonConfig);
         let pktInterval = perfMonConfig >> valueOf(PKT_SIZE_COUNT_WIDTH);
+        let maxPerfCycleNum = pktInterval >> valueOf(PERF_CYCLE_COUNT_WIDTH);
         pktSizeReg <= pktSize;
         pktIntervalReg <= truncate(pktInterval);
+        maxPerfCycleNumReg <= truncate(maxPerfCycleNum);
         if (pktSize != 0) begin
             sendPktEnableReg <= True;
             recvPktEnableReg <= True;
@@ -116,7 +119,7 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
     rule sendPacket if (sendPktEnableReg && !isPktIntervalReg);
 
         let axiFrame = AxiStream512 {
-            tData: {sendPktNumCounter, 0} | {0, sendPktBeatCounter},
+            tData: {sendPktBeatCounter, 0, sendPktBeatCounter},
             tKeep: setAllBits,
             tLast: False,
             tUser: 0
@@ -157,7 +160,7 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
     rule countPerfCycleTx if (sendPktEnableReg);
         if (!perfCycleCountFullTx[0]) begin
             perfCycleCounterTx <= perfCycleCounterTx + 1;
-            if (perfCycleCounterTx == fromInteger(valueOf(CLOCK_FREQUENCY))) begin
+            if (perfCycleCounterTx == maxPerfCycleNumReg) begin
                 perfCycleCountFullTx[0] <= True;
             end            
         end
@@ -172,9 +175,9 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
         end
 
         let isRecvBeatError = False;
-        let pktIdxMismatch = truncateLSB(axiFrame.tData) != recvPktNumCounter[0];
-        let beatIdxMismatch = truncate(axiFrame.tData) != recvPktBeatCounter;
-        if (pktIdxMismatch || beatIdxMismatch) begin
+        let headMismatch = truncateLSB(axiFrame.tData) != recvPktBeatCounter;
+        let tailMismatch = truncate(axiFrame.tData) != recvPktBeatCounter;
+        if (headMismatch || tailMismatch) begin
             isRecvBeatError = True;
         end
 
@@ -184,10 +187,15 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
                 errPktNumCounter[0] <= errPktNumCounter[0] + 1;
             end
             isPktHasErrorReg <= False;
-            recvPktBeatCounter <= 0;
         end
         else begin
             if (!isPktHasErrorReg) isPktHasErrorReg <= isRecvBeatError;
+        end
+        
+        if (recvPktBeatCounter == pktSizeReg - 1) begin
+            recvPktBeatCounter <= 0;
+        end
+        else begin
             recvPktBeatCounter <= recvPktBeatCounter + 1;
         end
         isRecvFirstPktReg[0] <= True;
@@ -196,7 +204,7 @@ module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
     rule countPerfCycleRx if (recvPktEnableReg);
         if (isRecvFirstPktReg[1] && !perfCycleCountFullRx) begin
             perfCycleCounterRx <= perfCycleCounterRx + 1;
-            if (perfCycleCounterRx == fromInteger(valueOf(CLOCK_FREQUENCY))) begin
+            if (perfCycleCounterRx == maxPerfCycleNumReg) begin
                 perfCycleCountFullRx <= True;
                 recvPktEnableReg <= False;
             end
