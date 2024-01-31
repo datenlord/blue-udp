@@ -1,6 +1,6 @@
 
 
-module XdmaUdpCmacPerfMonWrapper#(
+module UdpCmacPerfMonWrapper#(
     parameter PCIE_GT_LANE_WIDTH = 16,
     parameter CMAC_GT_LANE_WIDTH = 4
 )(

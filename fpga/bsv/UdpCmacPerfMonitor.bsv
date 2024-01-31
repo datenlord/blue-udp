@@ -32,7 +32,7 @@ interface PerfMonitorRegister;
     method Bit#(PKT_NUM_COUNT_WIDTH) errPktNumCounterOut;
 endinterface
 
-interface XdmaUdpCmacPerfMonitor;
+interface UdpCmacPerfMonitor;
     (* prefix = "xdma_tx_axis" *)
     interface RawAxiStreamSlave#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) xdmaAxiStreamIn;
     (* prefix = "xdma_rx_axis" *)
@@ -49,7 +49,7 @@ interface XdmaUdpCmacPerfMonitor;
 endinterface
 
 (* synthesize *)
-module mkXdmaUdpCmacPerfMonitor(XdmaUdpCmacPerfMonitor);
+module mkUdpCmacPerfMonitor(UdpCmacPerfMonitor);
 
     FIFOF#(AxiStream512) xdmaAxiStreamInBuf <- mkFIFOF;
     FIFOF#(AxiStream512) xdmaAxiStreamOutBuf <- mkFIFOF;

@@ -1,7 +1,7 @@
 
 
 
-module XdmaCmacPerfMonWrapper#(
+module CmacLoopPerfMonWrapper#(
     parameter PCIE_GT_LANE_WIDTH = 16,
     parameter CMAC_GT_LANE_WIDTH = 4
 )(
@@ -134,7 +134,7 @@ module XdmaCmacPerfMonWrapper#(
         .m_axis_h2c_tkeep_0 (xdma_tx_axis_tkeep)    // output wire [63 : 0] m_axis_h2c_tkeep_0
     );
 
-    mkXdmaUdpCmacPerfMonitor perfMonInst(
+    mkUdpCmacPerfMonitor perfMonInst(
         .CLK   (xdma_axi_aclk   ),
         .RST_N (xdma_axi_aresetn),
         .xdma_tx_axis_tvalid(xdma_tx_axis_tvalid),

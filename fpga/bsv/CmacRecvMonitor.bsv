@@ -3,7 +3,7 @@ typedef 32 PKT_COUNT_WIDTH;
 typedef 32 BEAT_COUNT_WIDTH;
 typedef 32 CYCLE_COUNT_WIDTH;
 typedef  3 RX_FCS_WIDTH;
-typedef 16 MON_COUNT_WIDTH;
+typedef 32 MON_COUNT_WIDTH;
 typedef 600000000 IDLE_CYCLE_NUM;
 
 interface CmacRecvMonitor;
@@ -82,9 +82,9 @@ module mkCmacRecvMonitor#(
     endrule
 
     method Bool isMonitorIdleOut = isMonitorIdle;
-    method Bit#(PKT_COUNT_WIDTH) pktCounterOut = pktCounter;
+    method Bit#(PKT_COUNT_WIDTH ) pktCounterOut = pktCounter;
     method Bit#(BEAT_COUNT_WIDTH) lostBeatCounterOut = lostBeatCounter;
     method Bit#(BEAT_COUNT_WIDTH) totalBeatCounterOut = totalBeatCounter;
-    method Bit#(MON_COUNT_WIDTH) badFCSCounterOut = badFCSCounter;
-    method Bit#(MON_COUNT_WIDTH) maxPktSizeOut = maxPktSizeReg;
+    method Bit#(MON_COUNT_WIDTH ) badFCSCounterOut = badFCSCounter;
+    method Bit#(MON_COUNT_WIDTH ) maxPktSizeOut = maxPktSizeReg;
 endmodule

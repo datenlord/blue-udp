@@ -19,8 +19,13 @@ import AxiStreamTypes :: *;
 
 typedef 64 ASYNC_FIFO_DEPTH;
 typedef 4  ASYNC_CDC_STAGES;
-typedef 48'h7486e21ace80 TEST_MAC_ADDR;
-typedef 32'h7F000000 TEST_IP_ADDR;
+//typedef 48'h7486e21ace80 TEST_MAC_ADDR;
+typedef 48'h7486e21ace88 TEST_MAC_ADDR;
+// typedef 32'h7F000000 TARGET_IP_ADDR;
+// typedef 32'h7F000008 SOURCE_IP_ADDR;
+typedef 32'h7F000000 SOURCE_IP_ADDR;
+typedef 32'h7F000008 TARGET_IP_ADDR;
+//typedef 32'h7F000000 TEST_IP_ADDR;
 typedef 32'h00000000 TEST_NET_MASK;
 typedef 32'h00000000 TEST_GATE_WAY;
 typedef 88 TEST_UDP_PORT;
@@ -42,26 +47,43 @@ interface XdmaUdpIpArpEthRxTx;
 endinterface
 
 (* synthesize, default_clock_osc = "udp_clk", default_reset = "udp_reset" *)
-module mkXdmaUdpIpArpEthRxTx(XdmaUdpIpArpEthRxTx);
+module mkXdmaUdpIpArpEthRxTx(
+    (* osc   = "xdma_clk"      *) Clock xdmaClk,
+    (* reset = "xdma_reset"    *) Reset xdmaReset,
+    XdmaUdpIpArpEthRxTx ifc
+);
+    let asyncFifoDepth = valueOf(ASYNC_FIFO_DEPTH);
+    let asyncCdcStages = valueOf(ASYNC_CDC_STAGES);
+    let udpReset <- exposeCurrentReset;
+    let udpClk <- exposeCurrentClock;
+
     Reg#(Bool) isUdpConfig <- mkReg(False);
     FIFOF#(AxiStream512) rawXdmaAxiStreamInBuf <- mkFIFOF;
 
     let udpIpArpEthRxTx <- mkGenericUdpIpArpEthRxTx(`IS_SUPPORT_RDMA);
 
     let xdmaAxiStreamOut <- mkDataStreamToAxiStream512(udpIpArpEthRxTx.dataStreamRxOut);
-    let rawXdmaAxiStreamOut <- mkPipeOutToRawAxiStreamMaster(xdmaAxiStreamOut);
-
-    let rawXdmaAxiStreamIn <- mkPipeInToRawAxiStreamSlave(convertFifoToPipeIn(rawXdmaAxiStreamInBuf));
+    let xdmaAxiStreamIn = convertFifoToPipeIn(rawXdmaAxiStreamInBuf);
+    
     let dataStreamTxIn <- mkAxiStream512ToDataStream(convertFifoToPipeOut(rawXdmaAxiStreamInBuf));
 
-    let rawCmacAxiStreamOut <- mkPipeOutToRawAxiStreamMaster(udpIpArpEthRxTx.axiStreamTxOut);
-    let rawCmacAxiStreamIn <- mkPutToRawAxiStreamSlave(udpIpArpEthRxTx.axiStreamRxIn, CF);
-
+    let xdmaAxiStreamSync <- mkDuplexAxiStreamAsyncFifo(
+        asyncFifoDepth,
+        asyncCdcStages,
+        udpClk,
+        udpReset,
+        xdmaClk,
+        xdmaReset,
+        xdmaReset,
+        xdmaAxiStreamIn,
+        xdmaAxiStreamOut
+    );
+    
     rule udpConfig if (!isUdpConfig);
         udpIpArpEthRxTx.udpConfig.put(
             UdpConfig {
                 macAddr: fromInteger(valueOf(TEST_MAC_ADDR)),
-                ipAddr: fromInteger(valueOf(TEST_IP_ADDR)),
+                ipAddr: fromInteger(valueOf(SOURCE_IP_ADDR)),
                 netMask: fromInteger(valueOf(TEST_NET_MASK)),
                 gateWay: fromInteger(valueOf(TEST_GATE_WAY))
             }
@@ -76,7 +98,7 @@ module mkXdmaUdpIpArpEthRxTx(XdmaUdpIpArpEthRxTx);
             udpIpArpEthRxTx.udpIpMetaDataTxIn.put(
                 UdpIpMetaData {
                     dataLen: fromInteger(valueOf(TEST_PAYLOAD_SIZE)),
-                    ipAddr: fromInteger(valueOf(TEST_IP_ADDR)),
+                    ipAddr: fromInteger(valueOf(TARGET_IP_ADDR)),
                     ipDscp: 0,
                     ipEcn:  0,
                     dstPort: fromInteger(valueOf(TEST_UDP_PORT)),
@@ -92,6 +114,11 @@ module mkXdmaUdpIpArpEthRxTx(XdmaUdpIpArpEthRxTx);
         udpIpArpEthRxTx.udpIpMetaDataRxOut.deq;
     endrule
     
+    let rawXdmaAxiStreamOut <- mkPipeOutToRawAxiStreamMaster(xdmaAxiStreamSync.dstPipeOut, clocked_by xdmaClk, reset_by xdmaReset);
+    let rawXdmaAxiStreamIn <- mkPipeInToRawAxiStreamSlave(xdmaAxiStreamSync.dstPipeIn, clocked_by xdmaClk, reset_by xdmaReset);
+    let rawCmacAxiStreamOut <- mkPipeOutToRawAxiStreamMaster(udpIpArpEthRxTx.axiStreamTxOut);
+    let rawCmacAxiStreamIn <- mkPutToRawAxiStreamSlave(udpIpArpEthRxTx.axiStreamRxIn, CF);
+
     interface cmacAxiStreamRxIn  = rawCmacAxiStreamIn;
     interface cmacAxiStreamTxOut = rawCmacAxiStreamOut;
     interface xdmaAxiStreamTxIn  = rawXdmaAxiStreamIn;
@@ -116,7 +143,7 @@ module mkUdpIpArpEthRxTxForXdma(UdpIpArpEthRxTxForXdma);
         udpIpArpEthRxTx.udpConfig.put(
             UdpConfig {
                 macAddr: fromInteger(valueOf(TEST_MAC_ADDR)),
-                ipAddr: fromInteger(valueOf(TEST_IP_ADDR)),
+                ipAddr: fromInteger(valueOf(SOURCE_IP_ADDR)),
                 netMask: fromInteger(valueOf(TEST_NET_MASK)),
                 gateWay: fromInteger(valueOf(TEST_GATE_WAY))
             }
@@ -131,7 +158,7 @@ module mkUdpIpArpEthRxTxForXdma(UdpIpArpEthRxTxForXdma);
             udpIpArpEthRxTx.udpIpMetaDataTxIn.put(
                 UdpIpMetaData {
                     dataLen: fromInteger(valueOf(TEST_PAYLOAD_SIZE)),
-                    ipAddr: fromInteger(valueOf(TEST_IP_ADDR)),
+                    ipAddr: fromInteger(valueOf(TARGET_IP_ADDR)),
                     ipDscp: 0,
                     ipEcn:  0,
                     dstPort: fromInteger(valueOf(TEST_UDP_PORT)),

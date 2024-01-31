@@ -11,9 +11,6 @@ DUT_TOP ?= mk$(TARGET)
 TB_FILE = $(BSV_DIR)/Test$(TARGET).bsv
 TB_TOP = mkTest$(TARGET)
 
-CMAC_CTRL = RawXilinxCmacController
-CMAC_CTRL_TOP = mkRawXilinxCmacController
-CMAC_CTRL_FILE = $(ROOT_DIR)/src/XilinxCmacController.bsv
 
 SUPPORT_RDMA ?= False
 MACROFLAGS = -D IS_SUPPORT_RDMA=$(SUPPORT_RDMA)
