@@ -4,7 +4,7 @@ typedef 32 BEAT_COUNT_WIDTH;
 typedef 32 CYCLE_COUNT_WIDTH;
 typedef  3 RX_FCS_WIDTH;
 typedef 32 MON_COUNT_WIDTH;
-typedef 600000000 IDLE_CYCLE_NUM;
+typedef 800000000 IDLE_CYCLE_NUM;
 
 interface CmacRecvMonitor;
     (* always_ready, always_enabled *)

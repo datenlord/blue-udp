@@ -1,7 +1,7 @@
 
 
 
-module CmacLoopPerfMonWrapper#(
+module CmacPerfMonWrapper#(
     parameter PCIE_GT_LANE_WIDTH = 16,
     parameter CMAC_GT_LANE_WIDTH = 4
 )(
@@ -19,18 +19,10 @@ module CmacLoopPerfMonWrapper#(
     input qsfp1_ref_clk_p,
     input qsfp1_ref_clk_n,
 
-    input qsfp2_ref_clk_p,
-    input qsfp2_ref_clk_n,
-
     input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_rxn_in,
     input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_rxp_in,
     output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_txn_out,
-    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_txp_out,
-
-    input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_rxn_in,
-    input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_rxp_in,
-    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_txn_out,
-    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_txp_out
+    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_txp_out
 );
 
     localparam XDMA_AXIS_TDATA_WIDTH = 512;
@@ -101,6 +93,13 @@ module CmacLoopPerfMonWrapper#(
     wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] udp_tx_axis_tdata_piped;
     wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] udp_tx_axis_tkeep_piped;
     wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] udp_tx_axis_tuser_piped;
+
+    wire udp_rx_axis_tready_piped;
+    wire udp_rx_axis_tvalid_piped;
+    wire udp_rx_axis_tlast_piped;
+    wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] udp_rx_axis_tdata_piped;
+    wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] udp_rx_axis_tkeep_piped;
+    wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] udp_rx_axis_tuser_piped;
 
     // PCIe Clock buffer
     IBUFDS_GTE4 # (.REFCLK_HROW_CK_SEL(2'b00)) refclk_ibuf (.O(xdma_sys_clk_gt), .ODIV2(xdma_sys_clk), .I(pcie_clk_p), .CEB(1'b0), .IB(pcie_clk_n));
@@ -244,7 +243,7 @@ module CmacLoopPerfMonWrapper#(
     xpm_fifo_axis #(
         .FIFO_DEPTH(16),
         .TDATA_WIDTH(XDMA_AXIS_TDATA_WIDTH)
-    ) xdma_tx_axis_buf (
+    ) udp_tx_axis_buf (
         .s_aclk   (xdma_axi_aclk),
         .m_aclk   (xdma_axi_aclk),
         .s_aresetn(xdma_axi_aresetn),
@@ -270,6 +269,35 @@ module CmacLoopPerfMonWrapper#(
         .m_axis_tuser (udp_tx_axis_tuser_piped )
     );
 
+    xpm_fifo_axis #(
+        .FIFO_DEPTH(16),
+        .TDATA_WIDTH(XDMA_AXIS_TDATA_WIDTH)
+    ) udp_rx_axis_buf (
+        .s_aclk   (xdma_axi_aclk),
+        .m_aclk   (xdma_axi_aclk),
+        .s_aresetn(xdma_axi_aresetn),
+
+        .injectdbiterr_axis(1'd0),
+        .injectsbiterr_axis(1'd0),
+        .s_axis_tdest      (1'b0),
+        .s_axis_tid        (1'b0),
+        .s_axis_tstrb      (32'd0),
+
+        .s_axis_tvalid(udp_rx_axis_tvalid_piped),
+        .s_axis_tready(udp_rx_axis_tready_piped),
+        .s_axis_tdata (udp_rx_axis_tdata_piped ),
+        .s_axis_tkeep (udp_rx_axis_tkeep_piped ),
+        .s_axis_tlast (udp_rx_axis_tlast_piped ),
+        .s_axis_tuser (udp_rx_axis_tuser_piped ),
+        
+        .m_axis_tvalid(udp_rx_axis_tvalid),
+        .m_axis_tready(udp_rx_axis_tready),
+        .m_axis_tdata (udp_rx_axis_tdata ),
+        .m_axis_tkeep (udp_rx_axis_tkeep ),
+        .m_axis_tlast (udp_rx_axis_tlast ),
+        .m_axis_tuser (udp_rx_axis_tuser )
+    );
+
     CmacRxTxWrapper#(
         CMAC_GT_LANE_WIDTH,
         XDMA_AXIS_TDATA_WIDTH,
@@ -284,12 +312,12 @@ module CmacLoopPerfMonWrapper#(
         .gt_init_clk (cmac_init_clk     ),
         .gt_sys_reset(cmac_sys_reset    ),
 
-        .xdma_rx_axis_tready(1'b0),
-        .xdma_rx_axis_tvalid(),
-        .xdma_rx_axis_tlast (),
-        .xdma_rx_axis_tdata (),
-        .xdma_rx_axis_tkeep (),
-        .xdma_rx_axis_tuser (),
+        .xdma_rx_axis_tready(udp_rx_axis_tvalid_piped),
+        .xdma_rx_axis_tvalid(udp_rx_axis_tready_piped),
+        .xdma_rx_axis_tlast (udp_rx_axis_tdata_piped ),
+        .xdma_rx_axis_tdata (udp_rx_axis_tkeep_piped ),
+        .xdma_rx_axis_tkeep (udp_rx_axis_tlast_piped ),
+        .xdma_rx_axis_tuser (udp_rx_axis_tuser_piped ),
 
         .xdma_tx_axis_tvalid(udp_tx_axis_tvalid_piped),
         .xdma_tx_axis_tready(udp_tx_axis_tready_piped),
@@ -305,40 +333,4 @@ module CmacLoopPerfMonWrapper#(
         .gt_txp_out(qsfp1_txp_out)
     );
 
-    CmacRxTxWrapper#(
-        CMAC_GT_LANE_WIDTH,
-        XDMA_AXIS_TDATA_WIDTH,
-        XDMA_AXIS_TKEEP_WIDTH,
-        XDMA_AXIS_TUSER_WIDTH
-    ) cmac_wrapper_inst2(
-
-        .xdma_clk  (xdma_axi_aclk   ),
-        .xdma_reset(xdma_axi_aresetn),
-
-        .gt_ref_clk_p(qsfp2_ref_clk_p   ),
-        .gt_ref_clk_n(qsfp2_ref_clk_n   ),
-        .gt_init_clk (cmac_init_clk     ),
-        .gt_sys_reset(cmac_sys_reset    ),
-
-        .xdma_rx_axis_tready(udp_rx_axis_tready),
-        .xdma_rx_axis_tvalid(udp_rx_axis_tvalid),
-        .xdma_rx_axis_tlast (udp_rx_axis_tlast ),
-        .xdma_rx_axis_tdata (udp_rx_axis_tdata ),
-        .xdma_rx_axis_tkeep (udp_rx_axis_tkeep ),
-        .xdma_rx_axis_tuser (udp_rx_axis_tuser ),
-
-        .xdma_tx_axis_tvalid(1'b0),
-        .xdma_tx_axis_tready( ),
-        .xdma_tx_axis_tlast (0),
-        .xdma_tx_axis_tdata (0),
-        .xdma_tx_axis_tkeep (0),
-        .xdma_tx_axis_tuser (0),
-
-        // CMAC GT
-        .gt_rxn_in (qsfp2_rxn_in ),
-        .gt_rxp_in (qsfp2_rxp_in ),
-        .gt_txn_out(qsfp2_txn_out),
-        .gt_txp_out(qsfp2_txp_out)
-    );
-    
 endmodule

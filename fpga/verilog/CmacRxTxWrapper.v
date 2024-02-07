@@ -219,7 +219,7 @@ module CmacRxTxWrapper#(
         .xdma_tx_axis_tuser     (xdma_tx_axis_tuser ),
         .xdma_tx_axis_tready    (xdma_tx_axis_tready)
     );
-
+    
 
     cmac_usplus_0 cmac_inst(
         .gt_rxp_in                            (gt_rxp_in     ),
@@ -332,6 +332,28 @@ module CmacRxTxWrapper#(
         .drp_we                               (1'b0 )
     );
 
+    ila_1 cmac_rx_axis_ila (
+        .clk(gt_txusrclk2), // input wire clk
+
+        .probe0(gt_rx_axis_tvalid), // input wire [0:0]  probe0  
+        .probe1(gt_rx_axis_tready), // input wire [0:0]  probe1 
+        .probe2(gt_rx_axis_tdata ), // input wire [511:0]  probe2 
+        .probe3(gt_rx_axis_tkeep ), // input wire [63:0]  probe3 
+        .probe4(gt_rx_axis_tlast ), // input wire [0:0]  probe4
+        .probe5(gt_rx_axis_tuser )  // input wire [0:0]  probe5
+    );
+
+    ila_1 cmac_tx_axis_ila (
+        .clk(gt_txusrclk2), // input wire clk
+
+        .probe0(gt_tx_axis_tvalid), // input wire [0:0]  probe0  
+        .probe1(gt_tx_axis_tready), // input wire [0:0]  probe1 
+        .probe2(gt_tx_axis_tdata ), // input wire [511:0]  probe2 
+        .probe3(gt_tx_axis_tkeep ), // input wire [63:0]  probe3 
+        .probe4(gt_tx_axis_tlast ), // input wire [0:0]  probe4
+        .probe5(gt_tx_axis_tuser )  // input wire [0:0]  probe5
+    );
+
     //Cmac Recv Monitor
     wire [31:0] recv_pkt_num, recv_lost_beat_num, recv_total_beat_num;
     wire [31:0] recv_bad_fcs_num, recv_max_pkt_size;
@@ -343,8 +365,10 @@ module CmacRxTxWrapper#(
         .user (gt_rx_axis_tuser   ),
         .badFCS(gt_stat_rx_bad_fcs),
         .stompedFCS(gt_stat_rx_stomped_fcs),
+        
         .clk  (gt_txusrclk2       ),
         .reset(~gt_usr_rx_reset   ),
+        
         .isMonitorIdleOut   (recv_monitor_idle  ),
         .maxPktSizeOut      (recv_max_pkt_size  ),
         .pktCounterOut      (recv_pkt_num       ),
@@ -372,8 +396,10 @@ module CmacRxTxWrapper#(
         .last (gt_tx_axis_tlast ),
         .txOverflow(gt_tx_ovfout),
         .txUnderflow(gt_tx_unfout),
+        
         .clk  (gt_txusrclk2     ),
         .reset(~gt_usr_tx_reset ),
+        
         .isMonitorIdleOut   (send_monitor_idle  ),
         .pktCounterOut      (send_pkt_num       ),
         .maxPktSizeOut      (send_max_pkt_size  ),

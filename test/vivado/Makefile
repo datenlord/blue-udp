@@ -7,7 +7,7 @@ LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper/src
 LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
-TARGET = PfcUdpIpArpEthCmacRxTx
+TARGET = UdpIpArpEthCmacRxTx
 DUT_FILE = $(ROOT_DIR)/src/$(TARGET).bsv
 DUT_TOP ?= mkRaw$(TARGET)
 TB_FILE ?= ./bsv/Test$(TARGET).bsv

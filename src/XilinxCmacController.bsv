@@ -365,7 +365,6 @@ typedef enum {
 } CmacRxControllerState deriving(Bits, Eq, FShow);
 
 typedef struct {
-    Bit#(PKT_INDEX_WIDTH) pktIdx;
     Bit#(FRAME_INDEX_WIDTH) frameIdx;
     AxiStream512 axiStream;
 } AxiStream512WithTag deriving(Bits, FShow);
@@ -374,6 +373,11 @@ typedef struct {
     Bit#(PKT_INDEX_WIDTH) pktIdx;
     Bit#(FRAME_INDEX_WIDTH) frameNum;
 } FaultPktInfo deriving(Bits, Eq, FShow);
+
+typedef struct {
+    Bool isGoodPkt;
+    Bit#(FRAME_INDEX_WIDTH) frameIdx;
+} PktIntegrityInfo deriving(Bits, Eq, FShow);
 
 module mkXilinxCmacRxController#(
     Bool isEnableFlowControl,
@@ -392,12 +396,12 @@ module mkXilinxCmacRxController#(
     Wire#(Maybe#(AxiStream512)) rxAxiStreamInW <- mkBypassWire;
 
     Reg#(Bool) isThrowFaultFrame <- mkReg(False);
-    Reg#(Bit#(PKT_INDEX_WIDTH)) bufInputPktCount <- mkReg(0);
-    Reg#(Bit#(FRAME_INDEX_WIDTH)) bufInputFrameCount <- mkReg(0);
+    Reg#(Bit#(FRAME_INDEX_WIDTH)) frameIdxCounter <- mkReg(0);
     
-    FIFOF#(FaultPktInfo) faultPktInfoBuf <- mkSizedFIFOF(valueOf(CMAC_INTER_BUF_DEPTH));
+    FIFOF#(PktIntegrityInfo) pktIntegrityInfoBuf <- mkSizedFIFOF(valueOf(CMAC_INTER_BUF_DEPTH));
     FIFOF#(AxiStream512WithTag) rxAxiStreamInterBuf <- mkSizedBRAMFIFOF(valueOf(CMAC_INTER_BUF_DEPTH));
-
+    FIFOF#(AxiStream512) rxAxiStreamOutBuf <- mkFIFOF;
+    
     Reg#(CmacRxControllerState) rxStateReg <- mkReg(RX_STATE_IDLE);
 
     rule stateIdle if (rxStateReg == RX_STATE_IDLE);
@@ -439,11 +443,10 @@ module mkXilinxCmacRxController#(
     rule enqRxAxiStreamInterBuf if (rxStateReg == RX_STATE_AXIS_ENABLE && isValid(rxAxiStreamInW));
         let rxAxiStream = fromMaybe(?, rxAxiStreamInW);
         if (rxAxiStream.tLast) begin
-            bufInputPktCount <= bufInputPktCount + 1;
-            bufInputFrameCount <= 0;
+            frameIdxCounter <= 0;
         end
         else begin
-            bufInputFrameCount <= bufInputFrameCount + 1;
+            frameIdxCounter <= frameIdxCounter + 1;
         end
 
         if (isThrowFaultFrame) begin
@@ -454,47 +457,48 @@ module mkXilinxCmacRxController#(
             if (rxAxiStreamInterBuf.notFull && rxAxiStream.tUser==0) begin
                 rxAxiStreamInterBuf.enq(
                     AxiStream512WithTag {
-                        pktIdx: bufInputPktCount,
-                        frameIdx: bufInputFrameCount,
+                        frameIdx: frameIdxCounter,
                         axiStream: rxAxiStream
                     }
                 );
-            end
-            else begin
-                if (bufInputFrameCount != 0) begin
-                    faultPktInfoBuf.enq(
-                        FaultPktInfo {
-                            pktIdx: bufInputPktCount,
-                            frameNum: bufInputFrameCount
+                if (rxAxiStream.tLast) begin
+                    pktIntegrityInfoBuf.enq(
+                        PktIntegrityInfo {
+                            isGoodPkt: True,
+                            frameIdx: frameIdxCounter
                         }
                     );
                 end
-                isThrowFaultFrame <= True;
+            end
+            else begin
+                if (frameIdxCounter != 0) begin
+                    pktIntegrityInfoBuf.enq(
+                        PktIntegrityInfo {
+                            isGoodPkt: False,
+                            frameIdx: frameIdxCounter - 1
+                        }
+                    );
+                end
+                isThrowFaultFrame <= !rxAxiStream.tLast;
+
             end            
         end
     endrule
 
-    rule deqRxAxiStreamInterBuf;
+    rule deqRxAxiStreamInterBuf if (pktIntegrityInfoBuf.notEmpty);
         let rxAxiStreamWithTag = rxAxiStreamInterBuf.first;
         rxAxiStreamInterBuf.deq;
+        let pktIntegrityInfo = pktIntegrityInfoBuf.first;
 
-        let pktIdx = rxAxiStreamWithTag.pktIdx;
         let frameIdx = rxAxiStreamWithTag.frameIdx;
         let axiStream = rxAxiStreamWithTag.axiStream;
 
-        if (faultPktInfoBuf.notEmpty) begin
-            let faultPktInfo = faultPktInfoBuf.first;
-            if (pktIdx == faultPktInfo.pktIdx) begin
-                if (frameIdx == (faultPktInfo.frameNum - 1)) begin
-                    faultPktInfoBuf.deq;
-                end
-            end
-            else begin
-                userAxiStreamOut.enq(axiStream);
-            end
+        if (pktIntegrityInfo.isGoodPkt) begin
+            rxAxiStreamOutBuf.enq(axiStream);
         end
-        else begin
-            userAxiStreamOut.enq(axiStream);
+        
+        if (pktIntegrityInfo.frameIdx == frameIdx) begin
+            pktIntegrityInfoBuf.deq;
         end
     endrule
 
@@ -516,6 +520,7 @@ module mkXilinxCmacRxController#(
         userFlowCtrlReqVecOut.enq(flowCtrlReqVec);
     endrule
 
+    mkConnection(userAxiStreamOut, convertFifoToPipeOut(rxAxiStreamOutBuf));
     method Bool ctlRxEnable = ctlRxEnableReg;
     method Bool ctlRxForceResync = ctlRxForceResyncReg;
     method Bool ctlRxTestPattern = ctlRxTestPatternReg;
