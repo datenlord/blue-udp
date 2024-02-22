@@ -43,7 +43,7 @@ module mkUdpIpArpEthCmacRxTx#(
     Reset cmacTxReset,
     UdpIpArpEthCmacRxTx ifc
 );
-    let isEnableRsFec = False;
+    let isEnableRsFec = True;
     let isEnableFlowControl = False;
 
     let udpClk <- exposeCurrentClock;
