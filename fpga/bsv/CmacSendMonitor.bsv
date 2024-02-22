@@ -2,7 +2,7 @@ typedef 32 PKT_COUNT_WIDTH;
 typedef 32 BEAT_COUNT_WIDTH;
 typedef 32 CYCLE_COUNT_WIDTH;
 typedef 32 MON_COUNT_WIDTH;
-typedef 800000000 IDLE_CYCLE_NUM;
+typedef 3000000000 IDLE_CYCLE_NUM;
 
 interface CmacSendMonitor;
     (* always_ready, always_enabled *)
@@ -41,8 +41,8 @@ module mkCmacSendMonitor#(
             if (isMonitorIdle) begin
                 totalBeatCounter <= 1;
                 pktCounter <= last ? 1 : 0;
-                pktSizeCounter <= 1;
-                maxPktSizeReg <= 0;
+                pktSizeCounter <= last ? 0 : 1;
+                maxPktSizeReg <= last ? 1 : 0;
             end
             else begin
                 totalBeatCounter <= totalBeatCounter + 1;

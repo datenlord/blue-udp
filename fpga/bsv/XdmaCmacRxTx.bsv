@@ -33,6 +33,7 @@ module mkXdmaCmacRxTx(
     (* reset = "cmac_tx_reset" *) Reset cmacTxReset,
     XdmaCmacRxTx ifc
 );
+    let isEnableRsFec = True;
     let isEnableFlowControl = False;
     let isCmacTxWaitRxAligned = True;
     let asyncFifoDepth = valueOf(ASYNC_FIFO_DEPTH);
@@ -62,6 +63,7 @@ module mkXdmaCmacRxTx(
     PipeIn#(FlowControlReqVec) rxFlowCtrlReqVec <- mkDummyPipeIn;
     
     let xilinxCmacCtrl <- mkXilinxCmacController(
+        isEnableRsFec,
         isEnableFlowControl,
         isCmacTxWaitRxAligned,
         cmacAxiStreamSync.dstPipeOut,

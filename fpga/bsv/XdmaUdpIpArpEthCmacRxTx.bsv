@@ -19,13 +19,16 @@ import AxiStreamTypes :: *;
 
 typedef 64 ASYNC_FIFO_DEPTH;
 typedef 4  ASYNC_CDC_STAGES;
-//typedef 48'h7486e21ace80 TEST_MAC_ADDR;
-typedef 48'h7486e21ace88 TEST_MAC_ADDR;
+typedef 48'h7486e21ace80 TEST_MAC_ADDR;
+//typedef 48'h7486e21ace88 TEST_MAC_ADDR;
+
 //typedef 32'hC0A80102 TARGET_IP_ADDR;
 //typedef 32'hC0A80103 SOURCE_IP_ADDR;
 typedef 32'hC0A80103 TARGET_IP_ADDR;
 typedef 32'hC0A80102 SOURCE_IP_ADDR;
-//typedef 32'h7F000000 TEST_IP_ADDR;
+//typedef 32'hC0A80103 TARGET_IP_ADDR;
+//typedef 32'hC0A80103 SOURCE_IP_ADDR;
+
 typedef 32'h00000000 TEST_NET_MASK;
 typedef 32'h00000000 TEST_GATE_WAY;
 typedef 88 TEST_UDP_PORT;
@@ -215,6 +218,7 @@ module mkXdmaUdpIpArpEthCmacRxTx(
     (* reset = "cmac_tx_reset" *) Reset cmacTxReset,
     XdmaUdpIpArpEthCmacRxTx ifc
 );
+    let isEnableRsFec = True;
     let isEnableFlowControl = False;
     let isCmacTxWaitRxAligned = True;
     let asyncFifoDepth = valueOf(ASYNC_FIFO_DEPTH);
@@ -255,6 +259,7 @@ module mkXdmaUdpIpArpEthCmacRxTx(
     PipeIn#(FlowControlReqVec) rxFlowCtrlReqVec <- mkDummyPipeIn;
     
     let xilinxCmacCtrl <- mkXilinxCmacController(
+        isEnableRsFec,
         isEnableFlowControl,
         isCmacTxWaitRxAligned,
         cmacAxiStreamSync.dstPipeOut,

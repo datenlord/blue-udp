@@ -13,6 +13,7 @@ import SemiFifo :: *;
 import BusConversion :: *;
 import AxiStreamTypes :: *;
 
+typedef 4 CMAC_CTRL_STATE_OUTPUT_WIDTH;
 typedef 9 CMAC_TX_INIT_COUNT_WIDTH;
 typedef 8 CMAC_TX_INIT_DONE_FLAG_INDEX;
 
@@ -73,6 +74,14 @@ interface XilinxCmacTxController;
     method PfcPauseQuanta ctlTxPauseQuanta7;
     (* result = "tx_ctl_pause_quanta8" *)
     method PfcPauseQuanta ctlTxPauseQuanta8;
+    
+    // RS-FEC Control Output
+    (* result = "tx_ctl_rsfec_enable" *)
+    method Bool ctlTxRsFecEnable;
+
+    // CMAC Controller Status Output
+    (* result = "cmac_ctrl_tx_state" *)
+    method Bit#(CMAC_CTRL_STATE_OUTPUT_WIDTH) ctrlTxState;
 
     // CMAC Status Input
     (* prefix = "" *) method Action cmacTxStatus(
@@ -92,6 +101,7 @@ typedef enum {
 } CmacTxControllerState deriving(Bits, Eq, FShow);
 
 module mkXilinxCmacTxController#(
+    Bool isEnableRsFec,
     Bool isEnableFlowControl,
     Bool isWaitRxAligned,
     AxiStream512PipeOut userAxiStreamIn,
@@ -112,6 +122,8 @@ module mkXilinxCmacTxController#(
     Reg#(Bool) txUnderFlowReg <- mkReg(False);
     Reg#(Bool) rxAlignedReg <- mkReg(False);
 
+    Reg#(Bool) ctlTxRsFecEnableReg <- mkReg(False);
+
     FIFOF#(AxiStream512) cmacAxiStreamOutBuf <- mkFIFOF;
     FIFOF#(AxiStream512) interAxiStreamBuf <- mkSizedBRAMFIFOF(valueOf(CMAC_INTER_BUF_DEPTH));
     FIFOF#(Bool) packetReadyInfoBuf <- mkSizedFIFOF(valueOf(CMAC_INTER_BUF_DEPTH));
@@ -130,6 +142,7 @@ module mkXilinxCmacTxController#(
         ctlTxSendIdleReg <= False;
         ctlTxSendLocalFaultIndicationReg <= False;
         ctlTxSendRemoteFaultIndicationReg <= False;
+        ctlTxRsFecEnableReg <= False;
 
         txStateReg <= TX_STATE_GT_LOCKED;
     endrule
@@ -139,6 +152,7 @@ module mkXilinxCmacTxController#(
         ctlTxSendIdleReg <= False;
         ctlTxSendLocalFaultIndicationReg <= False;
         ctlTxSendRemoteFaultIndicationReg <= True;
+        ctlTxRsFecEnableReg <= isEnableRsFec;
         txStateReg <= TX_STATE_WAIT_RX_ALIGNED;
         $display("CmacTxController: Wait CMAC Rx Algined Ready");
     endrule
@@ -269,6 +283,10 @@ module mkXilinxCmacTxController#(
     method PfcPauseQuanta ctlTxPauseQuanta7 = ctlTxPauseQuantaRegVec[7];
     method PfcPauseQuanta ctlTxPauseQuanta8 = 0;
 
+    method Bool ctlTxRsFecEnable = ctlTxRsFecEnableReg;
+
+    method Bit#(CMAC_CTRL_STATE_OUTPUT_WIDTH) ctrlTxState = zeroExtend(pack(txStateReg));
+    
     method Action cmacTxStatus(Bool txOverFlow, Bool txUnderFlow, Bool rxAligned);
         txOverFlowReg <= txOverFlow;
         txUnderFlowReg <= txUnderFlow;
@@ -349,7 +367,23 @@ interface XilinxCmacRxController;
     method Bool ctlRxCheckEtypePpp;
     (* result = "rx_ctl_check_opcode_ppp" *)
     method Bool ctlRxCheckOpcodePpp;
+
+    // CMAC RS-FEC Control Output
+    (* result = "ctl_rsfec_ieee_error_indication_mode" *)
+    method Bool ctlRsFecIeeeErrorIndicationMode;
+    (* result = "rx_ctl_rsfec_enable" *)
+    method Bool ctlRxRsFecEnable;
+    (* result = "rx_ctl_rsfec_enable_correction" *)
+    method Bool ctlRxRsFecEnableCorrection;
+    (* result = "rx_ctl_rsfec_enable_indication" *)
+    method Bool ctlRxRsFecEnableIndication;
     
+    // Controller Status Output
+    (* result = "cmac_ctrl_rx_state" *)
+    method Bit#(CMAC_CTRL_STATE_OUTPUT_WIDTH) ctrlRxState;
+    (* result = "cmac_rx_aligned_indication" *)
+    method Bool cmacRxAlignedIndication;
+
     // CMAC Status Input
     (* prefix = "" *) method Action cmacRxStatus(
         (* port = "rx_stat_aligned" *) Bool rxAligned,
@@ -380,6 +414,7 @@ typedef struct {
 } PktIntegrityInfo deriving(Bits, Eq, FShow);
 
 module mkXilinxCmacRxController#(
+    Bool isEnableRsFec,
     Bool isEnableFlowControl,
     AxiStream512PipeIn userAxiStreamOut,
     PipeIn#(FlowControlReqVec) userFlowCtrlReqVecOut
@@ -389,6 +424,11 @@ module mkXilinxCmacRxController#(
     Reg#(Bool) ctlRxTestPatternReg <- mkReg(False);
     Reg#(Bit#(VIRTUAL_CHANNEL_NUM)) ctlRxPauseEnableReg <- mkReg(0);
     Reg#(Bit#(VIRTUAL_CHANNEL_NUM)) ctlRxPauseAckReg <- mkReg(0);
+
+    Reg#(Bool) ctlRsFecIeeeErrorIndicationModeReg <- mkReg(False);
+    Reg#(Bool) ctlRxRsFecEnableReg <- mkReg(False);
+    Reg#(Bool) ctlRxRsFecEnableCorrectionReg <- mkReg(False);
+    Reg#(Bool) ctlRxRsFecEnableIndicationReg <- mkReg(False);
 
     Reg#(Bool) rxAlignedReg <- mkReg(False);
     Reg#(Bit#(VIRTUAL_CHANNEL_NUM)) rxPauseReqReg <- mkRegU;
@@ -408,6 +448,11 @@ module mkXilinxCmacRxController#(
         ctlRxEnableReg <= False;
         ctlRxForceResyncReg <= False;
         ctlRxTestPatternReg <= False;
+
+        ctlRsFecIeeeErrorIndicationModeReg <= False;
+        ctlRxRsFecEnableReg <= False;
+        ctlRxRsFecEnableCorrectionReg <= False;
+        ctlRxRsFecEnableIndicationReg <= False;
         
         rxStateReg <= RX_STATE_GT_LOCKED;
     endrule
@@ -422,6 +467,12 @@ module mkXilinxCmacRxController#(
         else begin
             ctlRxPauseEnableReg <= 0;
         end
+
+        ctlRsFecIeeeErrorIndicationModeReg <= isEnableRsFec;
+        ctlRxRsFecEnableReg <= isEnableRsFec;
+        ctlRxRsFecEnableCorrectionReg <= isEnableRsFec;
+        ctlRxRsFecEnableIndicationReg <= isEnableRsFec;
+
         rxStateReg <= RX_STATE_WAIT_RX_ALIGNED;
         $display("CmacRxController: Wait CMAC Rx Aligned");
     endrule
@@ -557,6 +608,14 @@ module mkXilinxCmacRxController#(
     method Bool ctlRxCheckEtypePpp = False;
     method Bool ctlRxCheckOpcodePpp = True;
 
+    method Bool ctlRsFecIeeeErrorIndicationMode = ctlRsFecIeeeErrorIndicationModeReg;
+    method Bool ctlRxRsFecEnable = ctlRxRsFecEnableReg;
+    method Bool ctlRxRsFecEnableCorrection = ctlRxRsFecEnableCorrectionReg;
+    method Bool ctlRxRsFecEnableIndication = ctlRxRsFecEnableIndicationReg;
+
+    method Bit#(CMAC_CTRL_STATE_OUTPUT_WIDTH) ctrlRxState = zeroExtend(pack(rxStateReg));
+    method Bool cmacRxAlignedIndication = (rxStateReg == RX_STATE_AXIS_ENABLE);
+
     method Action cmacRxStatus(
         Bool rxAligned,
         Bit#(CMAC_PAUSE_REQ_WIDTH) rxPauseReq
@@ -599,6 +658,7 @@ interface XilinxCmacController;
 endinterface
 
 module mkXilinxCmacController#(
+    Bool isEnableRsFec,
     Bool isEnableFlowControl,
     Bool isTxWaitRxAligned,
     AxiStream512PipeOut userAxiStreamIn,
@@ -612,6 +672,7 @@ module mkXilinxCmacController#(
 );
 
     let txController <- mkXilinxCmacTxController(
+        isEnableRsFec,
         isEnableFlowControl, 
         isTxWaitRxAligned,
         userAxiStreamIn,
@@ -620,6 +681,7 @@ module mkXilinxCmacController#(
     );
 
     let rxController <- mkXilinxCmacRxController(
+        isEnableRsFec,
         isEnableFlowControl,
         userAxiStreamOut,
         userFlowCtrlReqVecOut,
@@ -653,7 +715,7 @@ module mkRawXilinxCmacController(
     (* reset = "cmac_tx_reset" *) Reset cmacTxReset,
     RawXilinxCmacController ifc
 );
-
+    Bool isEnableRsFec = False;
     Bool isEnableFlowControl = False;
     Bool isTxWaitRxAligned = True;
 
@@ -663,6 +725,7 @@ module mkRawXilinxCmacController(
     FIFOF#(FlowControlReqVec) userFlowCtrlReqVecRxOutBuf <- mkFIFOF(reset_by cmacRxReset);
 
     let cmacController <- mkXilinxCmacController(
+        isEnableRsFec,
         isEnableFlowControl,
         isTxWaitRxAligned,
         convertFifoToPipeOut(userAxiStreamTxInBuf ),

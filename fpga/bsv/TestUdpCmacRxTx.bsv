@@ -31,7 +31,7 @@ typedef 1000 UDP_CLK_HALF_PERIOD;
 typedef  100 SYS_RST_DURATION;
 typedef  100 UDP_RESET_DURATION;
 
-interface TestXdmaUdpIpArpEthCmacRxTx;
+interface TestUdpCmacRxTx;
     (* prefix = "xdma_tx_axis" *)
     interface RawAxiStreamMaster#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) xdmaAxiStreamOutTx;
     (* prefix = "xdma_rx_axis" *)
@@ -39,7 +39,7 @@ interface TestXdmaUdpIpArpEthCmacRxTx;
 endinterface
 
 (* synthesize *)
-module mkTestXdmaUdpIpArpEthCmacRxTx(TestXdmaUdpIpArpEthCmacRxTx);
+module mkTestUdpCmacRxTx(TestUdpCmacRxTx);
     Integer testCaseNum = valueOf(TEST_CASE_NUM);
     Integer payloadFrameNum = valueOf(PAYLOAD_FRAME_NUM);
 

@@ -50,6 +50,7 @@ module mkPfcUdpIpArpEthCmacRxTx#(
     PfcUdpIpArpEthCmacRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold) ifc
 ) provisos(Add#(pfcThreshold, a__, bufPacketNum));
     
+    let isEnableRsFec = False;
     let isEnableFlowControl = True;
     let udpClock <- exposeCurrentClock;
     let udpReset <- exposeCurrentReset;
@@ -87,6 +88,7 @@ module mkPfcUdpIpArpEthCmacRxTx#(
     );
 
     let xilinxCmacController <- mkXilinxCmacController(
+        isEnableRsFec,
         isEnableFlowControl,
         isCmacTxWaitRxAligned,
         convertSyncFifoToPipeOut(txAxiStreamSyncBuf),

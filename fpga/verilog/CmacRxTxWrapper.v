@@ -1,5 +1,6 @@
 `timescale 1ps / 1ps
 
+//`define ENABLE_CMAC_RS_FEC
 
 module CmacRxTxWrapper#(
     parameter GT_LANE_WIDTH = 4,
@@ -124,7 +125,18 @@ module CmacRxTxWrapper#(
     wire [8:0]      gt_ctl_tx_pause_req;
     wire            gt_ctl_tx_resend_pause;
 
-    mkXdmaCmacRxTx xdma_cmac_inst (
+    // CMAC RS-FEC Signals
+    wire            gt_ctl_rsfec_ieee_error_indication_mode;
+    wire            gt_ctl_tx_rsfec_enable;
+    wire            gt_ctl_rx_rsfec_enable;
+    wire            gt_ctl_rx_rsfec_enable_correction;
+    wire            gt_ctl_rx_rsfec_enable_indication;
+
+    // CMAC CTRL STATE
+    wire [3:0]      cmac_ctrl_tx_state;
+    wire [3:0]      cmac_ctrl_rx_state;
+
+    mkXdmaCmacRxTx xdma_cmac_inst(
         .xdma_clk               (xdma_clk        ),
         .xdma_reset             (xdma_reset      ),
         .cmac_rxtx_clk          (gt_txusrclk2    ),
@@ -204,6 +216,16 @@ module CmacRxTxWrapper#(
         .rx_ctl_check_sa_ppp    (gt_ctl_rx_check_sa_ppp),
         .rx_ctl_check_etype_ppp (gt_ctl_rx_check_etype_ppp),
         .rx_ctl_check_opcode_ppp(gt_ctl_rx_check_opcode_ppp),
+
+        .tx_ctl_rsfec_enable    (gt_ctl_tx_rsfec_enable),
+        .rx_ctl_rsfec_enable    (gt_ctl_rx_rsfec_enable),
+        .rx_ctl_rsfec_enable_correction(gt_ctl_rx_rsfec_enable_correction),
+        .rx_ctl_rsfec_enable_indication(gt_ctl_rx_rsfec_enable_indication),
+        .ctl_rsfec_ieee_error_indication_mode(gt_ctl_rsfec_ieee_error_indication_mode),
+
+        // Controller State
+        .cmac_ctrl_tx_state     (cmac_ctrl_tx_state ),
+        .cmac_ctrl_rx_state     (cmac_ctrl_rx_state ),
 
         .xdma_rx_axis_tvalid    (xdma_rx_axis_tvalid),
         .xdma_rx_axis_tdata     (xdma_rx_axis_tdata ),
@@ -319,6 +341,14 @@ module CmacRxTxWrapper#(
         .ctl_tx_pause_refresh_timer8          (16'd0),
         .ctl_tx_resend_pause                  (1'b0 ),
         .tx_preamblein                        (56'd0),
+        // RS-FEC
+`ifdef ENABLE_CMAC_RS_FEC
+        .ctl_rsfec_ieee_error_indication_mode(gt_ctl_rsfec_ieee_error_indication_mode),
+        .ctl_tx_rsfec_enable                  (gt_ctl_tx_rsfec_enable),
+        .ctl_rx_rsfec_enable                  (gt_ctl_rx_rsfec_enable),
+        .ctl_rx_rsfec_enable_correction       (gt_ctl_rx_rsfec_enable_correction),
+        .ctl_rx_rsfec_enable_indication       (gt_ctl_rx_rsfec_enable_indication),
+`endif
         .core_rx_reset                        (1'b0 ),
         .core_tx_reset                        (1'b0 ),
         .rx_clk                               (gt_txusrclk2),
@@ -380,11 +410,12 @@ module CmacRxTxWrapper#(
     ila_2 cmac_recv_mon(
         .clk   (gt_txusrclk2       ),
         .probe0(recv_monitor_idle  ),
-        .probe1(recv_max_pkt_size  ),
-        .probe2(recv_pkt_num       ),
-        .probe3(recv_lost_beat_num ),
-        .probe4(recv_total_beat_num),
-        .probe5(recv_bad_fcs_num   )
+        .probe1(cmac_ctrl_rx_state ),
+        .probe2(recv_max_pkt_size  ),
+        .probe3(recv_pkt_num       ),
+        .probe4(recv_lost_beat_num ),
+        .probe5(recv_total_beat_num),
+        .probe6(recv_bad_fcs_num   )
     );
 
     wire [31:0] send_pkt_num, send_max_pkt_size, send_total_beat_num;
@@ -411,10 +442,11 @@ module CmacRxTxWrapper#(
     ila_2 cmac_send_mon(
         .clk   (gt_txusrclk2       ),
         .probe0(send_monitor_idle  ),
-        .probe1(send_pkt_num       ),
-        .probe2(send_max_pkt_size  ),
-        .probe3(send_total_beat_num),
-        .probe4(send_overflow_num  ),
-        .probe5(send_underflow_num )
+        .probe1(cmac_ctrl_tx_state ),
+        .probe2(send_pkt_num       ),
+        .probe3(send_max_pkt_size  ),
+        .probe4(send_total_beat_num),
+        .probe5(send_overflow_num  ),
+        .probe6(send_underflow_num )
     );
 endmodule

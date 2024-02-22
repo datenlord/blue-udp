@@ -1,6 +1,6 @@
 `timescale 1ps / 1ps
 
-module TestUdpIpArpEthCmacRxTxWrapper();
+module TestUdpCmacRxTxWrapper();
     localparam GT_LANE_WIDTH = 4;
     localparam XDMA_AXIS_TDATA_WIDTH = 512;
     localparam XDMA_AXIS_TKEEP_WIDTH = 64;
@@ -51,7 +51,7 @@ module TestUdpIpArpEthCmacRxTxWrapper();
     wire [GT_LANE_WIDTH - 1 : 0] gt1_rx_n, gt1_rx_p, gt1_tx_n, gt1_tx_p;
 
 
-    UdpIpArpEthCmacRxTxWrapper#(
+    UdpCmacRxTxWrapper#(
         GT_LANE_WIDTH, 
         XDMA_AXIS_TDATA_WIDTH,
         XDMA_AXIS_TKEEP_WIDTH,
@@ -88,7 +88,7 @@ module TestUdpIpArpEthCmacRxTxWrapper();
         .gt_txp_out(gt1_tx_p)
     );
 
-    UdpIpArpEthCmacRxTxWrapper#(
+    UdpCmacRxTxWrapper#(
         GT_LANE_WIDTH, 
         XDMA_AXIS_TDATA_WIDTH,
         XDMA_AXIS_TKEEP_WIDTH,
@@ -125,7 +125,7 @@ module TestUdpIpArpEthCmacRxTxWrapper();
         .gt_txp_out(gt1_rx_p)
     );
 
-    mkTestXdmaUdpIpArpEthCmacRxTx testbench (
+    mkTestUdpCmacRxTx testbench (
         
         .xdma_rx_axis_tready(xdma_rx_axis_tready),
         .xdma_rx_axis_tvalid(xdma_rx_axis_tvalid),

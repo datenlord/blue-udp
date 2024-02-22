@@ -1,11 +1,14 @@
 `timescale 1ps / 1ps
 
+`define ENABLE_CMAC_RS_FEC
+`define ENABLE_DEBUG_MODE
 
-module UdpIpArpEthCmacRxTxWrapper#(
+module UdpCmacRxTxWrapper#(
     parameter GT_LANE_WIDTH = 4,
     parameter XDMA_AXIS_TDATA_WIDTH = 512,
     parameter XDMA_AXIS_TKEEP_WIDTH = 64,
-    parameter XDMA_AXIS_TUSER_WIDTH = 1
+    parameter XDMA_AXIS_TUSER_WIDTH = 1,
+    parameter IS_ENABLE_QSFP_LP_MODE = 1'b1
 )(
     input xdma_clk,
     input xdma_reset,
@@ -36,7 +39,16 @@ module UdpIpArpEthCmacRxTxWrapper#(
     input  [GT_LANE_WIDTH - 1 : 0] gt_rxn_in,
     input  [GT_LANE_WIDTH - 1 : 0] gt_rxp_in,
     output [GT_LANE_WIDTH - 1 : 0] gt_txn_out,
-    output [GT_LANE_WIDTH - 1 : 0] gt_txp_out
+    output [GT_LANE_WIDTH - 1 : 0] gt_txp_out,
+
+    // Optical Module
+    input qsfp_fault_in,
+    output qsfp_lpmode_out,
+    output qsfp_resetl_out,
+
+    // Inidcation LED
+    output qsfp_fault_indication,
+    output cmac_rx_aligned_indication
 );
     localparam CMAC_AXIS_TDATA_WIDTH = 512;
     localparam CMAC_AXIS_TKEEP_WIDTH = 64;
@@ -127,6 +139,18 @@ module UdpIpArpEthCmacRxTxWrapper#(
     wire [8:0]      gt_ctl_tx_pause_req;
     wire            gt_ctl_tx_resend_pause;
 
+    // CMAC RS-FEC Signals
+    wire            gt_ctl_rsfec_ieee_error_indication_mode;
+    wire            gt_ctl_tx_rsfec_enable;
+    wire            gt_ctl_rx_rsfec_enable;
+    wire            gt_ctl_rx_rsfec_enable_correction;
+    wire            gt_ctl_rx_rsfec_enable_indication;
+
+    // CMAC CTRL STATE
+    wire [3:0]      cmac_ctrl_tx_state;
+    wire [3:0]      cmac_ctrl_rx_state;
+    wire            is_cmac_rx_aligned;
+
     mkXdmaUdpIpArpEthCmacRxTx udp_inst1 (
         .xdma_clk               (xdma_clk        ),
         .xdma_reset             (xdma_reset      ),
@@ -143,8 +167,8 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .cmac_tx_axis_tuser     (gt_tx_axis_tuser ),
         .cmac_tx_axis_tready    (gt_tx_axis_tready),
 
-        .tx_stat_ovfout         (gt_tx_ovfout),
-        .tx_stat_unfout         (gt_tx_unfout),
+        .tx_stat_ovfout         (gt_tx_ovfout      ),
+        .tx_stat_unfout         (gt_tx_unfout      ),
         .tx_stat_rx_aligned     (gt_stat_rx_aligned),
 
         .tx_ctl_enable          (gt_ctl_tx_enable      ),
@@ -210,6 +234,17 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .rx_ctl_check_etype_ppp (gt_ctl_rx_check_etype_ppp),
         .rx_ctl_check_opcode_ppp(gt_ctl_rx_check_opcode_ppp),
 
+        .tx_ctl_rsfec_enable    (gt_ctl_tx_rsfec_enable),
+        .rx_ctl_rsfec_enable    (gt_ctl_rx_rsfec_enable),
+        .rx_ctl_rsfec_enable_correction(gt_ctl_rx_rsfec_enable_correction),
+        .rx_ctl_rsfec_enable_indication(gt_ctl_rx_rsfec_enable_indication),
+        .ctl_rsfec_ieee_error_indication_mode(gt_ctl_rsfec_ieee_error_indication_mode),
+
+        // Controller State
+        .cmac_ctrl_tx_state     (cmac_ctrl_tx_state ),
+        .cmac_ctrl_rx_state     (cmac_ctrl_rx_state ),
+        .cmac_rx_aligned_indication(is_cmac_rx_aligned),
+
         .xdma_rx_axis_tvalid    (xdma_rx_axis_tvalid),
         .xdma_rx_axis_tdata     (xdma_rx_axis_tdata ),
         .xdma_rx_axis_tkeep     (xdma_rx_axis_tkeep ),
@@ -226,7 +261,7 @@ module UdpIpArpEthCmacRxTxWrapper#(
     );
 
 
-    cmac_usplus_0 cmac_inst1(
+    cmac_usplus_0 cmac_inst(
         .gt_rxp_in                            (gt_rxp_in     ),
         .gt_rxn_in                            (gt_rxn_in     ),
         .gt_txp_out                           (gt_txp_out    ),
@@ -240,7 +275,7 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .gt_ref_clk_n                         (gt_ref_clk_n),
         .init_clk                             (gt_init_clk),
 
-        .gt_txusrclk2                         (gt_txusrclk2),
+        .gt_txusrclk2                         (gt_txusrclk2   ),
         .usr_rx_reset                         (gt_usr_rx_reset),
         .usr_tx_reset                         (gt_usr_tx_reset),
 
@@ -285,7 +320,6 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .ctl_rx_pause_ack                     (gt_ctl_rx_pause_ack),
         .ctl_rx_pause_enable                  (gt_ctl_rx_pause_enable),
     
-
         // TX
         .tx_axis_tready                       (gt_tx_axis_tready),
         .tx_axis_tvalid                       (gt_tx_axis_tvalid),
@@ -294,15 +328,15 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .tx_axis_tlast                        (gt_tx_axis_tlast),
         .tx_axis_tuser                        (gt_tx_axis_tuser),
         
-        .tx_ovfout                            (gt_tx_ovfout),
-        .tx_unfout                            (gt_tx_unfout),
-        .ctl_tx_enable                        (gt_ctl_tx_enable),
-        .ctl_tx_test_pattern                  (gt_ctl_tx_test_pattern),
-        .ctl_tx_send_idle                     (gt_ctl_tx_send_idle),
-        .ctl_tx_send_rfi                      (gt_ctl_tx_send_rfi),
-        .ctl_tx_send_lfi                      (gt_ctl_tx_send_lfi),
-        .ctl_tx_pause_enable                  (gt_ctl_tx_pause_enable),
-        .ctl_tx_pause_req                     (gt_ctl_tx_pause_req),
+        .tx_ovfout                            (gt_tx_ovfout           ),
+        .tx_unfout                            (gt_tx_unfout           ),
+        .ctl_tx_enable                        (gt_ctl_tx_enable       ),
+        .ctl_tx_test_pattern                  (gt_ctl_tx_test_pattern ),
+        .ctl_tx_send_idle                     (gt_ctl_tx_send_idle    ),
+        .ctl_tx_send_rfi                      (gt_ctl_tx_send_rfi     ),
+        .ctl_tx_send_lfi                      (gt_ctl_tx_send_lfi     ),
+        .ctl_tx_pause_enable                  (gt_ctl_tx_pause_enable ),
+        .ctl_tx_pause_req                     (gt_ctl_tx_pause_req    ),
         .ctl_tx_pause_quanta0                 (gt_ctl_tx_pause_quanta0),
         .ctl_tx_pause_quanta1                 (gt_ctl_tx_pause_quanta1),
         .ctl_tx_pause_quanta2                 (gt_ctl_tx_pause_quanta2),
@@ -324,6 +358,16 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .ctl_tx_pause_refresh_timer8          (16'd0),
         .ctl_tx_resend_pause                  (1'b0 ),
         .tx_preamblein                        (56'd0),
+
+        // RS-FEC
+`ifdef ENABLE_CMAC_RS_FEC
+        .ctl_rsfec_ieee_error_indication_mode (gt_ctl_rsfec_ieee_error_indication_mode),
+        .ctl_tx_rsfec_enable                  (gt_ctl_tx_rsfec_enable),
+        .ctl_rx_rsfec_enable                  (gt_ctl_rx_rsfec_enable),
+        .ctl_rx_rsfec_enable_correction       (gt_ctl_rx_rsfec_enable_correction),
+        .ctl_rx_rsfec_enable_indication       (gt_ctl_rx_rsfec_enable_indication),
+`endif        
+
         .core_rx_reset                        (1'b0 ),
         .core_tx_reset                        (1'b0 ),
         .rx_clk                               (gt_txusrclk2),
@@ -337,10 +381,31 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .drp_we                               (1'b0 )
     );
 
+    // Optical Module and Indication LED
+    reg qsfp_fault_indication_reg0, qsfp_fault_indication_reg1, qsfp_fault_indication_reg2;
+    reg cmac_rx_aligned_indication_reg0, cmac_rx_aligned_indication_reg1, cmac_rx_aligned_indication_reg2;
+    always @(posedge gt_txusrclk2) begin
+        cmac_rx_aligned_indication_reg0 <= is_cmac_rx_aligned;
+        cmac_rx_aligned_indication_reg1 <= cmac_rx_aligned_indication_reg0;
+        cmac_rx_aligned_indication_reg2 <= cmac_rx_aligned_indication_reg1;
+    end
+
+    always @(posedge gt_init_clk) begin
+        qsfp_fault_indication_reg0 <= qsfp_fault_in;
+        qsfp_fault_indication_reg1 <= qsfp_fault_indication_reg0;
+        qsfp_fault_indication_reg2 <= qsfp_fault_indication_reg1;
+    end
+
+    assign qsfp_fault_indication = qsfp_fault_indication_reg2;
+    assign cmac_rx_aligned_indication = cmac_rx_aligned_indication_reg2;
+    assign qsfp_lpmode_out = 1'b0;
+    assign qsfp_resetl_out = 1'b1;
+
     //Cmac Recv Monitor
+`ifdef ENABLE_DEBUG_MODE
     wire recv_monitor_idle;
     wire [31:0] recv_pkt_num, recv_lost_beat_num, recv_total_beat_num;
-    wire [31:0] recv_bad_fcs_num, recv_max_pkt_len;
+    wire [31:0] recv_bad_fcs_num, recv_max_pkt_size;
     mkCmacRecvMonitor cmacRecvMonitor(
         .valid(gt_rx_axis_tvalid  ),
         .ready(gt_rx_axis_tready  ),
@@ -348,37 +413,40 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .user (gt_rx_axis_tuser   ),
         .badFCS(gt_stat_rx_bad_fcs),
         .stompedFCS(gt_stat_rx_stomped_fcs),
+
         .clk  (gt_txusrclk2       ),
         .reset(~gt_usr_rx_reset   ),
+
         .isMonitorIdleOut   (recv_monitor_idle  ),
         .pktCounterOut      (recv_pkt_num       ),
         .lostBeatCounterOut (recv_lost_beat_num ),
         .totalBeatCounterOut(recv_total_beat_num),
         .badFCSCounterOut   (recv_bad_fcs_num   ),
-        .maxPktSizeOut      (recv_max_pkt_len   )
+        .maxPktSizeOut      (recv_max_pkt_size  )
     );
     
-    ila_2 cmac_recv_mon(
+    ila_2 cmac_rx_mon(
         .clk   (gt_txusrclk2       ),
         .probe0(recv_monitor_idle  ),
-        .probe1(recv_pkt_num       ),
-        .probe2(recv_lost_beat_num ),
-        .probe3(recv_total_beat_num),
-        .probe4(recv_bad_fcs_num   ),
-        .probe5(recv_max_pkt_len   )
+        .probe1(cmac_ctrl_rx_state ),
+        .probe2(recv_pkt_num       ),
+        .probe3(recv_lost_beat_num ),
+        .probe4(recv_total_beat_num),
+        .probe5(recv_bad_fcs_num   ),
+        .probe6(recv_max_pkt_size   )
     );
 
     wire send_monitor_idle;
     wire [31:0] send_pkt_num, send_total_beat_num;
     wire [31:0] send_max_pkt_size, send_underflow_num, send_overflow_num;
     mkCmacSendMonitor cmacSendMonitor(
-        .valid(gt_tx_axis_tvalid),
-        .ready(gt_tx_axis_tready),
-        .last (gt_tx_axis_tlast ),
-        .txOverflow(gt_tx_ovfout),
+        .valid (gt_tx_axis_tvalid),
+        .ready (gt_tx_axis_tready),
+        .last  (gt_tx_axis_tlast ),
+        .txOverflow (gt_tx_ovfout),
         .txUnderflow(gt_tx_unfout),
-        .clk  (gt_txusrclk2     ),
-        .reset(~gt_usr_tx_reset ),
+        .clk   (gt_txusrclk2     ),
+        .reset (~gt_usr_tx_reset ),
         .isMonitorIdleOut   (send_monitor_idle  ),
         .pktCounterOut      (send_pkt_num       ),
         .maxPktSizeOut      (send_max_pkt_size  ),
@@ -387,14 +455,16 @@ module UdpIpArpEthCmacRxTxWrapper#(
         .underflowCounterOut(send_underflow_num )
     );
 
-    ila_2 cmac_send_mon(
+    ila_2 cmac_tx_mon(
         .clk   (gt_txusrclk2       ),
         .probe0(send_monitor_idle  ),
-        .probe1(send_pkt_num       ),
-        .probe2(send_max_pkt_size  ),
-        .probe3(send_total_beat_num),
-        .probe4(send_overflow_num  ),
-        .probe5(send_underflow_num )
+        .probe1(cmac_ctrl_tx_state ),
+        .probe2(send_pkt_num       ),
+        .probe3(send_max_pkt_size  ),
+        .probe4(send_total_beat_num),
+        .probe5(send_overflow_num  ),
+        .probe6(send_underflow_num )
     );
+`endif
 
 endmodule

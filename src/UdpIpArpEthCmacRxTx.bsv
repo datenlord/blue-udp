@@ -43,6 +43,7 @@ module mkUdpIpArpEthCmacRxTx#(
     Reset cmacTxReset,
     UdpIpArpEthCmacRxTx ifc
 );
+    let isEnableRsFec = False;
     let isEnableFlowControl = False;
 
     let udpClk <- exposeCurrentClock;
@@ -68,6 +69,7 @@ module mkUdpIpArpEthCmacRxTx#(
     PipeOut#(FlowControlReqVec) txFlowCtrlReqVec <- mkDummyPipeOut;
     PipeIn#(FlowControlReqVec) rxFlowCtrlReqVec <- mkDummyPipeIn;
     let xilinxCmacCtrl <- mkXilinxCmacController(
+        isEnableRsFec,
         isEnableFlowControl,
         isCmacTxWaitRxAligned,
         axiStream512Sync.dstPipeOut,

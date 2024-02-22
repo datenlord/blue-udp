@@ -1,41 +1,51 @@
 
-`timescale 1ps / 1ps
 
-module TestCmacPerfMonWrapper();
+module UdpCmacLoopPerfTestWrapper#(
+    parameter PCIE_GT_LANE_WIDTH = 16,
+    parameter CMAC_GT_LANE_WIDTH = 4
+)(
+    input pcie_clk_n,
+    input pcie_clk_p,
+    input pcie_rst_n,
 
-    localparam PCIE_GT_LANE_WIDTH = 16;
-    localparam CMAC_GT_LANE_WIDTH = 4;
+    output [PCIE_GT_LANE_WIDTH - 1 : 0] pci_exp_txn,
+    output [PCIE_GT_LANE_WIDTH - 1 : 0] pci_exp_txp,
+    input  [PCIE_GT_LANE_WIDTH - 1 : 0] pci_exp_rxn,
+    input  [PCIE_GT_LANE_WIDTH - 1 : 0] pci_exp_rxp,
+
+    output user_lnk_up,
+
+    input qsfp1_ref_clk_p,
+    input qsfp1_ref_clk_n,
+
+    input qsfp2_ref_clk_p,
+    input qsfp2_ref_clk_n,
+
+    input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_rxn_in,
+    input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_rxp_in,
+    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_txn_out,
+    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_txp_out,
+
+    input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_rxn_in,
+    input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_rxp_in,
+    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_txn_out,
+    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_txp_out
+);
+
     localparam XDMA_AXIS_TDATA_WIDTH = 512;
     localparam XDMA_AXIS_TKEEP_WIDTH = 64;
     localparam XDMA_AXIS_TUSER_WIDTH = 1;
 
-    localparam TOTAL_CYCLE = 32'd5000;
-    localparam PKT_SIZE = 32'd32;
-    localparam INTERVAL_NUM = 32'd0;
+    wire xdma_sys_clk, xdma_sys_clk_gt;
+    wire xdma_sys_rst_n;
 
-    wire [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp_txn, qsfp_txp, qsfp_rxn, qsfp_rxp;
-    reg qsfp_ref_clk_p, qsfp_ref_clk_n;
-    
-    reg xdma_axi_aclk;
-    reg xdma_axi_aresetn;
-    
+    wire xdma_axi_aclk;
+    wire xdma_axi_aresetn;
     wire clk_wiz_locked;
+
     wire udp_clk, udp_reset;
+
     wire cmac_init_clk, cmac_sys_reset;
-
-    wire udp_rx_axis_tready;
-    wire udp_rx_axis_tvalid;
-    wire udp_rx_axis_tlast;
-    wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] udp_rx_axis_tdata;
-    wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] udp_rx_axis_tkeep;
-    wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] udp_rx_axis_tuser;
-
-    wire udp_tx_axis_tvalid;
-    wire udp_tx_axis_tready;
-    wire udp_tx_axis_tlast;
-    wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] udp_tx_axis_tdata;
-    wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] udp_tx_axis_tkeep;
-    wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] udp_tx_axis_tuser;
 
     wire xdma_rx_axis_tready;
     wire xdma_rx_axis_tvalid;
@@ -50,6 +60,21 @@ module TestCmacPerfMonWrapper();
     wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] xdma_tx_axis_tdata;
     wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] xdma_tx_axis_tkeep;
     wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] xdma_tx_axis_tuser;
+    assign xdma_tx_axis_tuser = 1'b0;
+
+    wire udp_rx_axis_tready;
+    wire udp_rx_axis_tvalid;
+    wire udp_rx_axis_tlast;
+    wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] udp_rx_axis_tdata;
+    wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] udp_rx_axis_tkeep;
+    wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] udp_rx_axis_tuser;
+
+    wire udp_tx_axis_tvalid;
+    wire udp_tx_axis_tready;
+    wire udp_tx_axis_tlast;
+    wire [XDMA_AXIS_TDATA_WIDTH - 1 : 0] udp_tx_axis_tdata;
+    wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] udp_tx_axis_tkeep;
+    wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] udp_tx_axis_tuser;
 
     // Perfamance Counter
     wire [15:0] pkt_size_reg;
@@ -76,52 +101,39 @@ module TestCmacPerfMonWrapper();
     wire [XDMA_AXIS_TKEEP_WIDTH - 1 : 0] udp_tx_axis_tkeep_piped;
     wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] udp_tx_axis_tuser_piped;
 
+    // PCIe Clock buffer
+    IBUFDS_GTE4 # (.REFCLK_HROW_CK_SEL(2'b00)) refclk_ibuf (.O(xdma_sys_clk_gt), .ODIV2(xdma_sys_clk), .I(pcie_clk_p), .CEB(1'b0), .IB(pcie_clk_n));
+    // PCIe Reset buffer
+    IBUF   sys_reset_n_ibuf (.O(xdma_sys_rst_n), .I(pcie_rst_n));
+    xdma_0 xdma_inst (
+        .sys_clk    (xdma_sys_clk),                  // input wire sys_clk
+        .sys_clk_gt (xdma_sys_clk_gt),               // input wire sys_clk_gt
+        .sys_rst_n  (xdma_sys_rst_n),                // input wire sys_rst_n
+        .user_lnk_up(user_lnk_up),                   // output wire user_lnk_up
+        .pci_exp_txp(pci_exp_txp),                   // output wire [15 : 0] pci_exp_txp
+        .pci_exp_txn(pci_exp_txn),                   // output wire [15 : 0] pci_exp_txn
+        .pci_exp_rxp(pci_exp_rxp),                   // input wire [15 : 0] pci_exp_rxp
+        .pci_exp_rxn(pci_exp_rxn),                   // input wire [15 : 0] pci_exp_rxn
+        
+        .axi_aclk   (xdma_axi_aclk),                 // output wire axi_aclk
+        .axi_aresetn(xdma_axi_aresetn),              // output wire axi_aresetn
+        .usr_irq_req(0),                             // input wire [0 : 0] usr_irq_req
+        .usr_irq_ack(),                              // output wire [0 : 0] usr_irq_ack
+        
+        .s_axis_c2h_tdata_0 (xdma_rx_axis_tdata),   // input wire [511 : 0] s_axis_c2h_tdata_0
+        .s_axis_c2h_tlast_0 (xdma_rx_axis_tlast),   // input wire s_axis_c2h_tlast_0
+        .s_axis_c2h_tvalid_0(xdma_rx_axis_tvalid),  // input wire s_axis_c2h_tvalid_0
+        .s_axis_c2h_tready_0(xdma_rx_axis_tready),  // output wire s_axis_c2h_tready_0
+        .s_axis_c2h_tkeep_0 (xdma_rx_axis_tkeep),   // input wire [63 : 0] s_axis_c2h_tkeep_0
 
-    initial begin
-        qsfp_ref_clk_p = 1;
-        forever #3103 qsfp_ref_clk_p = ~ qsfp_ref_clk_p;
-    end
-    
-    initial begin
-        qsfp_ref_clk_n = 0;
-        forever #3103 qsfp_ref_clk_n = ~ qsfp_ref_clk_n;
-    end
+        .m_axis_h2c_tdata_0 (xdma_tx_axis_tdata),   // output wire [511 : 0] m_axis_h2c_tdata_0
+        .m_axis_h2c_tlast_0 (xdma_tx_axis_tlast),   // output wire m_axis_h2c_tlast_0
+        .m_axis_h2c_tvalid_0(xdma_tx_axis_tvalid),  // output wire m_axis_h2c_tvalid_0
+        .m_axis_h2c_tready_0(xdma_tx_axis_tready),  // input wire m_axis_h2c_tready_0
+        .m_axis_h2c_tkeep_0 (xdma_tx_axis_tkeep)    // output wire [63 : 0] m_axis_h2c_tkeep_0
+    );
 
-    initial begin
-        xdma_axi_aclk = 0;
-        forever #2000 xdma_axi_aclk = ~ xdma_axi_aclk;
-    end
-    
-    initial begin
-        xdma_axi_aresetn = 0;
-        #(100*4000) xdma_axi_aresetn = 1;
-    end
-
-    reg is_monitor_config;
-    assign xdma_tx_axis_tvalid = !is_monitor_config & xdma_axi_aresetn;
-    assign xdma_tx_axis_tdata = {0, TOTAL_CYCLE, INTERVAL_NUM, PKT_SIZE};
-    assign xdma_tx_axis_tkeep = 64'hFFFF_FFFF_FFFF_FFFF;
-    assign xdma_tx_axis_tlast = 1'b1;
-    assign xdma_tx_axis_tuser = 0;
-    assign xdma_rx_axis_tready = 1'b1;
-    always @(posedge xdma_axi_aclk) begin
-        if (!xdma_axi_aresetn) begin
-            is_monitor_config <= 1'b0;
-        end
-        else if (xdma_tx_axis_tvalid & xdma_tx_axis_tready) begin
-            is_monitor_config <= 1'b1;
-        end
-
-        if (xdma_axi_aresetn) begin
-            if ((recv_pkt_num_count_reg != 0)) begin
-                if (recv_pkt_num_count_reg == send_pkt_num_count_reg) begin
-                    $finish;
-                end
-            end
-        end
-    end 
-
-    mkXdmaUdpCmacPerfMonitor perfMonInst(
+    mkUdpCmacPerfMonitor perfMonInst(
         .CLK   (xdma_axi_aclk   ),
         .RST_N (xdma_axi_aresetn),
         .xdma_tx_axis_tvalid(xdma_tx_axis_tvalid),
@@ -169,27 +181,48 @@ module TestCmacPerfMonWrapper();
         .recvPktNumCounterOut   (recv_pkt_num_count_reg),
         .errPktNumCounterOut    (err_pkt_num_count_reg)
     );
-
-
+    
     ila_0 perf_counter_ila (
-        .clk   (xdma_axi_aclk),  // input wire clk
-        .probe0(pkt_size_reg),  // input wire [15:0]  probe0  
-        .probe1(perf_cycle_count_reg_tx), // input wire [31:0]  probe1 
-        .probe2(perf_cycle_count_reg_rx), // input wire [31:0]  probe2 
-        .probe3(perf_beat_count_reg_tx ), // input wire [31:0]  probe3 
-        .probe4(perf_beat_count_reg_rx ), // input wire [31:0]  probe4 
-        .probe5(perf_cycle_count_full_reg_tx), // input wire [0:0]  probe5 
-        .probe6(perf_cycle_count_full_reg_rx), // input wire [0:0]  probe6
-        .probe7(send_pkt_enable_reg),
-        .probe8(recv_pkt_enable_reg),
-        .probe9(is_recv_first_pkt_reg),
-        .probe10(send_pkt_num_count_reg),
-        .probe11(recv_pkt_num_count_reg),
-        .probe12(err_pkt_num_count_reg),
+        .clk    (xdma_axi_aclk          ),
+        .probe0 (pkt_size_reg           ),
+        .probe1 (perf_cycle_count_reg_tx),
+        .probe2 (perf_cycle_count_reg_rx),
+        .probe3 (perf_beat_count_reg_tx ),
+        .probe4 (perf_beat_count_reg_rx ),
+        .probe5 (perf_cycle_count_full_reg_tx),
+        .probe6 (perf_cycle_count_full_reg_rx),
+        .probe7 (send_pkt_enable_reg    ),
+        .probe8 (recv_pkt_enable_reg    ),
+        .probe9 (is_recv_first_pkt_reg  ),
+        .probe10(send_pkt_num_count_reg ),
+        .probe11(recv_pkt_num_count_reg ),
+        .probe12(err_pkt_num_count_reg  ),
         .probe13(total_beat_count_reg_tx),
         .probe14(total_beat_count_reg_rx),
-        .probe15(pkt_interval_reg)
+        .probe15(pkt_interval_reg       )
     );
+
+    ila_1 udp_rx_axis_ila (
+        .clk(xdma_axi_aclk), // input wire clk
+
+        .probe0(udp_rx_axis_tvalid), // input wire [0:0]  probe0  
+        .probe1(udp_rx_axis_tready), // input wire [0:0]  probe1 
+        .probe2(udp_rx_axis_tdata ), // input wire [511:0]  probe2 
+        .probe3(udp_rx_axis_tkeep ), // input wire [63:0]  probe3 
+        .probe4(udp_rx_axis_tlast ) // input wire [0:0]  probe4
+    );
+
+    ila_1 udp_tx_axis_ila (
+        .clk(xdma_axi_aclk), // input wire clk
+
+        .probe0(udp_tx_axis_tvalid), // input wire [0:0]  probe0  
+        .probe1(udp_tx_axis_tready), // input wire [0:0]  probe1 
+        .probe2(udp_tx_axis_tdata ), // input wire [511:0]  probe2 
+        .probe3(udp_tx_axis_tkeep ), // input wire [63:0]  probe3 
+        .probe4(udp_tx_axis_tlast ) // input wire [0:0]  probe4
+    );
+
+
     
     clk_wiz_0 clk_wiz_inst (
         // Clock out ports
@@ -235,17 +268,20 @@ module TestCmacPerfMonWrapper();
         .m_axis_tuser (udp_tx_axis_tuser_piped )
     );
 
-    CmacRxTxWrapper#(
+    UdpCmacRxTxWrapper#(
         CMAC_GT_LANE_WIDTH,
         XDMA_AXIS_TDATA_WIDTH,
         XDMA_AXIS_TKEEP_WIDTH,
         XDMA_AXIS_TUSER_WIDTH
-    ) cmac_wrapper_inst1(
+    ) udp_cmac_inst1(
         .xdma_clk  (xdma_axi_aclk   ),
         .xdma_reset(xdma_axi_aresetn),
 
-        .gt_ref_clk_p(qsfp_ref_clk_p   ),
-        .gt_ref_clk_n(qsfp_ref_clk_n   ),
+        .udp_clk  (udp_clk  ),
+        .udp_reset(udp_reset),
+
+        .gt_ref_clk_p(qsfp1_ref_clk_p   ),
+        .gt_ref_clk_n(qsfp1_ref_clk_n   ),
         .gt_init_clk (cmac_init_clk     ),
         .gt_sys_reset(cmac_sys_reset    ),
 
@@ -264,24 +300,27 @@ module TestCmacPerfMonWrapper();
         .xdma_tx_axis_tuser (udp_tx_axis_tuser_piped ),
 
         // CMAC GT
-        .gt_rxn_in (qsfp_txn ),
-        .gt_rxp_in (qsfp_txp ),
-        .gt_txn_out(qsfp_rxn ),
-        .gt_txp_out(qsfp_rxp )
+        .gt_rxn_in (qsfp1_rxn_in ),
+        .gt_rxp_in (qsfp1_rxp_in ),
+        .gt_txn_out(qsfp1_txn_out),
+        .gt_txp_out(qsfp1_txp_out)
     );
 
-    CmacRxTxWrapper#(
+    UdpCmacRxTxWrapper#(
         CMAC_GT_LANE_WIDTH,
         XDMA_AXIS_TDATA_WIDTH,
         XDMA_AXIS_TKEEP_WIDTH,
         XDMA_AXIS_TUSER_WIDTH
-    ) cmac_wrapper_inst2(
+    ) udp_cmac_inst2(
 
         .xdma_clk  (xdma_axi_aclk   ),
         .xdma_reset(xdma_axi_aresetn),
 
-        .gt_ref_clk_p(qsfp_ref_clk_p   ),
-        .gt_ref_clk_n(qsfp_ref_clk_n   ),
+        .udp_clk   (udp_clk  ),
+        .udp_reset (udp_reset),
+
+        .gt_ref_clk_p(qsfp2_ref_clk_p   ),
+        .gt_ref_clk_n(qsfp2_ref_clk_n   ),
         .gt_init_clk (cmac_init_clk     ),
         .gt_sys_reset(cmac_sys_reset    ),
 
@@ -300,10 +339,11 @@ module TestCmacPerfMonWrapper();
         .xdma_tx_axis_tuser (0),
 
         // CMAC GT
-        .gt_rxn_in (qsfp_rxn ),
-        .gt_rxp_in (qsfp_rxp ),
-        .gt_txn_out(qsfp_txn ),
-        .gt_txp_out(qsfp_txp )
+        .gt_rxn_in (qsfp2_rxn_in ),
+        .gt_rxp_in (qsfp2_rxp_in ),
+        .gt_txn_out(qsfp2_txn_out),
+        .gt_txp_out(qsfp2_txp_out)
     );
     
 endmodule
+

@@ -4,7 +4,7 @@ typedef 32 BEAT_COUNT_WIDTH;
 typedef 32 CYCLE_COUNT_WIDTH;
 typedef  3 RX_FCS_WIDTH;
 typedef 32 MON_COUNT_WIDTH;
-typedef 800000000 IDLE_CYCLE_NUM;
+typedef 3000000000 IDLE_CYCLE_NUM;
 
 interface CmacRecvMonitor;
     (* always_ready, always_enabled *)
@@ -45,8 +45,8 @@ module mkCmacRecvMonitor#(
                 pktCounter <= last ? 1 : 0;
                 lostBeatCounter <= ready ? 0 : 1;
                 totalBeatCounter <= 1;
-                maxPktSizeReg <= 0;
-                pktSizeCounter <= 1;
+                maxPktSizeReg <= last ? 1 : 0;
+                pktSizeCounter <= last ? 0 : 1;
             end
             else begin
                 totalBeatCounter <= totalBeatCounter + 1;
