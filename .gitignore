@@ -17,3 +17,6 @@ output_ooc
 .vscode
 
 *.txt
+
+*.bit
+*.ltx

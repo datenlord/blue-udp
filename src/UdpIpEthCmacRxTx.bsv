@@ -15,16 +15,16 @@ interface UdpIpEthRxTx;
     interface Put#(UdpConfig) udpConfig;
     
     // Tx Channel
-    interface Put#(MacMetaData)   macMetaDataIn;
-    interface Put#(UdpIpMetaData) udpIpMetaDataIn;
-    interface Put#(DataStream)    dataStreamIn;
-    interface AxiStream256PipeOut axiStreamOut;
+    interface Put#(MacMetaData)   macMetaDataTxIn;
+    interface Put#(UdpIpMetaData) udpIpMetaDataTxIn;
+    interface Put#(DataStream)    dataStreamTxIn;
+    interface AxiStream256PipeOut axiStreamTxOut;
     
     // Rx Channel
-    interface Put#(AxiStream256)   axiStreamIn;
-    interface MacMetaDataPipeOut   macMetaDataOut;
-    interface UdpIpMetaDataPipeOut udpIpMetaDataOut;
-    interface DataStreamPipeOut    dataStreamOut;
+    interface Put#(AxiStream256)   axiStreamRxIn;
+    interface MacMetaDataPipeOut   macMetaDataRxOut;
+    interface UdpIpMetaDataPipeOut udpIpMetaDataRxOut;
+    interface DataStreamPipeOut    dataStreamRxOut;
 endinterface
 
 
@@ -40,15 +40,15 @@ module mkGenericUdpIpEthRxTx#(Bool isSupportRdma)(UdpIpEthRxTx);
         endmethod
     endinterface
 
-    interface udpIpMetaDataIn = udpIpEthTx.udpIpMetaDataIn;
-    interface macMetaDataIn = udpIpEthTx.macMetaDataIn;
-    interface dataStreamIn = udpIpEthTx.dataStreamIn;
-    interface axiStreamOut = udpIpEthTx.axiStreamOut;
+    interface udpIpMetaDataTxIn = udpIpEthTx.udpIpMetaDataIn;
+    interface macMetaDataTxIn = udpIpEthTx.macMetaDataIn;
+    interface dataStreamTxIn = udpIpEthTx.dataStreamIn;
+    interface axiStreamTxOut = udpIpEthTx.axiStreamOut;
 
-    interface axiStreamIn = udpIpEthRx.axiStreamIn;
-    interface macMetaDataOut = udpIpEthRx.macMetaDataOut;
-    interface udpIpMetaDataOut = udpIpEthRx.udpIpMetaDataOut;
-    interface dataStreamOut = udpIpEthRx.dataStreamOut;
+    interface axiStreamRxIn = udpIpEthRx.axiStreamIn;
+    interface macMetaDataRxOut = udpIpEthRx.macMetaDataOut;
+    interface udpIpMetaDataRxOut = udpIpEthRx.udpIpMetaDataOut;
+    interface dataStreamRxOut = udpIpEthRx.dataStreamOut;
 endmodule
 
 // UdpIpEthRxTx with Xilinx 100Gb CMAC Controller
@@ -90,8 +90,8 @@ module mkUdpIpEthCmacRxTx#(
     let udpReset <- exposeCurrentReset;
 
     let udpIpEthRxTx <- mkGenericUdpIpEthRxTx(isSupportRdma);
-    let axiStream512TxOut <- mkDoubleAxiStreamPipeOut(udpIpEthRxTx.axiStreamOut);
-    let axiStreamRxIn <- mkPutToPipeIn(udpIpEthRxTx.axiStreamIn);
+    let axiStream512TxOut <- mkDoubleAxiStreamPipeOut(udpIpEthRxTx.axiStreamTxOut);
+    let axiStreamRxIn <- mkPutToPipeIn(udpIpEthRxTx.axiStreamRxIn);
     let axiStream512RxIn <- mkDoubleAxiStreamPipeIn(axiStreamRxIn);
 
     let axiStream512Sync <- mkDuplexAxiStreamAsyncFifo(
@@ -125,13 +125,13 @@ module mkUdpIpEthCmacRxTx#(
 
     interface cmacController = xilinxCmacCtrl;
 
-    interface macMetaDataTxIn = udpIpEthRxTx.macMetaDataIn;
-    interface udpIpMetaDataTxIn = udpIpEthRxTx.udpIpMetaDataIn;
-    interface dataStreamTxIn = udpIpEthRxTx.dataStreamIn;
+    interface macMetaDataTxIn = udpIpEthRxTx.macMetaDataTxIn;
+    interface udpIpMetaDataTxIn = udpIpEthRxTx.udpIpMetaDataTxIn;
+    interface dataStreamTxIn = udpIpEthRxTx.dataStreamTxIn;
 
-    interface macMetaDataRxOut = udpIpEthRxTx.macMetaDataOut;
-    interface udpIpMetaDataRxOut = udpIpEthRxTx.udpIpMetaDataOut;
-    interface dataStreamRxOut = udpIpEthRxTx.dataStreamOut;
+    interface macMetaDataRxOut = udpIpEthRxTx.macMetaDataRxOut;
+    interface udpIpMetaDataRxOut = udpIpEthRxTx.udpIpMetaDataRxOut;
+    interface dataStreamRxOut = udpIpEthRxTx.dataStreamRxOut;
 endmodule
 
 

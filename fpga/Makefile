@@ -70,4 +70,3 @@ clean:
 
 .PHONY: table verilog clean
 .DEFAULT_GOAL := verilog
-

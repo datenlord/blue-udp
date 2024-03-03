@@ -254,6 +254,7 @@ module mkXilinxCmacTxController#(
         let packetReady = packetReadyInfoBuf.first;
         let axiStream = interAxiStreamBuf.first;
         interAxiStreamBuf.deq;
+
         cmacAxiStreamOutBuf.enq(axiStream);
         if (axiStream.tLast == packetReady) begin
             packetReadyInfoBuf.deq;
