@@ -20,9 +20,9 @@ interface UdpIpEthRx;
     
     interface Put#(AxiStream256) axiStreamIn;
     
-    interface MacMetaDataPipeOut macMetaDataOut;
-    interface UdpIpMetaDataPipeOut udpIpMetaDataOut;
-    interface DataStreamPipeOut  dataStreamOut;
+    interface MacMetaDataFifoOut macMetaDataOut;
+    interface UdpIpMetaDataFifoOut udpIpMetaDataOut;
+    interface DataStreamFifoOut  dataStreamOut;
 endinterface
 
 module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
@@ -32,7 +32,7 @@ module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
 
     let macStream <- mkAxiStream256ToDataStream(
-        convertFifoToPipeOut(axiStreamInBuf)
+        convertFifoToFifoOut(axiStreamInBuf)
     );
 
     let macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
@@ -67,9 +67,9 @@ module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
         endmethod
     endinterface
 
-    interface PipeOut macMetaDataOut = macMetaAndUdpIpStream.macMetaDataOut;
-    interface PipeOut udpIpMetaDataOut = udpIpMetaAndDataStream.udpIpMetaDataOut;
-    interface PipeOut dataStreamOut = udpIpMetaAndDataStream.dataStreamOut;
+    interface FifoOut macMetaDataOut = macMetaAndUdpIpStream.macMetaDataOut;
+    interface FifoOut udpIpMetaDataOut = udpIpMetaAndDataStream.udpIpMetaDataOut;
+    interface FifoOut dataStreamOut = udpIpMetaAndDataStream.dataStreamOut;
 endmodule
 
 

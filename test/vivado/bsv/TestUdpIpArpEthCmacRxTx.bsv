@@ -42,9 +42,9 @@ typedef  100 SYS_RST_DURATION;
 typedef  100 UDP_RESET_DURATION;
 
 module mkDataStreamGenerator#(
-    PipeOut#(Bit#(maxRawByteNumWidth)) rawByteNumIn,
-    PipeOut#(Bit#(maxRawDataWidth)) rawDataIn
-)(DataStreamPipeOut)
+    FifoOut#(Bit#(maxRawByteNumWidth)) rawByteNumIn,
+    FifoOut#(Bit#(maxRawDataWidth)) rawDataIn
+)(DataStreamFifoOut)
     provisos(
         Mul#(maxRawByteNum, BYTE_WIDTH, maxRawDataWidth),
         Mul#(DATA_BUS_BYTE_WIDTH, maxFragNum, maxRawByteNum),
@@ -88,7 +88,7 @@ module mkDataStreamGenerator#(
         //$display("%s: send %8d fragment ", instanceName, fragCounter, fshow(dataStream));
     endrule
     
-    return convertFifoToPipeOut(outputBuf);
+    return convertFifoToFifoOut(outputBuf);
 endmodule
 
 interface TestUdpIpArpEthCmacRxTx;
@@ -143,8 +143,8 @@ module mkTestUdpIpArpEthCmacRxTx(TestUdpIpArpEthCmacRxTx);
     FIFOF#(DataStream) dataStreamInRxBuf <- mkFIFOF;
 
     let pktDataStream <- mkDataStreamGenerator(
-        convertFifoToPipeOut(randRawByteNumBuf),
-        convertFifoToPipeOut(randRawDataBuf)
+        convertFifoToFifoOut(randRawByteNumBuf),
+        convertFifoToFifoOut(randRawDataBuf)
     );
 
     // Initialize Testbench
@@ -279,9 +279,9 @@ module mkTestUdpIpArpEthCmacRxTx(TestUdpIpArpEthCmacRxTx);
         $finish;
     endrule
 
-    let udpConfig <- mkRawUdpConfigBusMaster(convertFifoToPipeOut(udpConfigBuf));
-    let udpIpMetaDataOut <- mkRawUdpIpMetaDataBusMaster(convertFifoToPipeOut(udpIpMetaDataOutTxBuf));
-    let dataStreamOut <- mkRawDataStreamBusMaster(convertFifoToPipeOut(dataStreamOutTxBuf));
+    let udpConfig <- mkRawUdpConfigBusMaster(convertFifoToFifoOut(udpConfigBuf));
+    let udpIpMetaDataOut <- mkRawUdpIpMetaDataBusMaster(convertFifoToFifoOut(udpIpMetaDataOutTxBuf));
+    let dataStreamOut <- mkRawDataStreamBusMaster(convertFifoToFifoOut(dataStreamOutTxBuf));
     let udpIpMetaDataIn <- mkRawUdpIpMetaDataBusSlave(toPut(udpIpMetaDataInRxBuf));
     let dataStreamIn <- mkRawDataStreamBusSlave(toPut(dataStreamInRxBuf));
     interface udpConfigOut = udpConfig;

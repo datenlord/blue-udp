@@ -37,10 +37,10 @@ endfunction
 
 
 module mkUdpIpStreamForICrcGen#(
-    UdpIpMetaDataPipeOut udpIpMetaDataIn,
-    DataStreamPipeOut dataStreamIn,
+    UdpIpMetaDataFifoOut udpIpMetaDataIn,
+    DataStreamFifoOut dataStreamIn,
     UdpConfig udpConfig
-)(DataStreamPipeOut);
+)(DataStreamFifoOut);
     Reg#(Bool) isFirstReg <- mkReg(True);
     Reg#(IpID) ipIdCounter <- mkReg(0);
     FIFOF#(DataStream) dataStreamBuf <- mkFIFOF;
@@ -76,27 +76,27 @@ module mkUdpIpStreamForICrcGen#(
         dummyBitsBuf.enq(setAllBits);
     endrule
 
-    DataStreamPipeOut udpIpStream <- mkAppendDataStreamHead(
+    DataStreamFifoOut udpIpStream <- mkAppendDataStreamHead(
         HOLD,
         SWAP,
-        convertFifoToPipeOut(dataStreamBuf),
-        convertFifoToPipeOut(udpIpHeaderBuf)
+        convertFifoToFifoOut(dataStreamBuf),
+        convertFifoToFifoOut(udpIpHeaderBuf)
     );
-    DataStreamPipeOut dummyBitsAndUdpIpStream <- mkAppendDataStreamHead(
+    DataStreamFifoOut dummyBitsAndUdpIpStream <- mkAppendDataStreamHead(
         HOLD,
         SWAP,
         udpIpStream,
-        convertFifoToPipeOut(dummyBitsBuf)
+        convertFifoToFifoOut(dummyBitsBuf)
     );
     return dummyBitsAndUdpIpStream;
 endmodule
 
 
 module mkUdpIpStreamForRdma#(
-    UdpIpMetaDataPipeOut udpIpMetaDataIn,
-    DataStreamPipeOut dataStreamIn,
+    UdpIpMetaDataFifoOut udpIpMetaDataIn,
+    DataStreamFifoOut dataStreamIn,
     UdpConfig udpConfig
-)(DataStreamPipeOut);
+)(DataStreamFifoOut);
 
     FIFOF#(DataStream) dataStreamBuf <- mkFIFOF;
     FIFOF#(DataStream) dataStreamCrcBuf <- mkFIFOF;
@@ -122,30 +122,30 @@ module mkUdpIpStreamForRdma#(
         dataStreamCrcBuf.enq(dataStream);
     endrule
 
-    DataStreamPipeOut udpIpStream <- mkUdpIpStream(
+    DataStreamFifoOut udpIpStream <- mkUdpIpStream(
         udpConfig,
-        convertFifoToPipeOut(dataStreamBuf),
-        convertFifoToPipeOut(udpIpMetaDataBuf),
+        convertFifoToFifoOut(dataStreamBuf),
+        convertFifoToFifoOut(udpIpMetaDataBuf),
         genUdpIpHeaderForRoCE
     );
 
-    DataStreamPipeOut udpIpStreamForICrc <- mkUdpIpStreamForICrcGen(
-        convertFifoToPipeOut(udpIpMetaDataCrcBuf),
-        convertFifoToPipeOut(dataStreamCrcBuf),
+    DataStreamFifoOut udpIpStreamForICrc <- mkUdpIpStreamForICrcGen(
+        convertFifoToFifoOut(udpIpMetaDataCrcBuf),
+        convertFifoToFifoOut(dataStreamCrcBuf),
         udpConfig
     );
 
-    let crc32Stream <- mkCrc32AxiStream256PipeOut(
+    let crc32Stream <- mkCrc32AxiStream256FifoOut(
         CRC_MODE_SEND,
         convertDataStreamToAxiStream256(udpIpStreamForICrc)
     );
 
-    DataStreamPipeOut udpIpStreamWithICrc <- mkAppendDataStreamTail(
+    DataStreamFifoOut udpIpStreamWithICrc <- mkAppendDataStreamTail(
         HOLD,
         HOLD,
         udpIpStream,
         crc32Stream,
-        convertFifoToPipeOut(preComputeLengthBuf)
+        convertFifoToFifoOut(preComputeLengthBuf)
     );
 
     return udpIpStreamWithICrc;
@@ -159,20 +159,20 @@ function UdpIpMetaData extractUdpIpMetaDataForRoCE(UdpIpHeader hdr);
 endfunction
 
 module mkUdpIpStreamForICrcChk#(
-    DataStreamPipeOut udpIpStreamIn
-)(DataStreamPipeOut);
+    DataStreamFifoOut udpIpStreamIn
+)(DataStreamFifoOut);
     Reg#(Bool) isFirst <- mkReg(True);
     FIFOF#(AxiStream512) interAxiStreamBuf <- mkFIFOF;
     FIFOF#(Bit#(DUMMY_BITS_WIDTH)) dummyBitsBuf <- mkFIFOF;
-    let axiStream512PipeOut <- mkDataStreamToAxiStream512(udpIpStreamIn);
-    let udpIpStreamPipeOut <- mkAxiStream512ToDataStream(
-        convertFifoToPipeOut(interAxiStreamBuf)
+    let axiStream512FifoOut <- mkDataStreamToAxiStream512(udpIpStreamIn);
+    let udpIpStreamFifoOut <- mkAxiStream512ToDataStream(
+        convertFifoToFifoOut(interAxiStreamBuf)
     );
     let dummyBitsAndUdpIpStream <- mkAppendDataStreamHead(
         HOLD,
         SWAP,
-        udpIpStreamPipeOut,
-        convertFifoToPipeOut(dummyBitsBuf)
+        udpIpStreamFifoOut,
+        convertFifoToFifoOut(dummyBitsBuf)
     );
 
     rule genDummyBits;
@@ -180,8 +180,8 @@ module mkUdpIpStreamForICrcChk#(
     endrule
 
     rule doTransform;
-        let axiStream512 = axiStream512PipeOut.first;
-        axiStream512PipeOut.deq;
+        let axiStream512 = axiStream512FifoOut.first;
+        axiStream512FifoOut.deq;
         if (isFirst) begin
             let tData = swapEndian(axiStream512.tData);
             BTHUdpIpHeader bthUdpIpHdr = unpack(truncateLSB(tData));
@@ -205,9 +205,9 @@ endmodule
 
 
 module mkRemoveICrcFromDataStream#(
-    PipeOut#(Bit#(streamLenWidth)) streamLenIn,
-    DataStreamPipeOut dataStreamIn
-)(DataStreamPipeOut) provisos(
+    FifoOut#(Bit#(streamLenWidth)) streamLenIn,
+    DataStreamFifoOut dataStreamIn
+)(DataStreamFifoOut) provisos(
     NumAlias#(TLog#(DATA_BUS_BYTE_WIDTH), frameLenWidth),
     NumAlias#(TLog#(TAdd#(CRC32_BYTE_WIDTH, 1)), shiftAmtWidth),
     Add#(frameLenWidth, frameNumWidth, streamLenWidth)
@@ -268,7 +268,7 @@ module mkRemoveICrcFromDataStream#(
         end
     endrule
 
-    return convertFifoToPipeOut(dataStreamOutBuf);
+    return convertFifoToFifoOut(dataStreamOutBuf);
 endmodule
 
 typedef 4096 RDMA_PACKET_MAX_SIZE;
@@ -283,7 +283,7 @@ typedef enum {
 } ICrcCheckState deriving(Bits, Eq, FShow);
 
 module mkUdpIpMetaDataAndDataStreamForRdma#(
-    DataStreamPipeOut udpIpStreamIn,
+    DataStreamFifoOut udpIpStreamIn,
     UdpConfig udpConfig
 )(UdpIpMetaDataAndDataStream);
 
@@ -297,18 +297,18 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         udpIpStreamForICrcBuf.enq(udpIpStream);
     endrule
 
-    DataStreamPipeOut udpIpStreamForICrc <- mkUdpIpStreamForICrcChk(
-        convertFifoToPipeOut(udpIpStreamForICrcBuf)
+    DataStreamFifoOut udpIpStreamForICrc <- mkUdpIpStreamForICrcChk(
+        convertFifoToFifoOut(udpIpStreamForICrcBuf)
     );
 
-    let crc32Stream <- mkCrc32AxiStream256PipeOut(
+    let crc32Stream <- mkCrc32AxiStream256FifoOut(
         CRC_MODE_RECV,
         convertDataStreamToAxiStream256(udpIpStreamForICrc)
     );
 
     UdpIpMetaDataAndDataStream udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStream(
         udpConfig,
-        convertFifoToPipeOut(udpIpStreamBuf),
+        convertFifoToFifoOut(udpIpStreamBuf),
         extractUdpIpMetaDataForRoCE
     );
 
@@ -322,17 +322,17 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         udpIpMetaDataBuf.enq(udpIpMetaData);
     endrule
 
-    let udpIpMetaDataBuffered <- mkSizedFifoToPipeOut(
+    let udpIpMetaDataBuffered <- mkSizedFifoToFifoOut(
         valueOf(RDMA_META_BUF_SIZE),
-        convertFifoToPipeOut(udpIpMetaDataBuf)
+        convertFifoToFifoOut(udpIpMetaDataBuf)
     );
 
-    DataStreamPipeOut dataStreamWithOutICrc <- mkRemoveICrcFromDataStream(
-        convertFifoToPipeOut(dataStreamLengthBuf),
+    DataStreamFifoOut dataStreamWithOutICrc <- mkRemoveICrcFromDataStream(
+        convertFifoToFifoOut(dataStreamLengthBuf),
         udpIpMetaAndDataStream.dataStreamOut
     );
 
-    DataStreamPipeOut dataStreamBuffered <- mkSizedBramFifoToPipeOut(
+    DataStreamFifoOut dataStreamBuffered <- mkSizedBramFifoToFifoOut(
         valueOf(RDMA_PAYLOAD_BUF_SIZE),
         dataStreamWithOutICrc
     );
@@ -378,6 +378,6 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         endcase
     endrule
 
-    interface PipeOut udpIpMetaDataOut = convertFifoToPipeOut(udpIpMetaDataOutBuf);
-    interface PipeOut dataStreamOut = convertFifoToPipeOut(dataStreamOutBuf);
+    interface FifoOut udpIpMetaDataOut = convertFifoToFifoOut(udpIpMetaDataOutBuf);
+    interface FifoOut dataStreamOut = convertFifoToFifoOut(dataStreamOutBuf);
 endmodule

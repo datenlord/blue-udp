@@ -52,13 +52,13 @@ module mkTestPriorityFlowControl();
     FIFOF#(DataStream) dataStreamInterBuf <- mkFIFOF;
     FIFOF#(FlowControlReqVec) flowControlReqVecInterBuf <- mkFIFOF;
     PriorityFlowControlTx pfcTx <- mkPriorityFlowControlTx(
-        convertFifoToPipeOut(flowControlReqVecInterBuf),
-        map(convertFifoToPipeOut, dataStreamInBufVec),
-        map(convertFifoToPipeOut, udpIpMetaDataInBufVec)
+        convertFifoToFifoOut(flowControlReqVecInterBuf),
+        map(convertFifoToFifoOut, dataStreamInBufVec),
+        map(convertFifoToFifoOut, udpIpMetaDataInBufVec)
     );
     PriorityFlowControlRx#(BUF_PACKET_NUM, MAX_PACKET_FRAME_NUM, PFC_THRESHOLD) pfcRx <- mkPriorityFlowControlRx(
-        convertFifoToPipeOut(dataStreamInterBuf),
-        convertFifoToPipeOut(udpIpMetaDataInterBuf)
+        convertFifoToFifoOut(dataStreamInterBuf),
+        convertFifoToFifoOut(udpIpMetaDataInterBuf)
     );
 
     mkConnection(pfcTx.udpIpMetaDataOut, toPut(udpIpMetaDataInterBuf));

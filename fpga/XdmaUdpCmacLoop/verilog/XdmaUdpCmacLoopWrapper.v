@@ -24,11 +24,21 @@ module XdmaUdpCmacLoopWrapper#(
     input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_rxp_in,
     output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_txn_out,
     output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_txp_out,
+    input  qsfp1_fault_in,
+    output qsfp1_lpmode_out,
+    output qsfp1_resetl_out,
+    output qsfp1_fault_indication,
+    output cmac1_rx_aligned_indication,
 
     input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_rxn_in,
     input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_rxp_in,
     output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_txn_out,
-    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_txp_out
+    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_txp_out,
+    input  qsfp1_fault_in,
+    output qsfp1_lpmode_out,
+    output qsfp1_resetl_out,
+    output qsfp1_fault_indication,
+    output cmac1_rx_aligned_indication
 );
 
     localparam XDMA_AXIS_TDATA_WIDTH = 512;
@@ -179,7 +189,13 @@ module XdmaUdpCmacLoopWrapper#(
         .gt_rxn_in (qsfp1_rxn_in ),
         .gt_rxp_in (qsfp1_rxp_in ),
         .gt_txn_out(qsfp1_txn_out),
-        .gt_txp_out(qsfp1_txp_out)
+        .gt_txp_out(qsfp1_txp_out),
+        
+        .qsfp_fault_in             (qsfp1_fault_in             ),
+        .qsfp_lpmode_out           (qsfp1_lpmode_out           ),
+        .qsfp_resetl_out           (qsfp1_resetl_out           ),
+        .qsfp_fault_indication     (qsfp1_fault_indication     ),
+        .cmac_rx_aligned_indication(cmac1_rx_aligned_indication)
     );
 
     UdpIpArpEthCmacRxTxWrapper#(
@@ -218,6 +234,12 @@ module XdmaUdpCmacLoopWrapper#(
         .gt_rxn_in (qsfp2_rxn_in ),
         .gt_rxp_in (qsfp2_rxp_in ),
         .gt_txn_out(qsfp2_txn_out),
-        .gt_txp_out(qsfp2_txp_out)
+        .gt_txp_out(qsfp2_txp_out),
+        
+        .qsfp_fault_in             (qsfp2_fault_in             ),
+        .qsfp_lpmode_out           (qsfp2_lpmode_out           ),
+        .qsfp_resetl_out           (qsfp2_resetl_out           ),
+        .qsfp_fault_indication     (qsfp2_fault_indication     ),
+        .cmac_rx_aligned_indication(cmac2_rx_aligned_indication)
     );
 endmodule

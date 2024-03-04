@@ -22,17 +22,17 @@ MACROFLAGS = -D IS_SUPPORT_RDMA=$(SUPPORT_RDMA)
 
 # Pass arguments to vivado
 export PART = xcvu13p-fhgb2104-2-i
-export BUILD_TOP = UdpCmacPerfTestWrapper
+export BUILD_TOP = XdmaUdpCmacWrapper
 
 ## Directories and Files
 export DIR_VLOG = ./verilog
 export DIR_VLOG_GEN = ./generated/verilog
 export DIR_XDC = ./generated/xdc
 export DIR_IP_TCL = ./generated/ips_tcl
-export DIR_IP_GEN = ./generated/ips
+export DIR_IP_GEN = ./gen_ips
 export DIR_OUTPUT = output
 export DIR_MEM_CONFIG = ./generated/mem
-export SYNTH_IMPL_OPTS_FILE = ./tcl/synth_impl_opts.tcl 
+export SYNTH_IMPL_OPTS_FILE = ./tcl/synth_impl_opts.tcl
 export CONFIG_FILE = ./generated/design_config.vh
 
 ## Flow Control
@@ -46,8 +46,8 @@ export DEBUG_PROBES_EN = 0
 export TARGET_CLOCKS = xdma_axi_aclk
 export MAX_NET_PATH_NUM = 1000
 
-BSV_MODULES = CmacRecvMonitor CmacSendMonitor UdpCmacPerfMonitor XdmaUdpIpArpEthCmacRxTx XdmaUdpIpEthCmacRxTx
-IP = xdma clk_wiz udp_perf_mon_ila cmac_mon_ila axis512_mon_ila
+BSV_MODULES = CmacRecvMonitor CmacSendMonitor XdmaUdpIpArpEthCmacRxTx XdmaUdpIpEthCmacRxTx
+IP = xdma clk_wiz cmac_mon_ila axis512_mon_ila
 ifeq ($(ENABLE_CMAC_RSFEC), 1)
 IP += cmac_rsfec_q$(QSFP_IDX)
 else
@@ -75,7 +75,7 @@ $(IP):
 	cp ../common/ips_tcl/$@.tcl $(DIR_IP_TCL)
 
 xdc: $(XDC)
-	cp ./xdc/floorplan_q$(QSFP_IDX) $(DIR_XDC)
+	cp ./xdc/floorplan_q$(QSFP_IDX).xdc $(DIR_XDC)
 $(XDC):
 	@mkdir -p $(DIR_XDC)
 	cp ../common/xdc/$@.xdc $(DIR_XDC)
@@ -96,14 +96,12 @@ build: verilog ip xdc config
 	vivado -mode batch -source ../common/tcl/non_proj_build.tcl 2>&1 | tee ./build_run.log
 
 clean:
-	rm -rf $(BUILDDIR) $(DIR_VLOG_GEN) $(DIR_IP_TCL) $(DIR_XDC) $(CONFIG_FILE) $(DIR_MEM_CONFIG) *.jou *.log .Xil output
+	rm -rf $(BUILDDIR) generated *.txt *.jou *.log .Xil output
 
 clean_ip:
 	rm -rf $(DIR_IP_GEN)
 
 clean_all: clean clean_ip
-	rm -rf generated
-
 
 .PHONY: verilog config build clean clean_ip clean_all
 .DEFAULT_GOAL := verilog

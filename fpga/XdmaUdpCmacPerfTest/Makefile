@@ -32,13 +32,15 @@ export DIR_IP_TCL = ./generated/ips_tcl
 export DIR_IP_GEN = ./generated/ips
 export DIR_OUTPUT = output
 export DIR_MEM_CONFIG = ./generated/mem
-export SYNTH_IMPL_OPTS_FILE = ./tcl/synth_impl_opts.tcl 
+export SYNTH_IMPL_OPTS_FILE = ./tcl/synth_impl_opts.tcl
 export CONFIG_FILE = ./generated/design_config.vh
 
 ## Flow Control
-export SYNTH_ONLY = 0
-export IS_WRITE_BITSTREAM = 1
-export IS_WRITE_DEBUG_PROBES = 1
+export SYNTH_EN = 1
+export PLACE_EN = 1
+export ROUTE_EN = 1
+export BITSTREAM_EN = 0
+export DEBUG_PROBES_EN = 0
 
 ## Report Options
 export TARGET_CLOCKS = xdma_axi_aclk
@@ -51,7 +53,7 @@ IP += cmac_rsfec_q$(QSFP_IDX)
 else
 IP += cmac_q$(QSFP_IDX)
 endif
-XDC = common floorplan_q$(QSFP_IDX) pciex16 qsfp$(QSFP_IDX)
+XDC = common pciex16 qsfp$(QSFP_IDX)
 
 
 table:
@@ -73,9 +75,10 @@ $(IP):
 	cp ../common/ips_tcl/$@.tcl $(DIR_IP_TCL)
 
 xdc: $(XDC)
+	cp ./xdc/floorplan_q$(QSFP_IDX).xdc $(DIR_XDC)
 $(XDC):
 	@mkdir -p $(DIR_XDC)
-	cp ./xdc/$@.xdc $(DIR_XDC)
+	cp ../common/xdc/$@.xdc $(DIR_XDC)
 
 config:
 	@echo "// Implementation Configurations" > $(CONFIG_FILE)
@@ -89,11 +92,11 @@ ifeq ($(ENABLE_DEBUG_MODE), 1)
 	@echo "\`define ENABLE_DEBUG_MODE" >> $(CONFIG_FILE)
 endif
 
-build: verilog ip config xdc
+build: verilog ip xdc config
 	vivado -mode batch -source ../common/tcl/non_proj_build.tcl 2>&1 | tee ./build_run.log
 
 clean:
-	rm -rf $(BUILDDIR) $(DIR_VLOG_GEN) $(DIR_IP_TCL) $(DIR_XDC) $(CONFIG_FILE) $(DIR_MEM_CONFIG) *.jou *.log .Xil output
+	rm -rf $(BUILDDIR) $(DIR_VLOG_GEN) $(DIR_IP_TCL) $(DIR_XDC) $(CONFIG_FILE) $(DIR_MEM_CONFIG) *.txt *.jou *.log .Xil output
 
 clean_ip:
 	rm -rf $(DIR_IP_GEN)

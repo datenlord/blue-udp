@@ -92,10 +92,10 @@ endfunction
 
 module mkUdpIpStream#(
     UdpConfig udpConfig,
-    DataStreamPipeOut dataStreamIn,
-    UdpIpMetaDataPipeOut udpIpMetaDataIn,
+    DataStreamFifoOut dataStreamIn,
+    UdpIpMetaDataFifoOut udpIpMetaDataIn,
     function UdpIpHeader genHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId)
-)(DataStreamPipeOut);
+)(DataStreamFifoOut);
     IpID defaultIpId = 1;
 
     Reg#(IpID) ipIdCounter <- mkReg(0);
@@ -121,8 +121,8 @@ module mkUdpIpStream#(
         $display("IpUdpGen: genHeader of %d frame", ipIdCounter);
     endrule
 
-    PipeOut#(UdpIpHeader) udpIpHdrStream = convertFifoToPipeOut(udpIpHeaderBuf);
-    DataStreamPipeOut udpIpStreamOut <- mkAppendDataStreamHead(HOLD, SWAP, dataStreamIn, udpIpHdrStream);
+    FifoOut#(UdpIpHeader) udpIpHdrStream = convertFifoToFifoOut(udpIpHeaderBuf);
+    DataStreamFifoOut udpIpStreamOut <- mkAppendDataStreamHead(HOLD, SWAP, dataStreamIn, udpIpHdrStream);
 
     return udpIpStreamOut;
 endmodule
@@ -157,13 +157,13 @@ function Bool checkUdpIpHeader(UdpIpHeader hdr, UdpConfig udpConfig);
 endfunction
 
 interface UdpIpMetaDataAndDataStream;
-    interface UdpIpMetaDataPipeOut udpIpMetaDataOut;
-    interface DataStreamPipeOut dataStreamOut;
+    interface UdpIpMetaDataFifoOut udpIpMetaDataOut;
+    interface DataStreamFifoOut dataStreamOut;
 endinterface
 
 module mkUdpIpMetaDataAndDataStream#(
     UdpConfig udpConfig,
-    DataStreamPipeOut udpIpStreamIn,
+    DataStreamFifoOut udpIpStreamIn,
     function UdpIpMetaData extractMetaData(UdpIpHeader hdr)
 )(UdpIpMetaDataAndDataStream);
     FIFOF#(DataStream) interDataStreamBuf <- mkFIFOF;
@@ -216,8 +216,8 @@ module mkUdpIpMetaDataAndDataStream#(
         end
     endrule
 
-    interface PipeOut dataStreamOut = convertFifoToPipeOut(dataStreamOutBuf);
-    interface PipeOut udpIpMetaDataOut = convertFifoToPipeOut(udpIpMetaDataOutBuf);
+    interface FifoOut dataStreamOut = convertFifoToFifoOut(dataStreamOutBuf);
+    interface FifoOut udpIpMetaDataOut = convertFifoToFifoOut(udpIpMetaDataOutBuf);
 endmodule
 
 

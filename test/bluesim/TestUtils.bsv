@@ -52,9 +52,9 @@ endmodule
 
 module mkDataStreamSender#(
     String instanceName,
-    PipeOut#(Bit#(maxRawByteNumWidth)) rawByteNumIn,
-    PipeOut#(Bit#(maxRawDataWidth)) rawDataIn
-)(DataStreamPipeOut) 
+    FifoOut#(Bit#(maxRawByteNumWidth)) rawByteNumIn,
+    FifoOut#(Bit#(maxRawDataWidth)) rawDataIn
+)(DataStreamFifoOut) 
     provisos(
         Mul#(maxRawByteNum, BYTE_WIDTH, maxRawDataWidth),
         Mul#(DATA_BUS_BYTE_WIDTH, maxFragNum, maxRawByteNum),
@@ -97,5 +97,5 @@ module mkDataStreamSender#(
         $display("%s: send %8d fragment ", instanceName, fragCounter, fshow(dataStream));
     endrule
     
-    return convertFifoToPipeOut(outputBuf);
+    return convertFifoToFifoOut(outputBuf);
 endmodule

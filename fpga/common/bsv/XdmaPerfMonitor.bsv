@@ -71,8 +71,8 @@ interface RawXdmaDescriptorBypass;
     (* result = "ctl" *)      method XdmaDescBypCtl ctl;
 endinterface
 
-module mkPipeOutToRawXdmaDescriptorBypass#(
-    PipeOut#(XdmaDescriptorBypass) dmaReqPipe
+module mkFifoOutToRawXdmaDescriptorBypass#(
+    FifoOut#(XdmaDescriptorBypass) dmaReqPipe
 )(RawXdmaDescriptorBypass);
     RWire#(XdmaDescBypAddr) srcAddrW <- mkRWire;
     RWire#(XdmaDescBypAddr) dstAddrW <- mkRWire;
@@ -361,22 +361,22 @@ module mkXdmaPerfMonitor(XdmaPerfMonitor);
         perfCycleCounterRx <= perfCycleCounterRx + 1;
     endrule
 
-    let rawXdmaAxiLiteSlave <- mkPipeToRawAxi4LiteSlave(
-        convertFifoToPipeIn (axilWrAddrBuf),
-        convertFifoToPipeIn (axilWrDataBuf),
-        convertFifoToPipeOut(axilWrRespBuf),
-        convertFifoToPipeIn (axilRdAddrBuf),
-        convertFifoToPipeOut(axilRdDataBuf)
+    let rawXdmaAxiLiteSlave <- mkRawAxi4LiteSlave(
+        convertFifoToFifoIn (axilWrAddrBuf),
+        convertFifoToFifoIn (axilWrDataBuf),
+        convertFifoToFifoOut(axilWrRespBuf),
+        convertFifoToFifoIn (axilRdAddrBuf),
+        convertFifoToFifoOut(axilRdDataBuf)
     );
 
-    let rawXdmaAxiStreamIn <- mkPipeInToRawAxiStreamSlave(convertFifoToPipeIn(xdmaAxiStreamInBuf));
-    let rawXdmaAxiStreamOut <- mkPipeOutToRawAxiStreamMaster(convertFifoToPipeOut(xdmaAxiStreamOutBuf));
+    let rawXdmaAxiStreamIn <- mkFifoInToRawAxiStreamSlave(convertFifoToFifoIn(xdmaAxiStreamInBuf));
+    let rawXdmaAxiStreamOut <- mkFifoOutToRawAxiStreamMaster(convertFifoToFifoOut(xdmaAxiStreamOutBuf));
     
-    let rawXdmaH2cDescBpy <- mkPipeOutToRawXdmaDescriptorBypass(convertFifoToPipeOut(xdmaH2cDescBypBuf));
-    let rawXdmaC2hDescByp <- mkPipeOutToRawXdmaDescriptorBypass(convertFifoToPipeOut(xdmaC2hDescBypBuf));
+    let rawXdmaH2cDescBpy <- mkFifoOutToRawXdmaDescriptorBypass(convertFifoToFifoOut(xdmaH2cDescBypBuf));
+    let rawXdmaC2hDescByp <- mkFifoOutToRawXdmaDescriptorBypass(convertFifoToFifoOut(xdmaC2hDescBypBuf));
 
-    let rawUdpAxiStreamRxIn <- mkPipeInToRawAxiStreamSlave(convertFifoToPipeIn(udpAxiStreamRxInBuf));
-    let rawUdpAxiStreamTxOut <- mkPipeOutToRawAxiStreamMaster(convertFifoToPipeOut(udpAxiStreamTxOutBuf));
+    let rawUdpAxiStreamRxIn <- mkFifoInToRawAxiStreamSlave(convertFifoToFifoIn(udpAxiStreamRxInBuf));
+    let rawUdpAxiStreamTxOut <- mkFifoOutToRawAxiStreamMaster(convertFifoToFifoOut(udpAxiStreamTxOutBuf));
 
     
     interface xdmaAxiLiteSlave = rawXdmaAxiLiteSlave;

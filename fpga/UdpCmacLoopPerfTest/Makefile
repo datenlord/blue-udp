@@ -7,12 +7,10 @@ CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 BSV_DIR = ../common/bsv
 
 # Design Configurations
-# QSFP_IDX: 1 - QSFP1, 2 - QSFP2
 # ENABLE_CMAC_RSFEC: 0 - Disable, 1 - Enable
 # ENABLE_ARP_PROCESS: 0 - Disable, 1 - Enable
 # ENABLE_DEBUG_MODE: 0 - Disable, 1 - Enable
 # SUPPORT_RDMA: False - Disable, True - Enable
-QSFP_IDX = 1
 ENABLE_CMAC_RSFEC = 1
 ENABLE_ARP_PROCESS = 0
 ENABLE_DEBUG_MODE = 1
@@ -22,7 +20,7 @@ MACROFLAGS = -D IS_SUPPORT_RDMA=$(SUPPORT_RDMA)
 
 # Pass arguments to vivado
 export PART = xcvu13p-fhgb2104-2-i
-export BUILD_TOP = UdpCmacPerfTestWrapper
+export BUILD_TOP = UdpCmacLoopPerfTestWrapper
 
 ## Directories and Files
 export DIR_VLOG = ./verilog
@@ -49,11 +47,11 @@ export MAX_NET_PATH_NUM = 1000
 BSV_MODULES = CmacRecvMonitor CmacSendMonitor UdpCmacPerfMonitor XdmaUdpIpArpEthCmacRxTx XdmaUdpIpEthCmacRxTx
 IP = xdma clk_wiz udp_perf_mon_ila cmac_mon_ila axis512_mon_ila
 ifeq ($(ENABLE_CMAC_RSFEC), 1)
-IP += cmac_rsfec_q$(QSFP_IDX)
+IP += cmac_rsfec_q2
 else
-IP += cmac_q$(QSFP_IDX)
+IP += cmac_q2
 endif
-XDC = common pciex16 qsfp$(QSFP_IDX)
+XDC = common pciex16 qsfp_loop
 
 
 table:
@@ -75,7 +73,7 @@ $(IP):
 	cp ../common/ips_tcl/$@.tcl $(DIR_IP_TCL)
 
 xdc: $(XDC)
-	cp ./xdc/floorplan_q$(QSFP_IDX) $(DIR_XDC)
+	cp ./xdc/*.xdc $(DIR_XDC)
 $(XDC):
 	@mkdir -p $(DIR_XDC)
 	cp ../common/xdc/$@.xdc $(DIR_XDC)
@@ -104,6 +102,5 @@ clean_ip:
 clean_all: clean clean_ip
 	rm -rf generated
 
-
-.PHONY: verilog config build clean clean_ip clean_all
+.PHONY: table verilog ip xdc config build clean clean_ip clean_all
 .DEFAULT_GOAL := verilog

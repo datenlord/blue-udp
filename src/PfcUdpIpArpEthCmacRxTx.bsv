@@ -91,10 +91,10 @@ module mkPfcUdpIpArpEthCmacRxTx#(
         isEnableRsFec,
         isEnableFlowControl,
         isCmacTxWaitRxAligned,
-        convertSyncFifoToPipeOut(txAxiStreamSyncBuf),
-        convertSyncFifoToPipeIn(rxAxiStreamSyncBuf),
-        convertSyncFifoToPipeOut(txFlowCtrlReqVecSyncBuf),
-        convertSyncFifoToPipeIn(rxFlowCtrlReqVecSyncBuf),
+        convertSyncFifoToFifoOut(txAxiStreamSyncBuf),
+        convertSyncFifoToFifoIn(rxAxiStreamSyncBuf),
+        convertSyncFifoToFifoOut(txFlowCtrlReqVecSyncBuf),
+        convertSyncFifoToFifoIn(rxFlowCtrlReqVecSyncBuf),
         cmacRxReset,
         cmacTxReset,
         clocked_by cmacRxTxClk
@@ -102,14 +102,14 @@ module mkPfcUdpIpArpEthCmacRxTx#(
 
     PfcUdpIpArpEthRxTx#(bufPacketNum, maxPacketFrameNum, pfcThreshold) pfcUdpIpArpEthRxTx <- mkGenericPfcUdpIpArpEthRxTx(isSupportRdma);
     
-    let axiStream512TxOut <- mkDoubleAxiStreamPipeOut(pfcUdpIpArpEthRxTx.axiStreamTxOut);
-    let axiStream256RxIn <- mkPutToPipeIn(pfcUdpIpArpEthRxTx.axiStreamRxIn);
-    let axiStream512RxIn <- mkDoubleAxiStreamPipeIn(axiStream256RxIn);
+    let axiStream512TxOut <- mkDoubleAxiStreamFifoOut(pfcUdpIpArpEthRxTx.axiStreamTxOut);
+    let axiStream256RxIn <- mkPutToFifoIn(pfcUdpIpArpEthRxTx.axiStreamRxIn);
+    let axiStream512RxIn <- mkDoubleAxiStreamFifoIn(axiStream256RxIn);
     
-    mkConnection(convertSyncFifoToPipeIn(txAxiStreamSyncBuf), axiStream512TxOut);
-    mkConnection(convertSyncFifoToPipeOut(rxAxiStreamSyncBuf), axiStream512RxIn);
-    mkConnection(convertSyncFifoToPipeIn(txFlowCtrlReqVecSyncBuf), pfcUdpIpArpEthRxTx.flowControlReqVecOut);
-    mkConnection(toGet(convertSyncFifoToPipeOut(rxFlowCtrlReqVecSyncBuf)), pfcUdpIpArpEthRxTx.flowControlReqVecIn);
+    mkConnection(convertSyncFifoToFifoIn(txAxiStreamSyncBuf), axiStream512TxOut);
+    mkConnection(convertSyncFifoToFifoOut(rxAxiStreamSyncBuf), axiStream512RxIn);
+    mkConnection(convertSyncFifoToFifoIn(txFlowCtrlReqVecSyncBuf), pfcUdpIpArpEthRxTx.flowControlReqVecOut);
+    mkConnection(toGet(convertSyncFifoToFifoOut(rxFlowCtrlReqVecSyncBuf)), pfcUdpIpArpEthRxTx.flowControlReqVecIn);
 
 
     interface cmacController = xilinxCmacController;

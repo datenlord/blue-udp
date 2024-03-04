@@ -26,12 +26,12 @@ interface UdpIpArpEthRxTx;
     // Tx
     interface Put#(UdpIpMetaData) udpIpMetaDataTxIn;
     interface Put#(DataStream)    dataStreamTxIn;
-    interface AxiStream256PipeOut axiStreamTxOut;
+    interface AxiStream256FifoOut axiStreamTxOut;
     
     // Rx
     interface Put#(AxiStream256)   axiStreamRxIn;
-    interface UdpIpMetaDataPipeOut udpIpMetaDataRxOut;
-    interface DataStreamPipeOut    dataStreamRxOut;
+    interface UdpIpMetaDataFifoOut udpIpMetaDataRxOut;
+    interface DataStreamFifoOut    dataStreamRxOut;
 endinterface
 
 typedef enum{
@@ -61,24 +61,24 @@ module mkGenericUdpIpArpEthRxTx#(Bool isSupportRdma)(UdpIpArpEthRxTx);
 
     // Arp Processor
     ArpProcessor arpProcessor <- mkArpProcessor(
-        convertFifoToPipeOut(arpStreamRxBuf),
-        convertFifoToPipeOut(arpMetaDataTxBuf)
+        convertFifoToFifoOut(arpStreamRxBuf),
+        convertFifoToFifoOut(arpMetaDataTxBuf)
     );
 
     // Tx datapath
-    DataStreamPipeOut udpIpStreamTx = ?;
+    DataStreamFifoOut udpIpStreamTx = ?;
     if (isSupportRdma) begin
         udpIpStreamTx <- mkUdpIpStreamForRdma(
-            convertFifoToPipeOut(udpMetaDataTxBuf),
-            convertFifoToPipeOut(dataStreamTxInBuf),
+            convertFifoToFifoOut(udpMetaDataTxBuf),
+            convertFifoToFifoOut(dataStreamTxInBuf),
             udpConfigVal
         );
     end
     else begin
         udpIpStreamTx <- mkUdpIpStream(
             udpConfigVal,
-            convertFifoToPipeOut(dataStreamTxInBuf),
-            convertFifoToPipeOut(udpMetaDataTxBuf),
+            convertFifoToFifoOut(dataStreamTxInBuf),
+            convertFifoToFifoOut(udpMetaDataTxBuf),
             genUdpIpHeader
         );
     end
@@ -114,16 +114,16 @@ module mkGenericUdpIpArpEthRxTx#(Bool isSupportRdma)(UdpIpArpEthRxTx);
 
     endrule
 
-    DataStreamPipeOut macStreamTx <- mkMacStream(
-        convertFifoToPipeOut(macPayloadTxBuf), 
-        convertFifoToPipeOut(macMetaDataTxBuf), 
+    DataStreamFifoOut macStreamTx <- mkMacStream(
+        convertFifoToFifoOut(macPayloadTxBuf), 
+        convertFifoToFifoOut(macMetaDataTxBuf), 
         udpConfigVal
     );
-    AxiStream256PipeOut macAxiStreamOut = convertDataStreamToAxiStream256(macStreamTx);
+    AxiStream256FifoOut macAxiStreamOut = convertDataStreamToAxiStream256(macStreamTx);
 
     // Rx Datapath
-    DataStreamPipeOut macStreamRx <- mkAxiStream256ToDataStream(
-        convertFifoToPipeOut(axiStreamRxInBuf)
+    DataStreamFifoOut macStreamRx <- mkAxiStream256ToDataStream(
+        convertFifoToFifoOut(axiStreamRxInBuf)
     );
 
     MacMetaDataAndUdpIpStream macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
@@ -163,14 +163,14 @@ module mkGenericUdpIpArpEthRxTx#(Bool isSupportRdma)(UdpIpArpEthRxTx);
     UdpIpMetaDataAndDataStream udpIpMetaAndDataStream;
     if (isSupportRdma) begin
         udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStreamForRdma(
-            convertFifoToPipeOut(ipUdpStreamRxBuf),
+            convertFifoToFifoOut(ipUdpStreamRxBuf),
             udpConfigVal
         );
     end
     else begin
         udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStream(
             udpConfigVal,
-            convertFifoToPipeOut(ipUdpStreamRxBuf),
+            convertFifoToFifoOut(ipUdpStreamRxBuf),
             extractUdpIpMetaData
         );
     end
@@ -198,7 +198,7 @@ module mkGenericUdpIpArpEthRxTx#(Bool isSupportRdma)(UdpIpArpEthRxTx);
             dataStreamTxInBuf.enq(stream);
         endmethod
     endinterface
-    interface PipeOut axiStreamTxOut = convertDataStreamToAxiStream256(macStreamTx);
+    interface FifoOut axiStreamTxOut = convertDataStreamToAxiStream256(macStreamTx);
 
     // Rx interface
     interface Put axiStreamRxIn;
@@ -206,8 +206,8 @@ module mkGenericUdpIpArpEthRxTx#(Bool isSupportRdma)(UdpIpArpEthRxTx);
             axiStreamRxInBuf.enq(stream);
         endmethod
     endinterface
-    interface PipeOut udpIpMetaDataRxOut = udpIpMetaAndDataStream.udpIpMetaDataOut;
-    interface PipeOut dataStreamRxOut  = udpIpMetaAndDataStream.dataStreamOut;
+    interface FifoOut udpIpMetaDataRxOut = udpIpMetaAndDataStream.udpIpMetaDataOut;
+    interface FifoOut dataStreamRxOut  = udpIpMetaAndDataStream.dataStreamOut;
 endmodule
 
 
@@ -238,7 +238,7 @@ module mkGenericRawUdpIpArpEthRxTx#(Bool isSupportRdma)(RawUdpIpArpEthRxTx);
     let rawConfig <- mkRawUdpConfigBusSlave(udpRxTx.udpConfig);
     let rawUdpIpMetaDataTx <- mkRawUdpIpMetaDataBusSlave(udpRxTx.udpIpMetaDataTxIn);
     let rawDataStreamTx <- mkRawDataStreamBusSlave(udpRxTx.dataStreamTxIn);
-    let rawAxiStreamTx <- mkPipeOutToRawAxiStreamMaster(udpRxTx.axiStreamTxOut);
+    let rawAxiStreamTx <- mkFifoOutToRawAxiStreamMaster(udpRxTx.axiStreamTxOut);
 
     let rawUdpIpMetaDataRx <- mkRawUdpIpMetaDataBusMaster(udpRxTx.udpIpMetaDataRxOut);
     let rawDataStreamRx <- mkRawDataStreamBusMaster(udpRxTx.dataStreamRxOut);

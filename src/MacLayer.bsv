@@ -9,10 +9,10 @@ import SemiFifo :: *;
 
 
 module mkMacStream#(
-    DataStreamPipeOut  udpIpStreamIn,
-    MacMetaDataPipeOut macMetaDataIn,
+    DataStreamFifoOut  udpIpStreamIn,
+    MacMetaDataFifoOut macMetaDataIn,
     UdpConfig udpConfig
-)(DataStreamPipeOut);
+)(DataStreamFifoOut);
     FIFOF#(EthHeader) ethHeaderBuf <- mkFIFOF;
     
     rule genEthHeader;
@@ -25,8 +25,8 @@ module mkMacStream#(
         ethHeaderBuf.enq(ethHeader);
     endrule
 
-    PipeOut#(EthHeader) headerStream = convertFifoToPipeOut(ethHeaderBuf);
-    DataStreamPipeOut macStreamOut <- mkAppendDataStreamHead(HOLD, SWAP, udpIpStreamIn, headerStream);
+    FifoOut#(EthHeader) headerStream = convertFifoToFifoOut(ethHeaderBuf);
+    DataStreamFifoOut macStreamOut <- mkAppendDataStreamHead(HOLD, SWAP, udpIpStreamIn, headerStream);
     return macStreamOut;
 
 endmodule
@@ -40,13 +40,13 @@ function Bool checkMacHeader(EthHeader hdr, UdpConfig udpConfig);
 endfunction
 
 interface MacMetaDataAndUdpIpStream;
-    interface MacMetaDataPipeOut macMetaDataOut;
-    interface DataStreamPipeOut  udpIpStreamOut;
+    interface MacMetaDataFifoOut macMetaDataOut;
+    interface DataStreamFifoOut  udpIpStreamOut;
 endinterface
 
 
 module mkMacMetaDataAndUdpIpStream#(
-    DataStreamPipeOut macStreamIn,
+    DataStreamFifoOut macStreamIn,
     UdpConfig udpConfig
 )(MacMetaDataAndUdpIpStream);
     
@@ -86,6 +86,6 @@ module mkMacMetaDataAndUdpIpStream#(
         macExtractor.dataStreamOut.deq;
     endrule
 
-    interface PipeOut udpIpStreamOut = convertFifoToPipeOut(udpIpStreamOutBuf);
-    interface PipeOut macMetaDataOut = convertFifoToPipeOut(macMetaDataOutBuf);
+    interface FifoOut udpIpStreamOut = convertFifoToFifoOut(udpIpStreamOutBuf);
+    interface FifoOut macMetaDataOut = convertFifoToFifoOut(macMetaDataOutBuf);
 endmodule

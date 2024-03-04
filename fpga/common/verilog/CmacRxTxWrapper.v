@@ -34,7 +34,16 @@ module CmacRxTxWrapper#(
     input  [GT_LANE_WIDTH - 1 : 0] gt_rxn_in,
     input  [GT_LANE_WIDTH - 1 : 0] gt_rxp_in,
     output [GT_LANE_WIDTH - 1 : 0] gt_txn_out,
-    output [GT_LANE_WIDTH - 1 : 0] gt_txp_out
+    output [GT_LANE_WIDTH - 1 : 0] gt_txp_out,
+
+    // Optical Module
+    input qsfp_fault_in,
+    output qsfp_lpmode_out,
+    output qsfp_resetl_out,
+
+    // Inidcation LED
+    output qsfp_fault_indication,
+    output cmac_rx_aligned_indication
 );
     localparam CMAC_AXIS_TDATA_WIDTH = 512;
     localparam CMAC_AXIS_TKEEP_WIDTH = 64;
@@ -361,6 +370,26 @@ module CmacRxTxWrapper#(
         .drp_rdy                              (),
         .drp_we                               (1'b0 )
     );
+
+    // Optical Module and Indication LED
+    reg qsfp_fault_indication_reg0, qsfp_fault_indication_reg1, qsfp_fault_indication_reg2;
+    reg cmac_rx_aligned_indication_reg0, cmac_rx_aligned_indication_reg1, cmac_rx_aligned_indication_reg2;
+    always @(posedge gt_txusrclk2) begin
+        cmac_rx_aligned_indication_reg0 <= gt_stat_rx_aligned;
+        cmac_rx_aligned_indication_reg1 <= cmac_rx_aligned_indication_reg0;
+        cmac_rx_aligned_indication_reg2 <= cmac_rx_aligned_indication_reg1;
+    end
+
+    always @(posedge gt_init_clk) begin
+        qsfp_fault_indication_reg0 <= qsfp_fault_in;
+        qsfp_fault_indication_reg1 <= qsfp_fault_indication_reg0;
+        qsfp_fault_indication_reg2 <= qsfp_fault_indication_reg1;
+    end
+
+    assign qsfp_fault_indication = qsfp_fault_indication_reg2;
+    assign cmac_rx_aligned_indication = cmac_rx_aligned_indication_reg2;
+    assign qsfp_lpmode_out = 1'b0;
+    assign qsfp_resetl_out = 1'b1;
 
     axis512_mon_ila cmac_rx_axis_ila (
         .clk(gt_txusrclk2),

@@ -17,9 +17,9 @@ typedef enum {
 module mkAppendDataStreamHead#(
     IsSwapEndian swapDataStream,
     IsSwapEndian swapAppendData,
-    DataStreamPipeOut dataStreamIn,
-    PipeOut#(dType) appendDataIn
-)(DataStreamPipeOut)
+    DataStreamFifoOut dataStreamIn,
+    FifoOut#(dType) appendDataIn
+)(DataStreamFifoOut)
 provisos(
     Bits#(dType, dWidth), 
     Add#(dWidth, rWidth, DATA_BUS_WIDTH),
@@ -99,7 +99,7 @@ provisos(
         state <= INSERT;
     endrule
 
-    return convertFifoToPipeOut(outputBuf);
+    return convertFifoToFifoOut(outputBuf);
 
 endmodule
 
@@ -107,10 +107,10 @@ endmodule
 module mkAppendDataStreamTail#(
     IsSwapEndian swapDataStream,
     IsSwapEndian swapAppendData,
-    DataStreamPipeOut dataStreamIn,
-    PipeOut#(dType) appendDataIn,
-    PipeOut#(Bit#(streamLenWidth)) streamLengthIn
-)(DataStreamPipeOut)
+    DataStreamFifoOut dataStreamIn,
+    FifoOut#(dType) appendDataIn,
+    FifoOut#(Bit#(streamLenWidth)) streamLengthIn
+)(DataStreamFifoOut)
 provisos(
     NumAlias#(TLog#(DATA_BUS_BYTE_WIDTH), frameLenWidth),
 
@@ -181,13 +181,13 @@ provisos(
         dataStreamOutBuf.enq(dataStream);
         state <= PASS;
     endrule
-    return convertFifoToPipeOut(dataStreamOutBuf);
+    return convertFifoToFifoOut(dataStreamOutBuf);
 endmodule
 
 
 interface ExtractDataStream#(type dType);
-    interface PipeOut#(dType) extractDataOut;
-    interface DataStreamPipeOut dataStreamOut;
+    interface FifoOut#(dType) extractDataOut;
+    interface DataStreamFifoOut dataStreamOut;
 endinterface
 
 typedef enum{
@@ -195,7 +195,7 @@ typedef enum{
 } ExtractState deriving(Bits, Eq, FShow);
 
 module mkExtractDataStreamHead#(
-    DataStreamPipeOut dataStreamIn
+    DataStreamFifoOut dataStreamIn
 )(ExtractDataStream#(dType)) provisos(
     Bits#(dType, dWidth),
     Add#(dWidth, rWidth, DATA_BUS_WIDTH),
@@ -263,14 +263,14 @@ module mkExtractDataStreamHead#(
         state <= EXTRACT;
     endrule
 
-    interface PipeOut extractDataOut = convertFifoToPipeOut(extractDataBuf);
-    interface PipeOut dataStreamOut = convertFifoToPipeOut(dataStreamBuf);
+    interface FifoOut extractDataOut = convertFifoToFifoOut(extractDataBuf);
+    interface FifoOut dataStreamOut = convertFifoToFifoOut(dataStreamBuf);
 endmodule
 
 // ToDo: 
 // module mkExtractDataStreamTail#(
-//     DataStreamPipeOut dataStreamIn,
-//     PipeOut#(Bit#(streamLenWidth)) streamLengthIn
+//     DataStreamFifoOut dataStreamIn,
+//     FifoOut#(Bit#(streamLenWidth)) streamLengthIn
 // )(ExtractDataStream#(dType)) provisos(
 //     NumAlias#(TLog#(DATA_BUS_BYTE_WIDTH), frameLenWidth),
 //     Bits#(dType, dWidth),
@@ -283,9 +283,9 @@ endmodule
 // endmodule
 
 
-module mkDoubleAxiStreamPipeOut#(
-    AxiStream256PipeOut axiStreamIn
-)(AxiStream512PipeOut);
+module mkDoubleAxiStreamFifoOut#(
+    AxiStream256FifoOut axiStreamIn
+)(AxiStream512FifoOut);
     Reg#(Bit#(AXIS256_TDATA_WIDTH)) dataBuf <- mkRegU;
     Reg#(Bit#(AXIS256_TKEEP_WIDTH)) keepBuf <- mkRegU;
     Reg#(Bool) bufValid <- mkReg(False);
@@ -323,12 +323,12 @@ module mkDoubleAxiStreamPipeOut#(
         end
     endrule
 
-    return convertFifoToPipeOut(axiStreamOutBuf);
+    return convertFifoToFifoOut(axiStreamOutBuf);
 endmodule
 
-module mkDoubleAxiStreamPipeIn#(
-    AxiStream256PipeIn axiStreamOut
-)(AxiStream512PipeIn);
+module mkDoubleAxiStreamFifoIn#(
+    AxiStream256FifoIn axiStreamOut
+)(AxiStream512FifoIn);
     Reg#(Maybe#(AxiStream256)) axiStreamInterBuf <- mkReg(Invalid);
 
     FIFOF#(AxiStream512) axiStreamInBuf <- mkFIFOF;
@@ -366,10 +366,10 @@ module mkDoubleAxiStreamPipeIn#(
         end
     endrule
 
-    return convertFifoToPipeIn(axiStreamInBuf);
+    return convertFifoToFifoIn(axiStreamInBuf);
 endmodule
 
-module mkDataStreamToAxiStream512#(DataStreamPipeOut dataStreamIn)(AxiStream512PipeOut);
+module mkDataStreamToAxiStream512#(DataStreamFifoOut dataStreamIn)(AxiStream512FifoOut);
     Reg#(Data) dataBuf <- mkRegU;
     Reg#(ByteEn) byteEnBuf <- mkRegU;
     Reg#(Bool) bufValid <- mkReg(False);
@@ -409,10 +409,10 @@ module mkDataStreamToAxiStream512#(DataStreamPipeOut dataStreamIn)(AxiStream512P
         end
     endrule
 
-    return convertFifoToPipeOut(axiStreamOutBuf);
+    return convertFifoToFifoOut(axiStreamOutBuf);
 endmodule
 
-module mkAxiStream512ToDataStream#(AxiStream512PipeOut axiStreamIn)(DataStreamPipeOut);
+module mkAxiStream512ToDataStream#(AxiStream512FifoOut axiStreamIn)(DataStreamFifoOut);
     Reg#(Bool) isFirstReg <- mkReg(True);
     Reg#(Maybe#(DataStream)) extraDataStreamBuf <- mkReg(Invalid);
 
@@ -452,5 +452,5 @@ module mkAxiStream512ToDataStream#(AxiStream512PipeOut axiStreamIn)(DataStreamPi
         end
     endrule
 
-    return convertFifoToPipeOut(dataStreamOutBuf);
+    return convertFifoToFifoOut(dataStreamOutBuf);
 endmodule

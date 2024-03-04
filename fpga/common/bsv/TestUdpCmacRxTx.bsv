@@ -59,11 +59,11 @@ module mkTestUdpCmacRxTx(TestUdpCmacRxTx);
     FIFOF#(AxiStream512) xdmaAxiStreamOutTxBuf <- mkFIFOF;
     FIFOF#(AxiStream512) xdmaAxiStreamInRxBuf <- mkFIFOF;
 
-    let rawAxiStreamOutTx <- mkPipeOutToRawAxiStreamMaster(
-        convertFifoToPipeOut(xdmaAxiStreamOutTxBuf)
+    let rawAxiStreamOutTx <- mkFifoOutToRawAxiStreamMaster(
+        convertFifoToFifoOut(xdmaAxiStreamOutTxBuf)
     );
-    let rawAxiStreamInRx <- mkPipeInToRawAxiStreamSlave(
-        convertFifoToPipeIn(xdmaAxiStreamInRxBuf)
+    let rawAxiStreamInRx <- mkFifoInToRawAxiStreamSlave(
+        convertFifoToFifoIn(xdmaAxiStreamInRxBuf)
     );
 
     // Initialize Testbench

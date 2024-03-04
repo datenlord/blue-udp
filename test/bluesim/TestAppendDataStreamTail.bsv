@@ -46,22 +46,22 @@ module mkTestAppendDataStreamTail();
 
     let refDataStreamOut <- mkDataStreamSender(
         "RefDataStreamSender",
-        convertFifoToPipeOut(refRawByteNumBuf),
-        convertFifoToPipeOut(refRawDataBuf)
+        convertFifoToFifoOut(refRawByteNumBuf),
+        convertFifoToFifoOut(refRawDataBuf)
     );
 
     let dutDataStreamIn <- mkDataStreamSender(
         "DutDataStreamSender",
-        convertFifoToPipeOut(dutRawByteNumBuf),
-        convertFifoToPipeOut(dutRawDataBuf)
+        convertFifoToFifoOut(dutRawByteNumBuf),
+        convertFifoToFifoOut(dutRawDataBuf)
     );
 
     let dutDataStreamOut <- mkAppendDataStreamTail(
         HOLD,
         HOLD,
         dutDataStreamIn,
-        convertFifoToPipeOut(dutAppendDataBuf),
-        convertFifoToPipeOut(dutStreamLengthBuf)
+        convertFifoToFifoOut(dutAppendDataBuf),
+        convertFifoToFifoOut(dutStreamLengthBuf)
     );
 
     // Initialize Testbench

@@ -11,9 +11,11 @@ set dir_mem_config $::env(DIR_MEM_CONFIG)
 set config_file $::env(CONFIG_FILE)
 set synth_impl_opts_file $::env(SYNTH_IMPL_OPTS_FILE)
 
-set synth_only $::env(SYNTH_ONLY)
-set is_write_bitstream $::env(IS_WRITE_BITSTREAM)
-set is_write_debug_probes $::env(IS_WRITE_DEBUG_PROBES)
+set synth_en $::env(SYNTH_EN)
+set place_en $::env(PLACE_EN)
+set route_en $::env(ROUTE_EN)
+set bitstream_en $::env(BITSTREAM_EN)
+set debug_probes_en $::env(DEBUG_PROBES_EN)
 
 set target_clks $::env(TARGET_CLOCKS)
 set max_net_path_num $::env(MAX_NET_PATH_NUM)
@@ -86,7 +88,7 @@ proc runSynthDesign {args} {
 proc runPostSynthReport {args} {
     global dir_output target_clks max_net_path_num
 
-    if {[dict get $args -open_checkpoint] == true} {
+    if {[dict get $args -open_checkpoint]} {
         open_checkpoint $dir_output/post_synth_design.dcp
     }
 
@@ -135,13 +137,13 @@ proc runPostSynthReport {args} {
 proc runPlacement {args} {
     global dir_output place_opts phys_opt_opts
 
-    if {[dict get $args -open_checkpoint] == true} {
+    if {[dict get $args -open_checkpoint]} {
         open_checkpoint $dir_output/post_synth_design.dcp
     }
 
     opt_design -remap -verbose
     power_opt_design
-    eval place_design ;#$place_opts
+    eval place_design $place_opts
     # Optionally run optimization if there are timing violations after placement
     if {[get_property SLACK [get_timing_paths -max_paths 1 -nworst 1 -setup]] < 0} {
         puts "Found setup timing violations => running physical optimization"
@@ -155,11 +157,11 @@ proc runPlacement {args} {
 proc runRoute {args} {
     global dir_output route_opts
 
-    if {[dict get $args -open_checkpoint] == true} {
+    if {[dict get $args -open_checkpoint]} {
         open_checkpoint $dir_output/post_place.dcp
     }
 
-    eval route_design ;#$route_opts
+    eval route_design $route_opts
 
     proc runPPO { {num_iters 1} {enable_phys_opt 1} } {
         for {set idx 0} {$idx < $num_iters} {incr idx} {
@@ -187,7 +189,7 @@ proc runRoute {args} {
 proc runPostRouteReport {args} {
     global dir_output target_clks max_net_path_num
 
-    if {[dict get $args -open_checkpoint] == true} {
+    if {[dict get $args -open_checkpoint]} {
         open_checkpoint $dir_output/post_route.dcp
     }
 
@@ -229,7 +231,7 @@ proc runPostRouteReport {args} {
 proc runWriteBitStream {args} {
     global dir_output build_top
 
-    if {[dict get $args -open_checkpoint] == true} {
+    if {[dict get $args -open_checkpoint]} {
         open_checkpoint $dir_output/post_route.dcp
     }
 
@@ -239,7 +241,7 @@ proc runWriteBitStream {args} {
 proc runWriteDebugProbes {args} {
     global dir_output build_top
 
-    if {[dict get $args -open_checkpoint] == true} {
+    if {[dict get $args -open_checkpoint]} {
         open_checkpoint $dir_output/post_route.dcp
     }
 
@@ -262,22 +264,31 @@ proc runWriteDebugProbes {args} {
 #     program_hw_devices [get_hw_devices xcvu13p_0]
 # }
 
-# if {[file exists $dir_ip_gen]} {
-#     puts "Previously Generated and Synthesized IPs Are Used for This Build"
-# } else {
-#     runGenerateIP -open_checkpoint false
-#     runSynthIP -open_checkpoint false
-# }
-
-# addExtFiles -open_checkpoint false
-# runSynthDesign -open_checkpoint false
-# runPostSynthReport -open_checkpoint false
-# runPlacement -open_checkpoint false
-runRoute -open_checkpoint true
-runPostRouteReport -open_checkpoint false
-if { $is_write_bitstream } {
-    runWriteBitStream -open_checkpoint false
+if { $synth_en } {
+    if {[file exists $dir_ip_gen]} {
+        puts "Previously Generated and Synthesized IPs Are Used for This Build"
+    } else {
+        runGenerateIP -open_checkpoint 0
+        runSynthIP -open_checkpoint 0
+    }
+    addExtFiles -open_checkpoint 0
+    runSynthDesign -open_checkpoint 0
+    runPostSynthReport -open_checkpoint 0 
 }
-if { $is_write_debug_probes } {
-    runWriteDebugProbes -open_checkpoint false
+
+if { $place_en } {
+    runPlacement -open_checkpoint [expr ! $synth_en]
+}
+
+if { $route_en } {
+    runRoute -open_checkpoint [expr ! $place_en]
+    runPostRouteReport -open_checkpoint 0
+}
+
+if { $bitstream_en } {
+    runWriteBitStream -open_checkpoint [expr ! $route_en]
+}
+
+if { $debug_probes_en } {
+    runWriteDebugProbes -open_checkpoint [expr ! $route_en]
 }

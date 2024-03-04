@@ -78,8 +78,8 @@ module mkTestXilinxAxiStreamAsyncFifo();
         clk250MHz
     );
 
-    mkConnection(convertSyncFifoToPipeOut(dutFifo), convertFifoToPipeIn(outputBuf));
-    mkConnection(convertSyncFifoToPipeIn(dutFifo), convertFifoToPipeOut(inputBuf));
+    mkConnection(convertSyncFifoToFifoOut(dutFifo), convertFifoToFifoIn(outputBuf));
+    mkConnection(convertSyncFifoToFifoIn(dutFifo), convertFifoToFifoOut(inputBuf));
 
     // Initialize Testbench
     rule initInput if (!isInputInit);

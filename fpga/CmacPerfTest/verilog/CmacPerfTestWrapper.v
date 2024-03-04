@@ -22,8 +22,13 @@ module CmacPerfTestWrapper#(
     output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp_txn_out,
     output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp_txp_out,
 
+    input qsfp_fault_in,
     output qsfp_lpmode_out,
-    output qsfp_resetl_out
+    output qsfp_resetl_out,
+
+    // Inidcation LED
+    output qsfp_fault_indication,
+    output cmac_rx_aligned_indication
 );
 
     localparam XDMA_AXIS_TDATA_WIDTH = 512;
@@ -333,8 +338,13 @@ module CmacPerfTestWrapper#(
         .gt_rxn_in (qsfp_rxn_in ),
         .gt_rxp_in (qsfp_rxp_in ),
         .gt_txn_out(qsfp_txn_out),
-        .gt_txp_out(qsfp_txp_out)
+        .gt_txp_out(qsfp_txp_out),
+
+        .qsfp_fault_in(qsfp_fault_in),
+        .qsfp_lpmode_out(qsfp_lpmode_out),
+        .qsfp_resetl_out(qsfp_resetl_out),
+
+        .qsfp_fault_indication(qsfp_fault_indication),
+        .cmac_rx_aligned_indication(cmac_rx_aligned_indication)
     );
-    assign qsfp_lpmode_out = 1'b0;
-    assign qsfp_resetl_out = 1'b1;
 endmodule

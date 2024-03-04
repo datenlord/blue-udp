@@ -96,9 +96,9 @@ module mkCompletionBuf(CompletionBuf#(size, dType)) provisos(Bits#(dType, dSize)
 
 endmodule
 
-function PipeOut#(dType) completionBufToPipeOut(CompletionBuf#(size, dType) ifc);
+function FifoOut#(dType) completionBufToFifoOut(CompletionBuf#(size, dType) ifc);
     return(
-        interface PipeOut;
+        interface FifoOut;
             method dType first;
                 return ifc.first;
             endmethod

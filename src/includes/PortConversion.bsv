@@ -114,8 +114,8 @@ interface RawUdpConfigBusMaster;
 endinterface
 
 
-module mkRawUdpIpMetaDataBusMaster#(UdpIpMetaDataPipeOut pipeIn)(RawUdpIpMetaDataBusMaster);
-    RawBusMaster#(UdpIpMetaData) rawBus <- mkPipeOutToRawBusMaster(pipeIn);
+module mkRawUdpIpMetaDataBusMaster#(UdpIpMetaDataFifoOut pipeIn)(RawUdpIpMetaDataBusMaster);
+    RawBusMaster#(UdpIpMetaData) rawBus <- mkFifoOutToRawBusMaster(pipeIn);
     
     method Bool valid = rawBus.valid;
     method IpAddr ipAddr = rawBus.data.ipAddr;
@@ -156,8 +156,8 @@ module mkRawUdpIpMetaDataBusSlave#(Put#(UdpIpMetaData) put)(RawUdpIpMetaDataBusS
     method Bool ready = rawBus.ready;
 endmodule
 
-module mkRawMacMetaDataBusMaster#(MacMetaDataPipeOut pipe)(RawMacMetaDataBusMaster);
-    RawBusMaster#(MacMetaData) rawBus <- mkPipeOutToRawBusMaster(pipe);
+module mkRawMacMetaDataBusMaster#(MacMetaDataFifoOut pipe)(RawMacMetaDataBusMaster);
+    RawBusMaster#(MacMetaData) rawBus <- mkFifoOutToRawBusMaster(pipe);
     
     method Bool valid = rawBus.valid;
     method EthMacAddr macAddr = rawBus.data.macAddr;
@@ -185,8 +185,8 @@ module mkRawMacMetaDataBusSlave#(Put#(MacMetaData) put)(RawMacMetaDataBusSlave);
 endmodule
 
 
-module mkRawDataStreamBusMaster#(DataStreamPipeOut pipe)(RawDataStreamBusMaster);
-    RawBusMaster#(DataStream) rawBus <- mkPipeOutToRawBusMaster(pipe);
+module mkRawDataStreamBusMaster#(DataStreamFifoOut pipe)(RawDataStreamBusMaster);
+    RawBusMaster#(DataStream) rawBus <- mkFifoOutToRawBusMaster(pipe);
     
     method Bool valid = rawBus.valid;
     method ByteEn byteEn = rawBus.data.byteEn;
@@ -242,8 +242,8 @@ module mkRawUdpConfigBusSlave#(Put#(UdpConfig) put)(RawUdpConfigBusSlave);
     method Bool ready = rawBus.ready;
 endmodule
 
-module mkRawUdpConfigBusMaster#(PipeOut#(UdpConfig) pipe)(RawUdpConfigBusMaster);
-    RawBusMaster#(UdpConfig) rawBus <- mkPipeOutToRawBusMaster(pipe);
+module mkRawUdpConfigBusMaster#(FifoOut#(UdpConfig) pipe)(RawUdpConfigBusMaster);
+    RawBusMaster#(UdpConfig) rawBus <- mkFifoOutToRawBusMaster(pipe);
 
     method valid = rawBus.valid;
     method EthMacAddr macAddr = rawBus.data.macAddr;

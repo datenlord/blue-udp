@@ -18,7 +18,7 @@ interface UdpIpEthTx;
     interface Put#(UdpIpMetaData) udpIpMetaDataIn;
     interface Put#(MacMetaData) macMetaDataIn;
     interface Put#(DataStream) dataStreamIn;
-    interface AxiStream256PipeOut axiStreamOut;
+    interface AxiStream256FifoOut axiStreamOut;
 endinterface
 
 module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
@@ -29,26 +29,26 @@ module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
     
-    DataStreamPipeOut udpIpStream = ?;
+    DataStreamFifoOut udpIpStream = ?;
     if (isSupportRdma) begin
         udpIpStream <- mkUdpIpStreamForRdma(
-            convertFifoToPipeOut(udpIpMetaDataInBuf),
-            convertFifoToPipeOut(dataStreamInBuf),
+            convertFifoToFifoOut(udpIpMetaDataInBuf),
+            convertFifoToFifoOut(dataStreamInBuf),
             udpConfigVal
         );
     end
     else begin
         udpIpStream <- mkUdpIpStream(
             udpConfigVal,
-            convertFifoToPipeOut(dataStreamInBuf),
-            convertFifoToPipeOut(udpIpMetaDataInBuf),
+            convertFifoToFifoOut(dataStreamInBuf),
+            convertFifoToFifoOut(udpIpMetaDataInBuf),
             genUdpIpHeader
         );
     end
 
-    DataStreamPipeOut macStream <- mkMacStream(
+    DataStreamFifoOut macStream <- mkMacStream(
         udpIpStream, 
-        convertFifoToPipeOut(macMetaDataInBuf), 
+        convertFifoToFifoOut(macMetaDataInBuf), 
         udpConfigVal
     );
 
@@ -76,7 +76,7 @@ module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
         endmethod
     endinterface
 
-    interface PipeOut axiStreamOut = convertDataStreamToAxiStream256(macStream);
+    interface FifoOut axiStreamOut = convertDataStreamToAxiStream256(macStream);
 endmodule
 
 interface RawUdpIpEthTx;
@@ -101,7 +101,7 @@ module mkGenericRawUdpIpEthTx#(Bool isSupportRdma)(RawUdpIpEthTx);
     let rawMacMetaDataBus <- mkRawMacMetaDataBusSlave(udpIpEthTx.macMetaDataIn);
     let rawDataStreamBus <- mkRawDataStreamBusSlave(udpIpEthTx.dataStreamIn);
     
-    let rawAxiStreamBus <- mkPipeOutToRawAxiStreamMaster(udpIpEthTx.axiStreamOut);
+    let rawAxiStreamBus <- mkFifoOutToRawAxiStreamMaster(udpIpEthTx.axiStreamOut);
 
     interface rawUdpConfig = rawUdpConfigBus;
     interface rawUdpIpMetaDataIn = rawUdpIpMetaDataBus;

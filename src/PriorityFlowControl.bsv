@@ -18,7 +18,7 @@ function IpDscp mapChannelIdxToDscp(VirtualChannelIndex channelIdx);
     return {channelIdx, 0};
 endfunction
 
-module mkPipeOutFairArbiter#(Vector#(clientNum, PipeOut#(dType)) clients)(PipeOut#(dType))
+module mkFifoOutFairArbiter#(Vector#(clientNum, FifoOut#(dType)) clients)(FifoOut#(dType))
     provisos(
         Bits#(dType, dSize),
         NumAlias#(TLog#(clientNum), clientIdxWidth)
@@ -57,7 +57,7 @@ module mkPipeOutFairArbiter#(Vector#(clientNum, PipeOut#(dType)) clients)(PipeOu
         end
     endrule
     
-    return convertFifoToPipeOut(clientOutBuf);
+    return convertFifoToFifoOut(clientOutBuf);
 endmodule
 
 interface PriorityFlowControlRx#(
@@ -66,15 +66,15 @@ interface PriorityFlowControlRx#(
     numeric type pfcThreshold
 );
     // pause and resume request from receiver
-    interface PipeOut#(FlowControlReqVec) flowControlReqVecOut;
+    interface FifoOut#(FlowControlReqVec) flowControlReqVecOut;
     
-    interface Vector#(VIRTUAL_CHANNEL_NUM, PipeOut#(DataStream)) dataStreamOutVec;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, PipeOut#(UdpIpMetaData)) udpIpMetaDataOutVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, FifoOut#(DataStream)) dataStreamOutVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, FifoOut#(UdpIpMetaData)) udpIpMetaDataOutVec;
 endinterface
 
 module mkPriorityFlowControlRx#(
-    DataStreamPipeOut dataStreamIn,
-    UdpIpMetaDataPipeOut udpIpMetaDataIn
+    DataStreamFifoOut dataStreamIn,
+    UdpIpMetaDataFifoOut udpIpMetaDataIn
 )(PriorityFlowControlRx#(bufPacketNum, maxPacketFrameNum, pfcThreshold))
     provisos(
         Add#(pfcThreshold, __a, bufPacketNum),
@@ -141,12 +141,12 @@ module mkPriorityFlowControlRx#(
     endrule
 
 
-    Vector#(VIRTUAL_CHANNEL_NUM, PipeOut#(DataStream)) dataStreamVec = newVector;
-    Vector#(VIRTUAL_CHANNEL_NUM, PipeOut#(UdpIpMetaData)) udpIpMetaDataVec = newVector;
+    Vector#(VIRTUAL_CHANNEL_NUM, FifoOut#(DataStream)) dataStreamVec = newVector;
+    Vector#(VIRTUAL_CHANNEL_NUM, FifoOut#(UdpIpMetaData)) udpIpMetaDataVec = newVector;
     for (Integer i = 0; i < virtualChannelNum; i = i + 1) begin
-        udpIpMetaDataVec[i] = convertFifoToPipeOut(udpIpMetaDataOutBufVec[i]);
+        udpIpMetaDataVec[i] = convertFifoToFifoOut(udpIpMetaDataOutBufVec[i]);
         dataStreamVec[i] = (
-            interface PipeOut#(DataStream)
+            interface FifoOut#(DataStream)
                 method DataStream first = dataStreamOutBufVec[i].first;
                 method Bool notEmpty = dataStreamOutBufVec[i].notEmpty;
                 method Action deq;
@@ -160,7 +160,7 @@ module mkPriorityFlowControlRx#(
         );
     end
 
-    interface flowControlReqVecOut = convertFifoToPipeOut(flowControlReqVecOutBuf);
+    interface flowControlReqVecOut = convertFifoToFifoOut(flowControlReqVecOutBuf);
     interface dataStreamOutVec = dataStreamVec;
     interface udpIpMetaDataOutVec = udpIpMetaDataVec;
 endmodule
@@ -172,9 +172,9 @@ interface PriorityFlowControlTx;
 endinterface
 
 module mkPriorityFlowControlTx#(
-    PipeOut#(FlowControlReqVec) flowControlReqVecIn,
-    Vector#(VIRTUAL_CHANNEL_NUM, DataStreamPipeOut) dataStreamInVec,
-    Vector#(VIRTUAL_CHANNEL_NUM, UdpIpMetaDataPipeOut) udpIpMetaDataInVec
+    FifoOut#(FlowControlReqVec) flowControlReqVecIn,
+    Vector#(VIRTUAL_CHANNEL_NUM, DataStreamFifoOut) dataStreamInVec,
+    Vector#(VIRTUAL_CHANNEL_NUM, UdpIpMetaDataFifoOut) udpIpMetaDataInVec
 )(PriorityFlowControlTx);
 
     Integer virtualChannelNum = valueOf(VIRTUAL_CHANNEL_NUM);
@@ -206,8 +206,8 @@ module mkPriorityFlowControlTx#(
         endrule
     end
 
-    let udpIpMetaDataArbitrated <- mkPipeOutFairArbiter(
-        map(convertFifoToPipeOut, udpIpMetaDataInterBufVec)
+    let udpIpMetaDataArbitrated <- mkFifoOutFairArbiter(
+        map(convertFifoToFifoOut, udpIpMetaDataInterBufVec)
     );
 
     rule passDataStream;

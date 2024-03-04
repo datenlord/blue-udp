@@ -43,8 +43,8 @@ module mkXdmaCmacRxTx(
     FIFOF#(AxiStream512) xdmaAxiStreamTxInBuf <- mkFIFOF(clocked_by xdmaClk, reset_by xdmaReset);
     FIFOF#(AxiStream512) xdmaAxiStreamRxOutBuf <- mkFIFOF(clocked_by xdmaClk, reset_by xdmaReset);
 
-    let rawXdmaAxiStreamRxOut <- mkPipeOutToRawAxiStreamMaster(convertFifoToPipeOut(xdmaAxiStreamRxOutBuf), clocked_by xdmaClk, reset_by xdmaReset);
-    let rawXdmaAxiStreamTxIn <- mkPipeInToRawAxiStreamSlave(convertFifoToPipeIn(xdmaAxiStreamTxInBuf), clocked_by xdmaClk, reset_by xdmaReset);
+    let rawXdmaAxiStreamRxOut <- mkFifoOutToRawAxiStreamMaster(convertFifoToFifoOut(xdmaAxiStreamRxOutBuf), clocked_by xdmaClk, reset_by xdmaReset);
+    let rawXdmaAxiStreamTxIn <- mkFifoInToRawAxiStreamSlave(convertFifoToFifoIn(xdmaAxiStreamTxInBuf), clocked_by xdmaClk, reset_by xdmaReset);
 
     // CMAC Clock Region
     let cmacAxiStreamSync <- mkDuplexAxiStreamAsyncFifo(
@@ -55,19 +55,19 @@ module mkXdmaCmacRxTx(
         cmacRxTxClk,
         cmacRxReset,
         cmacTxReset,
-        convertFifoToPipeIn(xdmaAxiStreamRxOutBuf),
-        convertFifoToPipeOut(xdmaAxiStreamTxInBuf)
+        convertFifoToFifoIn(xdmaAxiStreamRxOutBuf),
+        convertFifoToFifoOut(xdmaAxiStreamTxInBuf)
     );
 
-    PipeOut#(FlowControlReqVec) txFlowCtrlReqVec <- mkDummyPipeOut;
-    PipeIn#(FlowControlReqVec) rxFlowCtrlReqVec <- mkDummyPipeIn;
+    FifoOut#(FlowControlReqVec) txFlowCtrlReqVec <- mkDummyFifoOut;
+    FifoIn#(FlowControlReqVec) rxFlowCtrlReqVec <- mkDummyFifoIn;
     
     let xilinxCmacCtrl <- mkXilinxCmacController(
         isEnableRsFec,
         isEnableFlowControl,
         isCmacTxWaitRxAligned,
-        cmacAxiStreamSync.dstPipeOut,
-        cmacAxiStreamSync.dstPipeIn,
+        cmacAxiStreamSync.dstFifoOut,
+        cmacAxiStreamSync.dstFifoIn,
         txFlowCtrlReqVec,
         rxFlowCtrlReqVec,
         cmacRxReset,

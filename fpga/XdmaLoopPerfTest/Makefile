@@ -12,17 +12,20 @@ export BUILD_TOP = XdmaLoopPerfTestWrapper
 ## Directories and Files
 export DIR_VLOG = ./verilog
 export DIR_VLOG_GEN = ./generated/verilog
-export DIR_XDC = ./xdc
+export DIR_XDC = ./generated/xdc
 export DIR_IP_TCL = ./generated/ips_tcl
-export DIR_IP_GEN = ./generated/ips
+export DIR_IP_GEN = ./gen_ips
 export DIR_OUTPUT = output
 export DIR_MEM_CONFIG = ./generated/mem
+export SYNTH_IMPL_OPTS_FILE =
 export CONFIG_FILE = ./generated/impl_config.vh
 
 ## Flow Control
-export SYNTH_ONLY = 0
-export IS_WRITE_BITSTREAM = 1
-export IS_WRITE_DEBUG_PROBES = 1
+export SYNTH_EN = 1
+export PLACE_EN = 1
+export ROUTE_EN = 1
+export BITSTREAM_EN = 0
+export DEBUG_PROBES_EN = 0
 
 ## Report Options
 export TARGET_CLOCKS = xdma_axi_aclk
@@ -30,6 +33,7 @@ export MAX_NET_PATH_NUM = 1000
 
 BSV_MODULES = XdmaPerfMonitor
 IP = xdma_axil_desc xdma_perf_mon_ila axis512_mon_ila
+XDC = common pciex16
 
 verilog: $(BSV_MODULES)
 $(BSV_MODULES):
@@ -37,6 +41,11 @@ $(BSV_MODULES):
 	mkdir -p $(DIR_VLOG_GEN)
 	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g mk$@ $(BSV_DIR)/$@.bsv
 	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) mk$@ mk$@ | grep -i '\.v' | xargs -I {} cp {} $(DIR_VLOG_GEN)
+
+xdc: $(XDC)
+$(XDC):
+	@mkdir -p $(DIR_XDC)
+	cp ../common/xdc/$@.tcl $(DIR_XDC)
 
 ip: $(IP)
 $(IP):
@@ -46,18 +55,16 @@ $(IP):
 config:
 	@echo "// Implementation Configurations" > $(CONFIG_FILE)
 
-build: verilog ip config
+build: verilog xdc ip config
 	vivado -mode batch -source ../common/tcl/non_proj_build.tcl 2>&1 | tee ./build_run.log
 
 clean:
-	rm -rf $(BUILDDIR) $(DIR_VLOG_GEN) $(CONFIG_FILE) $(DIR_IP_TCL) *.mem *.jou *.log .Xil output *.str *.txt
+	rm -rf $(BUILDDIR) generated *.mem *.jou *.log .Xil output *.str *.txt
 
 clean_ip:
 	rm -rf $(DIR_IP_GEN)
 
 clean_all: clean clean_ip
-	rm -rf generated
 
-
-.PHONY: verilog ip config build clean clean_ip clean_all
+.PHONY: verilog ip xdc config build clean clean_ip clean_all
 .DEFAULT_GOAL := verilog

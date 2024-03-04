@@ -101,10 +101,10 @@ function Action immFail(String assertName, Fmt assertFmtMsg);
     endaction
 endfunction
 
-function PipeOut#(anytype) muxPipeOut2(
-    Bool sel, PipeOut#(anytype) pipeIn1, PipeOut#(anytype) pipeIn0
+function FifoOut#(anytype) muxFifoOut2(
+    Bool sel, FifoOut#(anytype) pipeIn1, FifoOut#(anytype) pipeIn0
 );
-    PipeOut#(anytype) resultPipeOut = interface PipeOut;
+    FifoOut#(anytype) resultFifoOut = interface FifoOut;
         method anytype first;
             return sel ? pipeIn1.first : pipeIn0.first;
         endmethod
@@ -120,12 +120,12 @@ function PipeOut#(anytype) muxPipeOut2(
         
     endinterface;
 
-    return resultPipeOut;
+    return resultFifoOut;
 
 endfunction
 
-function PipeOut#(type2) translatePipeOut(PipeOut#(type1) pipeIn, type2 payload);
-    return (interface PipeOut;
+function FifoOut#(type2) translateFifoOut(FifoOut#(type1) pipeIn, type2 payload);
+    return (interface FifoOut;
                 method type2 first;
                     return payload;
                 endmethod
@@ -138,8 +138,8 @@ function PipeOut#(type2) translatePipeOut(PipeOut#(type1) pipeIn, type2 payload)
             endinterface);
 endfunction
 
-function PipeOut#(anyType) continuePipeOutWhen(PipeOut#(anyType) pipeIn, Bool cond);
-    return (interface PipeOut;
+function FifoOut#(anyType) continueFifoOutWhen(FifoOut#(anyType) pipeIn, Bool cond);
+    return (interface FifoOut;
                 method anyType first if (cond);
                     return pipeIn.first;
                 endmethod
@@ -291,9 +291,9 @@ function Bit#(TLog#(oneHotWidth)) convertOneHotToIndex(Vector#(oneHotWidth, Bool
     return index;
 endfunction
 
-function AxiStream256PipeOut convertDataStreamToAxiStream256(DataStreamPipeOut stream);
+function AxiStream256FifoOut convertDataStreamToAxiStream256(DataStreamFifoOut stream);
     return (
-        interface AxiStream256PipeOut;
+        interface AxiStream256FifoOut;
             method AxiStream256 first();
                 return AxiStream256 {
                     tData: stream.first.data,
@@ -315,8 +315,8 @@ function AxiStream256PipeOut convertDataStreamToAxiStream256(DataStreamPipeOut s
 endfunction
 
 module mkAxiStream256ToDataStream#(
-    AxiStream256PipeOut axiStreamIn
-)(DataStreamPipeOut);
+    AxiStream256FifoOut axiStreamIn
+)(DataStreamFifoOut);
     Reg#(Bool) isFirstReg <- mkReg(True);
 
     
@@ -340,10 +340,10 @@ module mkAxiStream256ToDataStream#(
 endmodule
 
 
-module mkCrc32AxiStream256PipeOut#(
+module mkCrc32AxiStream256FifoOut#(
     CrcMode crcMode,
-    AxiStream256PipeOut crcReq
-)(PipeOut#(Crc32Checksum));
+    AxiStream256FifoOut crcReq
+)(FifoOut#(Crc32Checksum));
     CrcConfig#(CRC32_WIDTH) conf = CrcConfig {
         polynominal: fromInteger(valueOf(CRC32_IEEE_POLY)),
         initVal    : fromInteger(valueOf(CRC32_IEEE_INIT_VAL)),
@@ -353,27 +353,27 @@ module mkCrc32AxiStream256PipeOut#(
         memFilePrefix: "crc_tab",
         crcMode    : crcMode
     };
-    let crcResp <- mkCrcAxiStreamPipeOut(conf, crcReq);
+    let crcResp <- mkCrcAxiStreamFifoOut(conf, crcReq);
     return crcResp;
 endmodule
 
-module mkSizedBramFifoToPipeOut#(
+module mkSizedBramFifoToFifoOut#(
     Integer depth, 
-    PipeOut#(dType) pipe
-)(PipeOut#(dType)) provisos(Bits#(dType, dSize), Add#(1, a__, dSize), FShow#(dType));
+    FifoOut#(dType) pipe
+)(FifoOut#(dType)) provisos(Bits#(dType, dSize), Add#(1, a__, dSize), FShow#(dType));
 
     FIFOF#(dType) fifo <- mkSizedBRAMFIFOF(depth);
     rule doEnq;
         fifo.enq(pipe.first);
         pipe.deq;
     endrule
-    return convertFifoToPipeOut(fifo);
+    return convertFifoToFifoOut(fifo);
 endmodule
 
-module mkSizedFifoToPipeOut#(
+module mkSizedFifoToFifoOut#(
     Integer depth, 
-    PipeOut#(dType) pipe
-)(PipeOut#(dType)) provisos(Bits#(dType, dSize), Add#(1, a__, dSize));
+    FifoOut#(dType) pipe
+)(FifoOut#(dType)) provisos(Bits#(dType, dSize), Add#(1, a__, dSize));
 
     FIFOF#(dType) fifo <- mkSizedFIFOF(depth);
     rule doEnq;
@@ -381,7 +381,7 @@ module mkSizedFifoToPipeOut#(
         pipe.deq;
     endrule
 
-    return convertFifoToPipeOut(fifo);
+    return convertFifoToFifoOut(fifo);
 endmodule
 
 interface Counter#(type countType);

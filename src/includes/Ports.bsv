@@ -27,7 +27,7 @@ typedef struct {
     Bool isFirst;
     Bool isLast;
 } DataStream deriving(Bits, Bounded, Eq, FShow);
-typedef PipeOut#(DataStream) DataStreamPipeOut;
+typedef FifoOut#(DataStream) DataStreamFifoOut;
 
 typedef struct {
     UdpLength  dataLen;
@@ -37,13 +37,13 @@ typedef struct {
     UdpPort    dstPort;
     UdpPort    srcPort;
 } UdpIpMetaData deriving(Bits, Bounded, Eq, FShow);
-typedef PipeOut#(UdpIpMetaData) UdpIpMetaDataPipeOut;
+typedef FifoOut#(UdpIpMetaData) UdpIpMetaDataFifoOut;
 
 typedef struct {
     EthMacAddr macAddr;
     EthType    ethType;
 } MacMetaData deriving(Bits, Eq, FShow);
-typedef PipeOut#(MacMetaData) MacMetaDataPipeOut;
+typedef FifoOut#(MacMetaData) MacMetaDataFifoOut;
 
 typedef struct {
     EthMacAddr macAddr;
@@ -51,7 +51,7 @@ typedef struct {
     IpNetMask  netMask;
     IpGateWay  gateWay;
 } UdpConfig deriving(Bits, Bounded, Eq, FShow);
-typedef PipeOut#(UdpConfig) UdpConfigPipeOut;
+typedef FifoOut#(UdpConfig) UdpConfigFifoOut;
 
 typedef enum {
     FLOW_CTRL_STOP,
@@ -70,10 +70,10 @@ typedef 1   AXIS_TUSER_WIDTH;
 
 typedef AxiStream#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) AxiStream512;
 typedef AxiStream#(AXIS256_TKEEP_WIDTH, AXIS_TUSER_WIDTH) AxiStream256;
-typedef PipeOut#(AxiStream256) AxiStream256PipeOut;
-typedef PipeOut#(AxiStream512) AxiStream512PipeOut;
-typedef PipeIn#(AxiStream256) AxiStream256PipeIn;
-typedef PipeIn#(AxiStream512) AxiStream512PipeIn;
+typedef FifoOut#(AxiStream256) AxiStream256FifoOut;
+typedef FifoOut#(AxiStream512) AxiStream512FifoOut;
+typedef FifoIn#(AxiStream256) AxiStream256FifoIn;
+typedef FifoIn#(AxiStream512) AxiStream512FifoIn;
 
 typedef RawAxiStreamSlaveToGet#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) RawAxiStreamSlaveToGet512;
 

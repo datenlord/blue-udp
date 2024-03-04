@@ -11,15 +11,15 @@ import EthernetTypes :: *;
 import SemiFifo :: *;
 
 interface ArpProcessor;
-    interface DataStreamPipeOut arpStreamOut;
-    interface MacMetaDataPipeOut macMetaDataOut;
+    interface DataStreamFifoOut arpStreamOut;
+    interface MacMetaDataFifoOut macMetaDataOut;
     interface Put#(UdpConfig) udpConfig;
 endinterface
 
 
 module mkArpProcessor#(
-    DataStreamPipeOut arpStreamIn,
-    UdpIpMetaDataPipeOut udpIpMetaDataIn
+    DataStreamFifoOut arpStreamIn,
+    UdpIpMetaDataFifoOut udpIpMetaDataIn
 )(ArpProcessor);
     Reg#(UdpConfig) udpConfigReg <- mkRegU;
     FIFOF#(ArpFrame) arpRespBuf <- mkFIFOF;
@@ -31,11 +31,11 @@ module mkArpProcessor#(
 
     ArpCache arpCache <- mkArpCache;
     ExtractDataStream#(ArpFrame) arpFrameAndPadding <- mkExtractDataStreamHead(arpStreamIn);
-    DataStreamPipeOut arpStream <- mkAppendDataStreamHead(
+    DataStreamFifoOut arpStream <- mkAppendDataStreamHead(
         HOLD,
         SWAP,
-        convertFifoToPipeOut(paddingOutBuf),
-        convertFifoToPipeOut(arpFrameOutBuf)
+        convertFifoToFifoOut(paddingOutBuf),
+        convertFifoToFifoOut(arpFrameOutBuf)
     );
 
     rule doCacheReq;
@@ -155,8 +155,8 @@ module mkArpProcessor#(
     endrule
 
 
-    interface PipeOut arpStreamOut = arpStream;
-    interface PipeOut macMetaDataOut = convertFifoToPipeOut(macMetaOutBuf);
+    interface FifoOut arpStreamOut = arpStream;
+    interface FifoOut macMetaDataOut = convertFifoToFifoOut(macMetaOutBuf);
     interface Put udpConfig;
         method Action put(UdpConfig conf);
             udpConfigReg <= conf;

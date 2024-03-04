@@ -20,11 +20,20 @@ set_property PACKAGE_PIN C3 [get_ports {qsfp1_rxn_in[2]}]
 set_property PACKAGE_PIN A5 [get_ports {qsfp1_rxp_in[3]}]
 set_property PACKAGE_PIN A4 [get_ports {qsfp1_rxn_in[3]}]
 
-set_property PACKAGE_PIN BB9 [get_ports {qsfp1_lpmode_out}]
+set_property PACKAGE_PIN BC8     [get_ports {qsfp1_fault_in}]
+set_property IOSTANDARD LVCMOS12 [get_ports {qsfp1_fault_in}]
+
+set_property PACKAGE_PIN BB9     [get_ports {qsfp1_lpmode_out}]
 set_property IOSTANDARD LVCMOS12 [get_ports {qsfp1_lpmode_out}]
 
-set_property PACKAGE_PIN BA7 [get_ports {qsfp1_resetl_out}]
+set_property PACKAGE_PIN BA7     [get_ports {qsfp1_resetl_out}]
 set_property IOSTANDARD LVCMOS12 [get_ports {qsfp1_resetl_out}]
+
+set_property PACKAGE_PIN BE21    [get_ports {qsfp1_fault_indication}]
+set_property IOSTANDARD LVCMOS12 [get_ports {qsfp1_fault_indication}]
+
+set_property PACKAGE_PIN BF22    [get_ports {cmac1_rx_aligned_indication}]
+set_property IOSTANDARD LVCMOS12 [get_ports {cmac1_rx_aligned_indication}]
 
 # QSFP2
 set_property PACKAGE_PIN Y11 [get_ports {qsfp2_ref_clk_p}]
@@ -48,8 +57,17 @@ set_property PACKAGE_PIN W3  [get_ports {qsfp2_rxn_in[2]}]
 set_property PACKAGE_PIN V2  [get_ports {qsfp2_rxp_in[3]}]
 set_property PACKAGE_PIN V1  [get_ports {qsfp2_rxn_in[3]}]
 
-set_property PACKAGE_PIN BB7 [get_ports {qsfp2_lpmode_out}]
+set_property PACKAGE_PIN BC11    [get_ports {qsfp2_fault_in}]
+set_property IOSTANDARD LVCMOS12 [get_ports {qsfp2_fault_in}]
+
+set_property PACKAGE_PIN BB7     [get_ports {qsfp2_lpmode_out}]
 set_property IOSTANDARD LVCMOS12 [get_ports {qsfp2_lpmode_out}]
 
-set_property PACKAGE_PIN BB10 [get_ports {qsfp2_resetl_out}]
+set_property PACKAGE_PIN BB10    [get_ports {qsfp2_resetl_out}]
 set_property IOSTANDARD LVCMOS12 [get_ports {qsfp2_resetl_out}]
+
+set_property PACKAGE_PIN BD21    [get_ports {qsfp2_fault_indication}]
+set_property IOSTANDARD LVCMOS12 [get_ports {qsfp2_fault_indication}]
+
+set_property PACKAGE_PIN BE22    [get_ports {cmac2_rx_aligned_indication}]
+set_property IOSTANDARD LVCMOS12 [get_ports {cmac2_rx_aligned_indication}]

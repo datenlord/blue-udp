@@ -18,13 +18,13 @@ interface UdpIpEthRxTx;
     interface Put#(MacMetaData)   macMetaDataTxIn;
     interface Put#(UdpIpMetaData) udpIpMetaDataTxIn;
     interface Put#(DataStream)    dataStreamTxIn;
-    interface AxiStream256PipeOut axiStreamTxOut;
+    interface AxiStream256FifoOut axiStreamTxOut;
     
     // Rx Channel
     interface Put#(AxiStream256)   axiStreamRxIn;
-    interface MacMetaDataPipeOut   macMetaDataRxOut;
-    interface UdpIpMetaDataPipeOut udpIpMetaDataRxOut;
-    interface DataStreamPipeOut    dataStreamRxOut;
+    interface MacMetaDataFifoOut   macMetaDataRxOut;
+    interface UdpIpMetaDataFifoOut udpIpMetaDataRxOut;
+    interface DataStreamFifoOut    dataStreamRxOut;
 endinterface
 
 
@@ -66,9 +66,9 @@ interface UdpIpEthCmacRxTx;
     interface Put#(MacMetaData)   macMetaDataTxIn;
     
     // Rx Channel
-    interface UdpIpMetaDataPipeOut udpIpMetaDataRxOut;
-    interface DataStreamPipeOut    dataStreamRxOut;
-    interface MacMetaDataPipeOut   macMetaDataRxOut;
+    interface UdpIpMetaDataFifoOut udpIpMetaDataRxOut;
+    interface DataStreamFifoOut    dataStreamRxOut;
+    interface MacMetaDataFifoOut   macMetaDataRxOut;
 endinterface
 
 (* default_clock_osc = "udp_clk", default_reset = "udp_reset" *)
@@ -90,9 +90,9 @@ module mkUdpIpEthCmacRxTx#(
     let udpReset <- exposeCurrentReset;
 
     let udpIpEthRxTx <- mkGenericUdpIpEthRxTx(isSupportRdma);
-    let axiStream512TxOut <- mkDoubleAxiStreamPipeOut(udpIpEthRxTx.axiStreamTxOut);
-    let axiStreamRxIn <- mkPutToPipeIn(udpIpEthRxTx.axiStreamRxIn);
-    let axiStream512RxIn <- mkDoubleAxiStreamPipeIn(axiStreamRxIn);
+    let axiStream512TxOut <- mkDoubleAxiStreamFifoOut(udpIpEthRxTx.axiStreamTxOut);
+    let axiStreamRxIn <- mkPutToFifoIn(udpIpEthRxTx.axiStreamRxIn);
+    let axiStream512RxIn <- mkDoubleAxiStreamFifoIn(axiStreamRxIn);
 
     let axiStream512Sync <- mkDuplexAxiStreamAsyncFifo(
         syncBramBufDepth,
@@ -106,14 +106,14 @@ module mkUdpIpEthCmacRxTx#(
         axiStream512TxOut
     );
 
-    PipeOut#(FlowControlReqVec) txFlowCtrlReqVec <- mkDummyPipeOut;
-    PipeIn#(FlowControlReqVec) rxFlowCtrlReqVec <- mkDummyPipeIn;
+    FifoOut#(FlowControlReqVec) txFlowCtrlReqVec <- mkDummyFifoOut;
+    FifoIn#(FlowControlReqVec) rxFlowCtrlReqVec <- mkDummyFifoIn;
     let xilinxCmacCtrl <- mkXilinxCmacController(
         isEnableRsFec,
         isEnableFlowControl,
         isCmacTxWaitRxAligned,
-        axiStream512Sync.dstPipeOut,
-        axiStream512Sync.dstPipeIn,
+        axiStream512Sync.dstFifoOut,
+        axiStream512Sync.dstFifoIn,
         txFlowCtrlReqVec,
         rxFlowCtrlReqVec,
         cmacRxReset,

@@ -211,11 +211,11 @@ module mkUdpCmacPerfMonitor(UdpCmacPerfMonitor);
         end
     endrule
 
-    let rawXdmaAxiStreamIn <- mkPipeInToRawAxiStreamSlave(convertFifoToPipeIn(xdmaAxiStreamInBuf));
-    let rawXdmaAxiStreamOut <- mkPipeOutToRawAxiStreamMaster(convertFifoToPipeOut(xdmaAxiStreamOutBuf));
+    let rawXdmaAxiStreamIn <- mkFifoInToRawAxiStreamSlave(convertFifoToFifoIn(xdmaAxiStreamInBuf));
+    let rawXdmaAxiStreamOut <- mkFifoOutToRawAxiStreamMaster(convertFifoToFifoOut(xdmaAxiStreamOutBuf));
     
-    let rawUdpAxiStreamRxIn <- mkPipeInToRawAxiStreamSlave(convertFifoToPipeIn(udpAxiStreamRxInBuf));
-    let rawUdpAxiStreamTxOut <- mkPipeOutToRawAxiStreamMaster(convertFifoToPipeOut(udpAxiStreamTxOutBuf));
+    let rawUdpAxiStreamRxIn <- mkFifoInToRawAxiStreamSlave(convertFifoToFifoIn(udpAxiStreamRxInBuf));
+    let rawUdpAxiStreamTxOut <- mkFifoOutToRawAxiStreamMaster(convertFifoToFifoOut(udpAxiStreamTxOutBuf));
 
     interface xdmaAxiStreamIn  = rawXdmaAxiStreamIn;
     interface xdmaAxiStreamOut = rawXdmaAxiStreamOut;

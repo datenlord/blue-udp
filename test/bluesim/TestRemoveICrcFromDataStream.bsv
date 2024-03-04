@@ -47,18 +47,18 @@ module mkTestRemoveICrcFromDataStream();
 
     let refDataStreamOut <- mkDataStreamSender(
         "RefDataStreamSender",
-        convertFifoToPipeOut(refRawByteNumBuf),
-        convertFifoToPipeOut(refRawDataBuf)
+        convertFifoToFifoOut(refRawByteNumBuf),
+        convertFifoToFifoOut(refRawDataBuf)
     );
 
     let dutDataStreamIn <- mkDataStreamSender(
         "DutDataStreamSender",
-        convertFifoToPipeOut(dutRawByteNumBuf),
-        convertFifoToPipeOut(dutRawDataBuf)
+        convertFifoToFifoOut(dutRawByteNumBuf),
+        convertFifoToFifoOut(dutRawDataBuf)
     );
 
     let dutDataStreamOut <- mkRemoveICrcFromDataStream(
-        convertFifoToPipeOut(dutStreamLenBuf),
+        convertFifoToFifoOut(dutStreamLenBuf),
         dutDataStreamIn
     );
 

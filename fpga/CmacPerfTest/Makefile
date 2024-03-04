@@ -23,12 +23,15 @@ export DIR_IP_TCL = ./generated/ips_tcl
 export DIR_IP_GEN = ./generated/ips
 export DIR_OUTPUT = output
 export DIR_MEM_CONFIG = ./generated/mem
+export SYNTH_IMPL_OPTS_FILE =
 export CONFIG_FILE = ./generated/impl_config.vh
 
 ## Flow Control
-export SYNTH_ONLY = 0
-export IS_WRITE_BITSTREAM = 1
-export IS_WRITE_DEBUG_PROBES = 1
+export SYNTH_EN = 1
+export PLACE_EN = 1
+export ROUTE_EN = 1
+export BITSTREAM_EN = 0
+export DEBUG_PROBES_EN = 0
 
 ## Report Options
 export TARGET_CLOCKS = xdma_axi_aclk
@@ -41,7 +44,7 @@ IP += cmac_rsfec_q$(QSFP_IDX)
 else
 IP += cmac_q$(QSFP_IDX)
 endif
-XDC = common floorplan_q$(QSFP_IDX) pciex16 qsfp$(QSFP_IDX)
+XDC = common pciex16 qsfp$(QSFP_IDX)
 
 verilog: $(BSV_MODULES)
 	cp ../common/verilog/CmacRxTxWrapper.v $(DIR_VLOG_GEN)
@@ -57,9 +60,10 @@ $(IP):
 	cp ../common/ips_tcl/$@.tcl $(DIR_IP_TCL)
 
 xdc: $(XDC)
+	cp ./xdc/floorplan_q$(QSFP_IDX).xdc $(DIR_XDC)
 $(XDC):
 	@mkdir -p $(DIR_XDC)
-	cp ./xdc/$@.xdc $(DIR_XDC)
+	cp ../common/xdc/$@.xdc $(DIR_XDC)
 
 config:
 	@echo "// Implementation Configurations" > $(CONFIG_FILE)
@@ -67,7 +71,7 @@ ifeq ($(ENABLE_CMAC_RSFEC), 1)
 	@echo "\`define ENABLE_CMAC_RSFEC" >> $(CONFIG_FILE)
 endif
 
-build: verilog ip config xdc
+build: verilog ip xdc config
 	vivado -mode batch -source ../common/tcl/non_proj_build.tcl 2>&1 | tee ./build_run.log
 
 clean:
@@ -76,6 +80,9 @@ clean:
 clean_ip:
 	rm -rf $(DIR_IP_GEN)
 
+clean_all: clean clean_ip
+	rm -rf generated
 
-.PHONY: verilog config build clean clean_ip
+
+.PHONY: verilog ip xdc config build clean clean_ip clean_all
 .DEFAULT_GOAL := verilog

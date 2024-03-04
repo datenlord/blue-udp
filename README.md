@@ -86,9 +86,9 @@ typedef struct {
 module mkAppendDataStreamHead#(
     IsSwapEndian swapDataStream,
     IsSwapEndian swapAppendData,
-    PipeOut#(DataStream) dataStreamIn,
-    PipeOut#(dType) appendDataIn
-)(PipeOut#(DataStream));
+    FifoOut#(DataStream) dataStreamIn,
+    FifoOut#(dType) appendDataIn
+)(FifoOut#(DataStream));
 ```
 
 - **mkAppendDataStreamTail** works similarly with **mkAppendDataStreamHead** by appending one transfer in **appendDataIn** stream to the tail of one packet in the **dataStreamIn** stream. To simplify internal hardware implementation, it also needs to take in one more stream **streamLengthIn** which carries the length of each packet in .
@@ -97,21 +97,21 @@ module mkAppendDataStreamHead#(
 module mkAppendDataStreamTail#(
     IsSwapEndian swapDataStream,
     IsSwapEndian swapAppendData,
-    PipeOut#(DataStream) dataStreamIn,
-    PipeOut#(dType) appendDataIn,
-    PipeOut#(Bit#(streamLenWidth)) streamLengthIn
-)(PipeOut#(DataStream));
+    FifoOut#(DataStream) dataStreamIn,
+    FifoOut#(dType) appendDataIn,
+    FifoOut#(Bit#(streamLenWidth)) streamLengthIn
+)(FifoOut#(DataStream));
 ```
 
 - **mkExtractDataStreamHead** extracts the head of one packet in **dataStreamIn** stream to **extractDataOut** stream and sends the remainder packet stream to **dataStreamOut** stream.
 
 ```bluespec
 interface ExtractDataStream#(type dType);
-    interface PipeOut#(dType) extractDataOut;
-    interface PipeOut#(DataStream) dataStreamOut;
+    interface FifoOut#(dType) extractDataOut;
+    interface FifoOut#(DataStream) dataStreamOut;
 endinterface
 module mkExtractDataStreamHead#(
-    PipeOut#(DataStream) dataStreamIn
+    FifoOut#(DataStream) dataStreamIn
 )(ExtractDataStream#(dType));
 ```
 
@@ -156,22 +156,22 @@ typedef struct {
 ```bluespec
 module mkUdpIpStream#(
     UdpConfig udpConfig,
-    PipeOut#(DataStream) dataStreamIn,
-    PipeOut#(UdpIpMetaData) udpIpMetaDataIn,
+    FifoOut#(DataStream) dataStreamIn,
+    FifoOut#(UdpIpMetaData) udpIpMetaDataIn,
     function UdpIpHeader genHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId)
-)(PipeOut#(DataStream));
+)(FifoOut#(DataStream));
 ```
 
 - **mkUdpIpMetaDataAndDataStream** extracts **udpIpMetaDataOut** carrying header information and **dataStreamOut** carrying payload stream from input UDP/IP packet stream **udpIpStreamIn**. Before sending out extracted header and payload, the module needs to verify the integrity of received IP header by checksum field and throw them if the header is corrupted during transmission.
 
 ```bluespec
 interface UdpIpMetaDataAndDataStream;
-    interface PipeOut#(UdpIpMetaData) udpIpMetaDataOut;
-    interface PipeOut#(DataStream) dataStreamOut;
+    interface FifoOut#(UdpIpMetaData) udpIpMetaDataOut;
+    interface FifoOut#(DataStream) dataStreamOut;
 endinterface
 module mkUdpIpMetaDataAndDataStream#(
     UdpConfig udpConfig,
-    PipeOut#(DataStream) udpIpStreamIn,
+    FifoOut#(DataStream) udpIpStreamIn,
     function UdpIpMetaData extractMetaData(UdpIpHeader hdr)
 )(UdpIpMetaDataAndDataStream);
 ```
@@ -219,22 +219,22 @@ To be noted, Ethernet packet handled in the **MacLayer** only covers fields outl
 
 ```bluespec
 module mkMacStream#(
-    PipeOut#(DataStream)  udpIpStreamIn,
-    PipeOut#(MacMetaData) macMetaDataIn,
+    FifoOut#(DataStream)  udpIpStreamIn,
+    FifoOut#(MacMetaData) macMetaDataIn,
     UdpConfig udpConfig
-)(PipeOut#(DataStream));
+)(FifoOut#(DataStream));
 ```
 
 - **mkMacMetaDataAndUdpIpStream** extracts **macMetaDataOut** carrying Ethernet header infomation and **udpIpStreamOut** carrying UDP/IP packet stream from Ethernet packet stream **macStreamIn**.
 
 ```bluespec
 interface MacMetaDataAndUdpIpStream;
-    interface PipeOut#(MacMetaData) macMetaDataOut;
-    interface PipeOut#(DataStream)  udpIpStreamOut;
+    interface FifoOut#(MacMetaData) macMetaDataOut;
+    interface FifoOut#(DataStream)  udpIpStreamOut;
 endinterface
 
 module mkMacMetaDataAndUdpIpStream#(
-    PipeOut#(DataStream) macStreamIn,
+    FifoOut#(DataStream) macStreamIn,
     UdpConfig udpConfig
 )(MacMetaDataAndUdpIpStream);
 ```
@@ -276,14 +276,14 @@ The module can behave as both ARP client and server. As a server, processor need
 
 ```bluespec
 interface ArpProcessor;
-    interface PipeOut#(DataStream) arpStreamOut;
-    interface PipeOut#(MacMetaData) macMetaDataOut;
+    interface FifoOut#(DataStream) arpStreamOut;
+    interface FifoOut#(MacMetaData) macMetaDataOut;
     interface Put#(UdpConfig) udpConfig;
 endinterface
 
 module mkArpProcessor#(
-    PipeOut#(DataStream) arpStreamIn,
-    PipeOut#(UdpIpMetaData) udpIpMetaDataIn
+    FifoOut#(DataStream) arpStreamIn,
+    FifoOut#(UdpIpMetaData) udpIpMetaDataIn
 )(ArpProcessor);
 ```
 </details>
@@ -305,9 +305,9 @@ interface UdpIpEthRx;
     
     interface Put#(AxiStream512) axiStreamIn;
     
-    interface PipeOut#(MacMetaData) macMetaDataOut;
-    interface PipeOut#(UdpIpMetaData) udpIpMetaDataOut;
-    interface PipeOut#(DataStream)  dataStreamOut;
+    interface FifoOut#(MacMetaData) macMetaDataOut;
+    interface FifoOut#(UdpIpMetaData) udpIpMetaDataOut;
+    interface FifoOut#(DataStream)  dataStreamOut;
 endinterface
 
 module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx)
@@ -335,7 +335,7 @@ interface UdpIpEthTx;
     interface Put#(UdpIpMetaData) udpIpMetaDataIn;
     interface Put#(MacMetaData) macMetaDataIn;
     interface Put#(DataStream) dataStreamIn;
-    interface AxiStream512PipeOut axiStreamOut;
+    interface AxiStream512FifoOut axiStreamOut;
 endinterface
 
 module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
@@ -368,11 +368,11 @@ interface UdpIpArpEthRxTx;
     // Tx
     interface Put#(UdpIpMetaData) udpIpMetaDataInTx;
     interface Put#(DataStream)    dataStreamInTx;
-    interface AxiStream512PipeOut axiStreamOutTx;
+    interface AxiStream512FifoOut axiStreamOutTx;
     // Rx
     interface Put#(AxiStream512)   axiStreamInRx;
-    interface PipeOut#(UdpIpMetaData) udpIpMetaDataOutRx;
-    interface PipeOut#(DataStream)    dataStreamOutRx;
+    interface FifoOut#(UdpIpMetaData) udpIpMetaDataOutRx;
+    interface FifoOut#(DataStream)    dataStreamOutRx;
 endinterface
 
 module mkGenericUdpIpArpEthRxTx#(Bool isSupportRdma)(UdpIpArpEthRxTx);
@@ -404,9 +404,9 @@ interface PriorityFlowControlTx;
 endinterface
 
 module mkPriorityFlowControlTx#(
-    PipeOut#(FlowControlReqVec) flowControlReqVecIn,
-    Vector#(VIRTUAL_CHANNEL_NUM, DataStreamPipeOut) dataStreamInVec,
-    Vector#(VIRTUAL_CHANNEL_NUM, UdpIpMetaDataPipeOut) udpIpMetaDataInVec
+    FifoOut#(FlowControlReqVec) flowControlReqVecIn,
+    Vector#(VIRTUAL_CHANNEL_NUM, DataStreamFifoOut) dataStreamInVec,
+    Vector#(VIRTUAL_CHANNEL_NUM, UdpIpMetaDataFifoOut) udpIpMetaDataInVec
 )(PriorityFlowControlTx);
 ```
 
@@ -420,14 +420,14 @@ interface PriorityFlowControlRx#(
     numeric type maxPacketFrameNum,
     numeric type pfcThreshold
 );
-    interface PipeOut#(FlowControlReqVec) flowControlReqVecOut;
+    interface FifoOut#(FlowControlReqVec) flowControlReqVecOut;
     interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(DataStream)) dataStreamOutVec;
     interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataOutVec;
 endinterface
 
 module mkPriorityFlowControlRx#(
-    DataStreamPipeOut dataStreamIn,
-    UdpIpMetaDataPipeOut udpIpMetaDataIn
+    DataStreamFifoOut dataStreamIn,
+    UdpIpMetaDataFifoOut udpIpMetaDataIn
 )(PriorityFlowControlRx#(bufPacketNum, maxPacketFrameNum, pfcThreshold));
 ```
 

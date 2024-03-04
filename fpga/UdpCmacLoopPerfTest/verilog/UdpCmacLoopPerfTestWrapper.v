@@ -15,21 +15,33 @@ module UdpCmacLoopPerfTestWrapper#(
 
     output user_lnk_up,
 
+    // QSFP1
     input qsfp1_ref_clk_p,
     input qsfp1_ref_clk_n,
-
-    input qsfp2_ref_clk_p,
-    input qsfp2_ref_clk_n,
-
     input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_rxn_in,
     input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_rxp_in,
     output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_txn_out,
     output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp1_txp_out,
+    input qsfp1_fault_in,
+    output qsfp1_lpmode_out,
+    output qsfp1_resetl_out,
+    // Inidcation LED
+    output qsfp1_fault_indication,
+    output cmac1_rx_aligned_indication,
 
+    // QSFP2
+    input qsfp2_ref_clk_p,
+    input qsfp2_ref_clk_n,
     input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_rxn_in,
     input  [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_rxp_in,
     output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_txn_out,
-    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_txp_out
+    output [CMAC_GT_LANE_WIDTH - 1 : 0] qsfp2_txp_out,
+    input qsfp2_fault_in,
+    output qsfp2_lpmode_out,
+    output qsfp2_resetl_out,
+    // Inidcation LED
+    output qsfp2_fault_indication,
+    output cmac2_rx_aligned_indication
 );
 
     localparam XDMA_AXIS_TDATA_WIDTH = 512;
@@ -77,22 +89,22 @@ module UdpCmacLoopPerfTestWrapper#(
     wire [XDMA_AXIS_TUSER_WIDTH - 1 : 0] udp_tx_axis_tuser;
 
     // Perfamance Counter
-    wire [15:0] pkt_size_reg;
-    wire [31:0] pkt_interval_reg;
-    wire [31:0] perf_cycle_count_reg_tx;
-    wire [31:0] perf_cycle_count_reg_rx;
-    wire [31:0] perf_beat_count_reg_tx;
-    wire [31:0] perf_beat_count_reg_rx;
-    wire [0:0] perf_cycle_count_full_reg_tx;
-    wire [0:0] perf_cycle_count_full_reg_rx;
-    wire [0:0] send_pkt_enable_reg;
-    wire [0:0] recv_pkt_enable_reg;
-    wire [0:0] is_recv_first_pkt_reg;
-    wire [31:0] send_pkt_num_count_reg;
-    wire [31:0] recv_pkt_num_count_reg;
-    wire [31:0] err_pkt_num_count_reg;
-    wire [31:0] total_beat_count_reg_tx;
-    wire [31:0] total_beat_count_reg_rx;
+    wire [ 0:0] send_pkt_enable;
+    wire [ 0:0] recv_pkt_enable;
+    wire [ 0:0] is_recv_first_pkt;
+    wire [ 0:0] perf_cycle_count_full_tx;
+    wire [ 0:0] perf_cycle_count_full_rx;
+    wire [31:0] pkt_size;
+    wire [31:0] pkt_interval;
+    wire [31:0] perf_cycle_count_tx;
+    wire [31:0] perf_cycle_count_rx;
+    wire [31:0] perf_beat_count_tx;
+    wire [31:0] perf_beat_count_rx;
+    wire [31:0] send_pkt_num_count;
+    wire [31:0] recv_pkt_num_count;
+    wire [31:0] err_pkt_num_count;
+    wire [31:0] total_beat_count_tx;
+    wire [31:0] total_beat_count_rx;
     
     wire udp_tx_axis_tvalid_piped;
     wire udp_tx_axis_tready_piped;
@@ -133,7 +145,7 @@ module UdpCmacLoopPerfTestWrapper#(
         .m_axis_h2c_tkeep_0 (xdma_tx_axis_tkeep)    // output wire [63 : 0] m_axis_h2c_tkeep_0
     );
 
-    mkUdpCmacPerfMonitor perfMonInst(
+    mkUdpCmacPerfMonitor perf_mon_inst(
         .CLK   (xdma_axi_aclk   ),
         .RST_N (xdma_axi_aresetn),
         .xdma_tx_axis_tvalid(xdma_tx_axis_tvalid),
@@ -164,64 +176,44 @@ module UdpCmacLoopPerfTestWrapper#(
         .udp_tx_axis_tuser  (udp_tx_axis_tuser ),
         .udp_tx_axis_tready (udp_tx_axis_tready),
 
-        .pktSizeOut             (pkt_size_reg),
-        .pktIntervalOut         (pkt_interval_reg),
-        .perfCycleCounterTxOut  (perf_cycle_count_reg_tx),
-        .perfCycleCounterRxOut  (perf_cycle_count_reg_rx),
-        .perfBeatCounterTxOut   (perf_beat_count_reg_tx ),
-        .perfBeatCounterRxOut   (perf_beat_count_reg_rx ),
-        .totalBeatCounterTxOut  (total_beat_count_reg_tx),
-        .totalBeatCounterRxOut  (total_beat_count_reg_rx),
-        .perfCycleCountFullTxOut(perf_cycle_count_full_reg_tx),
-        .perfCycleCountFullRxOut(perf_cycle_count_full_reg_rx),
-        .sendPktEnableOut       (send_pkt_enable_reg),
-        .recvPktEnableOut       (recv_pkt_enable_reg),
-        .isRecvFirstPktOut      (is_recv_first_pkt_reg),
-        .sendPktNumCounterOut   (send_pkt_num_count_reg),
-        .recvPktNumCounterOut   (recv_pkt_num_count_reg),
-        .errPktNumCounterOut    (err_pkt_num_count_reg)
-    );
-    
-    ila_0 perf_counter_ila (
-        .clk    (xdma_axi_aclk          ),
-        .probe0 (pkt_size_reg           ),
-        .probe1 (perf_cycle_count_reg_tx),
-        .probe2 (perf_cycle_count_reg_rx),
-        .probe3 (perf_beat_count_reg_tx ),
-        .probe4 (perf_beat_count_reg_rx ),
-        .probe5 (perf_cycle_count_full_reg_tx),
-        .probe6 (perf_cycle_count_full_reg_rx),
-        .probe7 (send_pkt_enable_reg    ),
-        .probe8 (recv_pkt_enable_reg    ),
-        .probe9 (is_recv_first_pkt_reg  ),
-        .probe10(send_pkt_num_count_reg ),
-        .probe11(recv_pkt_num_count_reg ),
-        .probe12(err_pkt_num_count_reg  ),
-        .probe13(total_beat_count_reg_tx),
-        .probe14(total_beat_count_reg_rx),
-        .probe15(pkt_interval_reg       )
+        .pktSizeOut             (pkt_size),
+        .pktIntervalOut         (pkt_interval),
+        .perfCycleCounterTxOut  (perf_cycle_count_tx),
+        .perfCycleCounterRxOut  (perf_cycle_count_rx),
+        .perfBeatCounterTxOut   (perf_beat_count_tx ),
+        .perfBeatCounterRxOut   (perf_beat_count_rx ),
+        .totalBeatCounterTxOut  (total_beat_count_tx),
+        .totalBeatCounterRxOut  (total_beat_count_rx),
+        .perfCycleCountFullTxOut(perf_cycle_count_full_tx),
+        .perfCycleCountFullRxOut(perf_cycle_count_full_rx),
+        .sendPktEnableOut       (send_pkt_enable),
+        .recvPktEnableOut       (recv_pkt_enable),
+        .isRecvFirstPktOut      (is_recv_first_pkt),
+        .sendPktNumCounterOut   (send_pkt_num_count),
+        .recvPktNumCounterOut   (recv_pkt_num_count),
+        .errPktNumCounterOut    (err_pkt_num_count)
     );
 
-    ila_1 udp_rx_axis_ila (
-        .clk(xdma_axi_aclk), // input wire clk
+    udp_perf_mon_ila perf_mon_ila_inst (
+        .clk   (xdma_axi_aclk),
 
-        .probe0(udp_rx_axis_tvalid), // input wire [0:0]  probe0  
-        .probe1(udp_rx_axis_tready), // input wire [0:0]  probe1 
-        .probe2(udp_rx_axis_tdata ), // input wire [511:0]  probe2 
-        .probe3(udp_rx_axis_tkeep ), // input wire [63:0]  probe3 
-        .probe4(udp_rx_axis_tlast ) // input wire [0:0]  probe4
+        .probe0 (send_pkt_enable         ),
+        .probe1 (recv_pkt_enable         ),
+        .probe2 (is_recv_first_pkt       ),
+        .probe3 (perf_cycle_count_full_tx),
+        .probe4 (perf_cycle_count_full_rx),
+        .probe5 (pkt_size                ),
+        .probe6 (pkt_interval            ),
+        .probe7 (perf_cycle_count_tx     ),
+        .probe8 (perf_cycle_count_rx     ),
+        .probe9 (perf_beat_count_tx      ),
+        .probe10(perf_beat_count_rx      ),
+        .probe11(send_pkt_num_count      ),
+        .probe12(recv_pkt_num_count      ),
+        .probe13(err_pkt_num_count       ),
+        .probe14(total_beat_count_tx     ),
+        .probe15(total_beat_count_rx     )
     );
-
-    ila_1 udp_tx_axis_ila (
-        .clk(xdma_axi_aclk), // input wire clk
-
-        .probe0(udp_tx_axis_tvalid), // input wire [0:0]  probe0  
-        .probe1(udp_tx_axis_tready), // input wire [0:0]  probe1 
-        .probe2(udp_tx_axis_tdata ), // input wire [511:0]  probe2 
-        .probe3(udp_tx_axis_tkeep ), // input wire [63:0]  probe3 
-        .probe4(udp_tx_axis_tlast ) // input wire [0:0]  probe4
-    );
-
 
     
     clk_wiz_0 clk_wiz_inst (
@@ -242,7 +234,7 @@ module UdpCmacLoopPerfTestWrapper#(
     xpm_fifo_axis #(
         .FIFO_DEPTH(16),
         .TDATA_WIDTH(XDMA_AXIS_TDATA_WIDTH)
-    ) xdma_tx_axis_buf (
+    ) udp_tx_axis_buf (
         .s_aclk   (xdma_axi_aclk),
         .m_aclk   (xdma_axi_aclk),
         .s_aresetn(xdma_axi_aresetn),
@@ -303,7 +295,13 @@ module UdpCmacLoopPerfTestWrapper#(
         .gt_rxn_in (qsfp1_rxn_in ),
         .gt_rxp_in (qsfp1_rxp_in ),
         .gt_txn_out(qsfp1_txn_out),
-        .gt_txp_out(qsfp1_txp_out)
+        .gt_txp_out(qsfp1_txp_out),
+
+        .qsfp_fault_in             (qsfp1_fault_in             ),
+        .qsfp_lpmode_out           (qsfp1_lpmode_out           ),
+        .qsfp_resetl_out           (qsfp1_resetl_out           ),
+        .qsfp_fault_indication     (qsfp1_fault_indication     ),
+        .cmac_rx_aligned_indication(cmac1_rx_aligned_indication)
     );
 
     UdpCmacRxTxWrapper#(
@@ -342,7 +340,13 @@ module UdpCmacLoopPerfTestWrapper#(
         .gt_rxn_in (qsfp2_rxn_in ),
         .gt_rxp_in (qsfp2_rxp_in ),
         .gt_txn_out(qsfp2_txn_out),
-        .gt_txp_out(qsfp2_txp_out)
+        .gt_txp_out(qsfp2_txp_out),
+
+        .qsfp_fault_in             (qsfp2_fault_in             ),
+        .qsfp_lpmode_out           (qsfp2_lpmode_out           ),
+        .qsfp_resetl_out           (qsfp2_resetl_out           ),
+        .qsfp_fault_indication     (qsfp2_fault_indication     ),
+        .cmac_rx_aligned_indication(cmac2_rx_aligned_indication)
     );
     
 endmodule

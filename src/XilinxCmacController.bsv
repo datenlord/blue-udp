@@ -104,8 +104,8 @@ module mkXilinxCmacTxController#(
     Bool isEnableRsFec,
     Bool isEnableFlowControl,
     Bool isWaitRxAligned,
-    AxiStream512PipeOut userAxiStreamIn,
-    PipeOut#(FlowControlReqVec) userFlowCtrlReqVecIn
+    AxiStream512FifoOut userAxiStreamIn,
+    FifoOut#(FlowControlReqVec) userFlowCtrlReqVecIn
 )(XilinxCmacTxController);
 
     Reg#(Bool) ctlTxEnableReg <- mkReg(False);
@@ -261,7 +261,7 @@ module mkXilinxCmacTxController#(
         end
     endrule
     
-    let rawCmacAxiStream <- mkPipeOutToRawAxiStreamMaster(convertFifoToPipeOut(cmacAxiStreamOutBuf));
+    let rawCmacAxiStream <- mkFifoOutToRawAxiStreamMaster(convertFifoToFifoOut(cmacAxiStreamOutBuf));
     interface rawCmacAxiStreamOut = rawCmacAxiStream;
 
     method Bool ctlTxReset = False;
@@ -417,8 +417,8 @@ typedef struct {
 module mkXilinxCmacRxController#(
     Bool isEnableRsFec,
     Bool isEnableFlowControl,
-    AxiStream512PipeIn userAxiStreamOut,
-    PipeIn#(FlowControlReqVec) userFlowCtrlReqVecOut
+    AxiStream512FifoIn userAxiStreamOut,
+    FifoIn#(FlowControlReqVec) userFlowCtrlReqVecOut
 )(XilinxCmacRxController);
     Reg#(Bool) ctlRxEnableReg <- mkReg(False);
     Reg#(Bool) ctlRxForceResyncReg <- mkReg(False);
@@ -572,7 +572,7 @@ module mkXilinxCmacRxController#(
         userFlowCtrlReqVecOut.enq(flowCtrlReqVec);
     endrule
 
-    mkConnection(userAxiStreamOut, convertFifoToPipeOut(rxAxiStreamOutBuf));
+    mkConnection(userAxiStreamOut, convertFifoToFifoOut(rxAxiStreamOutBuf));
     method Bool ctlRxEnable = ctlRxEnableReg;
     method Bool ctlRxForceResync = ctlRxForceResyncReg;
     method Bool ctlRxTestPattern = ctlRxTestPatternReg;
@@ -662,10 +662,10 @@ module mkXilinxCmacController#(
     Bool isEnableRsFec,
     Bool isEnableFlowControl,
     Bool isTxWaitRxAligned,
-    AxiStream512PipeOut userAxiStreamIn,
-    AxiStream512PipeIn  userAxiStreamOut,
-    PipeOut#(FlowControlReqVec) userFlowCtrlReqVecIn,
-    PipeIn#(FlowControlReqVec) userFlowCtrlReqVecOut
+    AxiStream512FifoOut userAxiStreamIn,
+    AxiStream512FifoIn  userAxiStreamOut,
+    FifoOut#(FlowControlReqVec) userFlowCtrlReqVecIn,
+    FifoIn#(FlowControlReqVec) userFlowCtrlReqVecOut
 )(
     (* reset = "cmac_rx_reset" *) Reset cmacRxReset,
     (* reset = "cmac_tx_reset" *) Reset cmacTxReset,
@@ -729,28 +729,28 @@ module mkRawXilinxCmacController(
         isEnableRsFec,
         isEnableFlowControl,
         isTxWaitRxAligned,
-        convertFifoToPipeOut(userAxiStreamTxInBuf ),
-        convertFifoToPipeIn (userAxiStreamRxOutBuf),
-        convertFifoToPipeOut(userFlowCtrlReqVecTxInBuf),
-        convertFifoToPipeIn (userFlowCtrlReqVecRxOutBuf),
+        convertFifoToFifoOut(userAxiStreamTxInBuf ),
+        convertFifoToFifoIn (userAxiStreamRxOutBuf),
+        convertFifoToFifoOut(userFlowCtrlReqVecTxInBuf),
+        convertFifoToFifoIn (userFlowCtrlReqVecRxOutBuf),
         cmacRxReset,
         cmacTxReset
     );
 
-    let userAxiStreamTxIn <- mkPipeInToRawAxiStreamSlave(
-        convertFifoToPipeIn(userAxiStreamTxInBuf),
+    let userAxiStreamTxIn <- mkFifoInToRawAxiStreamSlave(
+        convertFifoToFifoIn(userAxiStreamTxInBuf),
         reset_by cmacTxReset
     );
-    let userAxiStreamRxOut <- mkPipeOutToRawAxiStreamMaster(
-        convertFifoToPipeOut(userAxiStreamRxOutBuf),
+    let userAxiStreamRxOut <- mkFifoOutToRawAxiStreamMaster(
+        convertFifoToFifoOut(userAxiStreamRxOutBuf),
         reset_by cmacRxReset
     );
-    let userFlowCtrlReqVecTxIn <- mkPipeInToRawBusSlave(
-        convertFifoToPipeIn(userFlowCtrlReqVecTxInBuf),
+    let userFlowCtrlReqVecTxIn <- mkFifoInToRawBusSlave(
+        convertFifoToFifoIn(userFlowCtrlReqVecTxInBuf),
         reset_by cmacTxReset
     );
-    let userFlowCtrlReqVecRxOut <- mkPipeOutToRawBusMaster(
-        convertFifoToPipeOut(userFlowCtrlReqVecRxOutBuf),
+    let userFlowCtrlReqVecRxOut <- mkFifoOutToRawBusMaster(
+        convertFifoToFifoOut(userFlowCtrlReqVecRxOutBuf),
         reset_by cmacRxReset
     );
     

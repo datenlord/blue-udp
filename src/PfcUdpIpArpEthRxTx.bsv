@@ -28,18 +28,18 @@ interface PfcUdpIpArpEthRxTx#(
     interface Put#(UdpConfig) udpConfig;
 
     // Tx Channels
-    interface AxiStream256PipeOut axiStreamTxOut;
+    interface AxiStream256FifoOut axiStreamTxOut;
     interface Vector#(VIRTUAL_CHANNEL_NUM, Put#(DataStream))    dataStreamTxInVec;
     interface Vector#(VIRTUAL_CHANNEL_NUM, Put#(UdpIpMetaData)) udpIpMetaDataTxInVec; 
 
     // Rx Channels
     interface Put#(AxiStream256)   axiStreamRxIn;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, DataStreamPipeOut)    dataStreamRxOutVec;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, UdpIpMetaDataPipeOut) udpIpMetaDataRxOutVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, DataStreamFifoOut)    dataStreamRxOutVec;
+    interface Vector#(VIRTUAL_CHANNEL_NUM, UdpIpMetaDataFifoOut) udpIpMetaDataRxOutVec;
         
     // PFC Request
     interface Put#(FlowControlReqVec) flowControlReqVecIn;
-    interface PipeOut#(FlowControlReqVec) flowControlReqVecOut;
+    interface FifoOut#(FlowControlReqVec) flowControlReqVecOut;
 
 endinterface
 
@@ -53,9 +53,9 @@ module mkGenericPfcUdpIpArpEthRxTx#(Bool isSupportRdma)(PfcUdpIpArpEthRxTx#(bufP
     let udpIpArpEthRxTx <- mkGenericUdpIpArpEthRxTx(isSupportRdma);
 
     let pfcTx <- mkPriorityFlowControlTx(
-        convertFifoToPipeOut(flowControlReqVecInBuf),
-        map(convertFifoToPipeOut, dataStreamTxInBufVec),
-        map(convertFifoToPipeOut, udpIpMetaDataTxInBufVec)
+        convertFifoToFifoOut(flowControlReqVecInBuf),
+        map(convertFifoToFifoOut, dataStreamTxInBufVec),
+        map(convertFifoToFifoOut, udpIpMetaDataTxInBufVec)
     );
     mkConnection(pfcTx.udpIpMetaDataOut, udpIpArpEthRxTx.udpIpMetaDataTxIn);
     mkConnection(pfcTx.dataStreamOut, udpIpArpEthRxTx.dataStreamTxIn);
@@ -119,7 +119,7 @@ endmodule
 //     end
 
 //     let rawConfig <- mkRawUdpConfigBusSlave(pfcUdpIpArpEthRxTx.udpConfig);
-//     let rawAxiStreamTx <- mkPipeOutToRawAxiStreamMaster(pfcUdpIpArpEthRxTx.axiStreamOutTx);
+//     let rawAxiStreamTx <- mkFifoOutToRawAxiStreamMaster(pfcUdpIpArpEthRxTx.axiStreamOutTx);
 //     let rawAxiStreamRx <- mkPutToRawAxiStreamSlave(pfcUdpIpArpEthRxTx.axiStreamInRx, CF);
 //     interface rawUdpConfig = rawConfig;
 //     interface rawAxiStreamOutTx = rawAxiStreamTx;

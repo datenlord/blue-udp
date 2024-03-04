@@ -158,8 +158,8 @@ module mkXilinxAxiStreamAsyncFifo(
 endmodule
 
 interface DuplexAxiStreamPipe#(numeric type keepWidth, numeric type usrWidth);
-    interface PipeIn#(AxiStream#(keepWidth, usrWidth)) dstPipeIn;
-    interface PipeOut#(AxiStream#(keepWidth, usrWidth)) dstPipeOut;
+    interface FifoIn#(AxiStream#(keepWidth, usrWidth)) dstFifoIn;
+    interface FifoOut#(AxiStream#(keepWidth, usrWidth)) dstFifoOut;
 endinterface
 
 (* no_default_clock, no_default_reset *)
@@ -169,21 +169,21 @@ module mkDuplexAxiStreamAsyncFifo#(
     Clock srcClk,
     Reset srcReset,
     Clock dstClk,
-    Reset dstPipeInReset,
-    Reset dstPipeOutReset,
-    PipeIn #(AxiStream#(keepWidth, usrWidth)) srcPipeIn,
-    PipeOut#(AxiStream#(keepWidth, usrWidth)) srcPipeOut
+    Reset dstFifoInReset,
+    Reset dstFifoOutReset,
+    FifoIn #(AxiStream#(keepWidth, usrWidth)) srcFifoIn,
+    FifoOut#(AxiStream#(keepWidth, usrWidth)) srcFifoOut
 )(DuplexAxiStreamPipe#(keepWidth, usrWidth));
 
     SyncFIFOIfc#(AxiStream#(keepWidth, usrWidth)) pipeInBuf <- mkXilinxAxiStreamAsyncFifo(
         asyncFifoDepth,
         asyncCdcStages,
         dstClk,
-        dstPipeInReset,
+        dstFifoInReset,
         srcClk,
         srcReset
     );
-    mkConnection(convertSyncFifoToPipeOut(pipeInBuf), srcPipeIn);
+    mkConnection(convertSyncFifoToFifoOut(pipeInBuf), srcFifoIn);
 
     SyncFIFOIfc#(AxiStream#(keepWidth, usrWidth)) pipeOutBuf <- mkXilinxAxiStreamAsyncFifo(
         asyncFifoDepth,
@@ -191,10 +191,10 @@ module mkDuplexAxiStreamAsyncFifo#(
         srcClk,
         srcReset,
         dstClk,
-        dstPipeOutReset
+        dstFifoOutReset
     );
-    mkConnection(convertSyncFifoToPipeIn(pipeOutBuf), srcPipeOut);
+    mkConnection(convertSyncFifoToFifoIn(pipeOutBuf), srcFifoOut);
     
-    interface dstPipeIn = convertSyncFifoToPipeIn(pipeInBuf);
-    interface dstPipeOut = convertSyncFifoToPipeOut(pipeOutBuf);
+    interface dstFifoIn = convertSyncFifoToFifoIn(pipeInBuf);
+    interface dstFifoOut = convertSyncFifoToFifoOut(pipeOutBuf);
 endmodule
