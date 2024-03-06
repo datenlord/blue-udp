@@ -35,7 +35,7 @@ typedef struct {
 
 (* always_enabled, always_ready *)
 interface XdmaPerfMonitorRegister;
-    method Bool monitorModeOut;
+    method Bool dmaDirOut;
     method Bool isLoopbackOut;
     method Bit#(PKT_BEAT_COUNT_WIDTH) pktBeatNumOut;
     method Bit#(PKT_NUM_COUNT_WIDTH) pktNumOut;
@@ -148,14 +148,15 @@ module mkXdmaPerfMonitor(XdmaPerfMonitor);
     // 0x0000_0000: xdmaDescBypAddr
     // 0x0000_0008: pktBeatNumReg
     // 0x0000_000C: pktNumReg
-    // 0x0000_0010: modeSelectReg
+    // 0x0000_0010: mode and start registers
     // 0x0000_0014: perfCycleCounterTx
     // 0x0000_0018: perfCycleCounterRx
     Reg#(XdmaDescBypAddr) xdmaDescBypAddrReg <- mkReg(0);
     Reg#(Bit#(PKT_BEAT_COUNT_WIDTH)) pktBeatNumReg <- mkReg(0);
     Reg#(Bit#(PKT_NUM_COUNT_WIDTH))  pktNumReg <- mkReg(0);
-    Reg#(Bool) modeSelectReg <- mkReg(False); // False: H2C, True: C2H;
+    Reg#(Bool) dmaDirReg <- mkReg(False); // False: H2C, True: C2H;
     Reg#(Bool) isLoopbackReg <- mkReg(False);
+    Reg#(Bool) isAddrIncrReg <- mkReg(False);
 
 
     // Descriptor Bypass Channel
@@ -225,15 +226,17 @@ module mkXdmaPerfMonitor(XdmaPerfMonitor);
             pktNumReg <= axilWrData.wData;
         end
         if (axilWrAddr.awAddr == 16) begin
-            Bool modeSelect = unpack(axilWrData.wData[0]);
+            Bool dmaDir = unpack(axilWrData.wData[0]);
             Bool isLoopback = unpack(axilWrData.wData[1]);
-            modeSelectReg <= modeSelect;
+            Bool isAddrIncr = unpack(axilWrData.wData[2]);
+            dmaDirReg <= dmaDir;
             isLoopbackReg <= isLoopback;
+            isAddrIncrReg <= isAddrIncr;
 
             sendDescEnableReg <= True;
             totalDescCounter <= 0;
 
-            if (!modeSelect || (modeSelect && isLoopback)) begin
+            if (!dmaDir || (dmaDir && isLoopback)) begin
                 sendPktEnableReg <= True;
             end
             isSendFirstFrame <= False;
@@ -243,7 +246,7 @@ module mkXdmaPerfMonitor(XdmaPerfMonitor);
             beatIdxCounterTx <= 0;
             errBeatCounterTx <= 0;
 
-            if (modeSelect ||(!modeSelect && isLoopback)) begin
+            if (dmaDir ||(!dmaDir && isLoopback)) begin
                 recvPktEnableReg <= True;
             end
             isRecvFirstFrame <= False;
@@ -263,15 +266,21 @@ module mkXdmaPerfMonitor(XdmaPerfMonitor);
             stop: False
         };
         XdmaDescBypLength descLen = truncate(pktBeatNumReg << 6);
-        if (modeSelectReg) begin
-            xdmaC2hDescBypBuf.enq(
-                XdmaDescriptorBypass {
-                    srcAddr: 0,
-                    dstAddr: xdmaDescBypAddrReg,
-                    len: descLen,
-                    ctl: descCtl
-                }
-            );
+        if (dmaDirReg) begin
+            if (isRecvFirstFrame) begin
+                xdmaC2hDescBypBuf.enq(
+                    XdmaDescriptorBypass {
+                        srcAddr: 0,
+                        dstAddr: xdmaDescBypAddrReg,
+                        len: descLen,
+                        ctl: descCtl
+                    }
+                );
+                totalDescCounter <= totalDescCounter + 1;
+                if (isAddrIncrReg) begin
+                    xdmaDescBypAddrReg <= xdmaDescBypAddrReg + zeroExtend(descLen);
+                end                
+            end
         end
         else begin
             xdmaH2cDescBypBuf.enq(
@@ -282,8 +291,12 @@ module mkXdmaPerfMonitor(XdmaPerfMonitor);
                     ctl: descCtl
                 }
             );
+            totalDescCounter <= totalDescCounter + 1;
+            if (isAddrIncrReg) begin
+                xdmaDescBypAddrReg <= xdmaDescBypAddrReg + zeroExtend(descLen);
+            end
         end
-        totalDescCounter <= totalDescCounter + 1;
+
         if (totalDescCounter == pktNumReg - 1) begin
             sendDescEnableReg <= False;
         end
@@ -297,7 +310,7 @@ module mkXdmaPerfMonitor(XdmaPerfMonitor);
             tUser: 0
         };
 
-        if (!modeSelectReg) begin // H2C
+        if (!dmaDirReg) begin // H2C
             axiFrame = xdmaAxiStreamInBuf.first;
             xdmaAxiStreamInBuf.deq;
             if (truncate(axiFrame.tData) != beatIdxCounterTx) begin
@@ -332,7 +345,7 @@ module mkXdmaPerfMonitor(XdmaPerfMonitor);
         let axiFrame = udpAxiStreamRxInBuf.first;
         udpAxiStreamRxInBuf.deq;
 
-        if (modeSelectReg) begin // C2H
+        if (dmaDirReg) begin // C2H
             xdmaAxiStreamOutBuf.enq(axiFrame);
         end
 
@@ -355,6 +368,10 @@ module mkXdmaPerfMonitor(XdmaPerfMonitor);
         if (truncate(axiFrame.tData) != beatIdxCounterRx) begin
             errBeatCounterRx <= errBeatCounterRx + 1;
         end
+    endrule
+
+    rule throwPacket if (!recvPktEnableReg);
+        udpAxiStreamRxInBuf.deq;
     endrule
 
     rule countPerfCycleRx if(isRecvFirstFrame && recvPktEnableReg);
@@ -391,7 +408,7 @@ module mkXdmaPerfMonitor(XdmaPerfMonitor);
     interface udpAxiStreamTxOut = rawUdpAxiStreamTxOut;
     
     interface XdmaPerfMonitorRegister perfMonReg;
-        method monitorModeOut = modeSelectReg;
+        method dmaDirOut = dmaDirReg;
         method isLoopbackOut = isLoopbackReg;
         method pktBeatNumOut = pktBeatNumReg;
         method pktNumOut = pktNumReg;

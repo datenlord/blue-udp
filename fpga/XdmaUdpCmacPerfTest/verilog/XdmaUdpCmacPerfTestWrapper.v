@@ -111,7 +111,7 @@ module XdmaUdpCmacPerfTestWrapper#(
     assign xdma_tx_axis_tuser = 1'b0;
 
     // Monitor Counters
-    wire [0: 0] monitor_mode;
+    wire [0: 0] dma_dir;
     wire [0: 0] is_loop_back;
     wire [31:0] pkt_beat_num;
     wire [31:0] pkt_num;
@@ -305,7 +305,7 @@ module XdmaUdpCmacPerfTestWrapper#(
         .udp_tx_axis_tuser  (udp_tx_axis_tuser ),
         .udp_tx_axis_tready (udp_tx_axis_tready),
 		
-        .monitorModeOut       (monitor_mode         ),
+        .dmaDirOut            (dma_dir              ),
         .isLoopbackOut        (is_loop_back         ),
         .pktBeatNumOut        (pkt_beat_num         ),
         .pktNumOut            (pkt_num              ),
@@ -332,7 +332,7 @@ module XdmaUdpCmacPerfTestWrapper#(
     xdma_perf_mon_ila perf_mon_ila_inst (
         .clk    (xdma_axi_aclk        ),
 
-        .probe0 (monitor_mode         ),
+        .probe0 (dma_dir              ),
         .probe1 (is_loop_back         ),
         .probe2 (pkt_beat_num         ),
         .probe3 (pkt_num              ),

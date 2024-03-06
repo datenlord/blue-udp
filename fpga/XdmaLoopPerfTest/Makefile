@@ -24,8 +24,8 @@ export CONFIG_FILE = ./generated/impl_config.vh
 export SYNTH_EN = 1
 export PLACE_EN = 1
 export ROUTE_EN = 1
-export BITSTREAM_EN = 0
-export DEBUG_PROBES_EN = 0
+export BITSTREAM_EN = 1
+export DEBUG_PROBES_EN = 1
 
 ## Report Options
 export TARGET_CLOCKS = xdma_axi_aclk
@@ -45,7 +45,7 @@ $(BSV_MODULES):
 xdc: $(XDC)
 $(XDC):
 	@mkdir -p $(DIR_XDC)
-	cp ../common/xdc/$@.tcl $(DIR_XDC)
+	cp ../common/xdc/$@.xdc $(DIR_XDC)
 
 ip: $(IP)
 $(IP):
@@ -59,7 +59,7 @@ build: verilog xdc ip config
 	vivado -mode batch -source ../common/tcl/non_proj_build.tcl 2>&1 | tee ./build_run.log
 
 clean:
-	rm -rf $(BUILDDIR) generated *.mem *.jou *.log .Xil output *.str *.txt
+	rm -rf $(BUILDDIR) generated output *.mem *.jou *.log .Xil *.str *.txt
 
 clean_ip:
 	rm -rf $(DIR_IP_GEN)
