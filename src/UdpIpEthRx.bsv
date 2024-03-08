@@ -73,6 +73,97 @@ module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
 endmodule
 
 
+interface ForkRdmaPktStream;
+    interface AxiStream256FifoOut rdmaPktAxiStreamOut;
+    interface DataStreamFifoOut pktStreamOut;
+endinterface
+
+module mkForkRdmaPktStream#(
+    AxiStream512FifoOut pktAxiStreamIn
+)(ForkRdmaPktStream);
+    FIFOF#(AxiStream512) rdmaPktAxiStreamInterBuf <- mkFIFOF;
+    FIFOF#(AxiStream512) pktAxiStreamInterBuf <- mkFIFOF;
+    
+    FIFOF#(AxiStream256) rdmaPktAxiStreamOutBuf <- mkFIFOF;
+    FIFOF#(AxiStream256) pktAxiStreamOutBuf <- mkFIFOF;
+
+    Reg#(Bool) isFirstFrameReg <- mkReg(True);
+    Reg#(Bool) isRdmaPktReg <- mkReg(False);
+
+    rule seekRdmaPkt if (isFirstFrameReg);
+        let axiStream512 = pktAxiStreamIn.first;
+        pktAxiStreamIn.deq;
+        TotalHeader totalHdr = unpack(swapEndian(truncate(axiStream512.tData)));
+
+        let isIpPkt = totalHdr.ethHeader.ethType == fromInteger(valueOf(ETH_TYPE_IP));
+        let isUdpPkt = isIpPkt && (totalHdr.ipHeader.ipProtocol == fromInteger(valueOf(IP_PROTOCOL_UDP)));
+        let isRdmaPkt = isUdpPkt && totalHdr.udpHeader.dstPort == fromInteger(valueOf(UDP_PORT_RDMA));
+        if (isRdmaPkt) begin
+            rdmaPktAxiStreamInterBuf.enq(axiStream512);
+        end
+        else begin
+            pktAxiStreamInterBuf.enq(axiStream512);
+        end
+        isRdmaPktReg <= isRdmaPkt;
+        isFirstFrameReg <= axiStream512.tLast;
+    endrule
+
+    rule deMuxPktAxiStream if (!isFirstFrameReg);
+        let axiStream512 = pktAxiStreamIn.first;
+        pktAxiStreamIn.deq;
+        if (isRdmaPktReg) begin
+            rdmaPktAxiStreamInterBuf.enq(axiStream512);
+        end
+        else begin
+            pktAxiStreamInterBuf.enq(axiStream512);
+        end
+        isFirstFrameReg <= axiStream512.tLast;
+    endrule
+
+    // Convert Stream Width
+    let pktAxiStreamInterFifoIn <- mkDoubleAxiStreamFifoIn(convertFifoToFifoIn(pktAxiStreamOutBuf));
+    mkConnection(pktAxiStreamInterFifoIn, convertFifoToFifoOut(pktAxiStreamInterBuf));
+    let pktStreamFifoOut <- mkAxiStream256ToDataStream(convertFifoToFifoOut(pktAxiStreamOutBuf));
+    
+    let rdmaPktAxiStreamInterFifoIn <- mkDoubleAxiStreamFifoIn(convertFifoToFifoIn(rdmaPktAxiStreamOutBuf));
+    mkConnection(rdmaPktAxiStreamInterFifoIn, convertFifoToFifoOut(rdmaPktAxiStreamInterBuf));
+    
+    interface rdmaPktAxiStreamOut = convertFifoToFifoOut(rdmaPktAxiStreamOutBuf);
+    interface pktStreamOut = pktStreamFifoOut;
+endmodule
+
+interface UdpIpEthBypassRx;
+    interface Put#(UdpConfig) udpConfig;
+    
+    interface Put#(AxiStream512) axiStreamIn;
+        
+    interface MacMetaDataFifoOut macMetaDataOut;
+    interface UdpIpMetaDataFifoOut udpIpMetaDataOut;
+    interface DataStreamFifoOut  dataStreamOut;
+    
+    interface DataStreamFifoOut  rawPktStreamOut;
+endinterface
+
+module mkGenericUdpIpEthBypassRx#(Bool isSupportRdma)(UdpIpEthBypassRx);
+    FIFOF#(AxiStream512) axiStreamInBuf <- mkFIFOF;
+
+    let forkRdmaPktStream <- mkForkRdmaPktStream(convertFifoToFifoOut(axiStreamInBuf));
+    let udpIpEthRx <- mkGenericUdpIpEthRx(isSupportRdma);
+
+    mkConnection(udpIpEthRx.axiStreamIn, toGet(forkRdmaPktStream.rdmaPktAxiStreamOut));
+
+    interface Put udpConfig = udpIpEthRx.udpConfig;
+
+    interface Put axiStreamIn = toPut(axiStreamInBuf);
+
+    interface FifoOut macMetaDataOut = udpIpEthRx.macMetaDataOut;
+    interface FifoOut udpIpMetaDataOut = udpIpEthRx.udpIpMetaDataOut;
+    interface FifoOut dataStreamOut = udpIpEthRx.dataStreamOut;
+
+    interface FifoOut rawPktStreamOut = forkRdmaPktStream.pktStreamOut;
+endmodule
+
+
 interface RawUdpIpEthRx;
     (* prefix = "s_udp_config" *) 
     interface RawUdpConfigBusSlave rawUdpConfig;

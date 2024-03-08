@@ -58,7 +58,7 @@ proc runSynthIP {args} {
 }
 
 proc addExtFiles {args} {
-    global dir_vlog dir_vlog_gen dir_xdc dir_ip_gen config_file dir_mem_config synth_impl_opts_file
+    global dir_vlog dir_vlog_gen dir_xdc dir_ip_gen config_file dir_mem_config
     read_ip [glob $dir_ip_gen/**/*.xci]
     read_verilog [ glob $dir_vlog/*.v ]
     read_verilog [ glob $dir_vlog_gen/*.v ]
@@ -70,14 +70,11 @@ proc addExtFiles {args} {
         add_files -norecurse $config_file
         set_property is_global_include true [get_files $config_file]
     }
-    if {[file exists $synth_impl_opts_file]} {
-        source $synth_impl_opts_file
-    }
 }
 
 
 proc runSynthDesign {args} {
-    global dir_output build_top max_net_path_num synth_opts
+    global dir_output build_top synth_opts
 
     eval synth_design -top $build_top $synth_opts
     write_checkpoint -force $dir_output/post_synth_design.dcp
@@ -135,19 +132,27 @@ proc runPostSynthReport {args} {
 
 
 proc runPlacement {args} {
-    global dir_output place_opts phys_opt_opts
+    global dir_output place_opts
 
     if {[dict get $args -open_checkpoint]} {
         open_checkpoint $dir_output/post_synth_design.dcp
     }
 
-    opt_design -remap -verbose
-    power_opt_design
+    # Opt Design
+    opt_design ;#-remap -verbose
+    # power_opt_design
+
+    # Implement debug cores if there are debug cores in the design
+    if { [llength [get_debug_cores -quiet] ] > 0 }  { 
+        implement_debug_core 
+    }
+
     eval place_design $place_opts
+
     # Optionally run optimization if there are timing violations after placement
     if {[get_property SLACK [get_timing_paths -max_paths 1 -nworst 1 -setup]] < 0} {
         puts "Found setup timing violations => running physical optimization"
-        eval phys_opt_design
+        eval phys_opt_design $phys_opt_opts
     }
     write_checkpoint -force $dir_output/post_place.dcp
     write_xdc -force -exclude_physical $dir_output/post_place.xdc
@@ -176,7 +181,7 @@ proc runRoute {args} {
         }
     }
 
-    runPPO 4 1; # num_iters=4, enable_phys_opt=1
+    #runPPO 4 1; # num_iters=4, enable_phys_opt=1
 
     write_checkpoint -force $dir_output/post_route.dcp
     write_xdc -force -exclude_physical $dir_output/post_route.xdc
@@ -263,6 +268,10 @@ proc runWriteDebugProbes {args} {
 #     set_property PROGRAM.FILE $dir_output/top.bit [get_hw_devices xcvu13p_0]
 #     program_hw_devices [get_hw_devices xcvu13p_0]
 # }
+
+if {[file exists $synth_impl_opts_file]} {
+    source $synth_impl_opts_file
+}
 
 if { $synth_en } {
     if {[file exists $dir_ip_gen]} {

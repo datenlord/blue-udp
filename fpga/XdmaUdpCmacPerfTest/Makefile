@@ -15,6 +15,7 @@ BSV_DIR = ../common/bsv
 QSFP_IDX = 1
 ENABLE_CMAC_RSFEC = 1
 ENABLE_ARP_PROCESS = 0
+ENABLE_BYPASS_MODE = 1
 ENABLE_DEBUG_MODE = 1
 SUPPORT_RDMA ?= False
 
@@ -46,7 +47,7 @@ export DEBUG_PROBES_EN = 0
 export TARGET_CLOCKS = xdma_axi_aclk
 export MAX_NET_PATH_NUM = 1000
 
-BSV_MODULES = CmacRecvMonitor CmacSendMonitor XdmaPerfMonitor XdmaUdpIpArpEthCmacRxTx XdmaUdpIpEthCmacRxTx
+BSV_MODULES = CmacRecvMonitor CmacSendMonitor XdmaPerfMonitor XdmaUdpIpEthBypassCmacRxTx XdmaUdpIpArpEthCmacRxTx XdmaUdpIpEthCmacRxTx
 IP = xdma_axil_desc clk_wiz xdma_perf_mon_ila cmac_mon_ila axis512_mon_ila
 ifeq ($(ENABLE_CMAC_RSFEC), 1)
 IP += cmac_rsfec_q$(QSFP_IDX)
@@ -57,6 +58,7 @@ XDC = common pciex16 qsfp$(QSFP_IDX)
 
 
 table:
+	mkdir -p $(DIR_MEM_CONFIG)
 ifeq ($(SUPPORT_RDMA), True)
 	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_256.json $(DIR_MEM_CONFIG)
 endif
@@ -91,8 +93,11 @@ endif
 ifeq ($(ENABLE_DEBUG_MODE), 1)
 	@echo "\`define ENABLE_DEBUG_MODE" >> $(CONFIG_FILE)
 endif
+ifeq ($(ENABLE_BYPASS_MODE), 1)
+	@echo "\`define ENABLE_BYPASS_MODE" >> $(CONFIG_FILE)
+endif
 
-build: verilog ip xdc config
+build: table verilog ip xdc config
 	vivado -mode batch -source ../common/tcl/non_proj_build.tcl 2>&1 | tee ./build_run.log
 
 clean:

@@ -46,6 +46,11 @@ typedef struct {
 typedef FifoOut#(MacMetaData) MacMetaDataFifoOut;
 
 typedef struct {
+    MacMetaData macMetaData;
+    Bool isBypass;
+} MacMetaDataWithBypassTag deriving(Bits, Eq, FShow);
+
+typedef struct {
     EthMacAddr macAddr;
     IpAddr     ipAddr;
     IpNetMask  netMask;

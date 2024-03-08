@@ -70,7 +70,7 @@ function UdpIpHeader genUdpIpHeader(UdpIpMetaData metaData, UdpConfig udpConfig,
         ipFlag    : fromInteger(valueOf(IP_FLAGS_VAL)),
         ipOffset  : fromInteger(valueOf(IP_OFFSET_VAL)),
         ipTTL     : fromInteger(valueOf(IP_TTL_VAL)),
-        ipProtocol: fromInteger(valueOf(IP_PROTOCOL_VAL)),
+        ipProtocol: fromInteger(valueOf(IP_PROTOCOL_UDP)),
         ipChecksum: 0,
         srcIpAddr : udpConfig.ipAddr,
         dstIpAddr : metaData.ipAddr
@@ -151,7 +151,7 @@ function Bool checkUdpIpHeader(UdpIpHeader hdr, UdpConfig udpConfig);
     // let udpChecksum = getCheckSum(udpHdrVec);
 
     let ipAddrMatch = hdr.ipHeader.dstIpAddr == udpConfig.ipAddr;
-    let protocolMatch = hdr.ipHeader.ipProtocol == fromInteger(valueOf(IP_PROTOCOL_VAL));
+    let protocolMatch = hdr.ipHeader.ipProtocol == fromInteger(valueOf(IP_PROTOCOL_UDP));
     
     return ipAddrMatch && protocolMatch;
 endfunction

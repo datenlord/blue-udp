@@ -70,7 +70,7 @@ typedef 0  IP_ECN_VAL;
 typedef 0  IP_FLAGS_VAL;           // FLAGS = 0x0
 typedef 0  IP_OFFSET_VAL;          // FRAGMENT_OFFSET = 0
 typedef 64 IP_TTL_VAL;             // TTL = 0x40
-typedef 17 IP_PROTOCOL_VAL;        // PROTOCOL = 0x11(UDP)
+typedef 17 IP_PROTOCOL_UDP;        // PROTOCOL = 0x11(UDP)
 
 
 //////////////// Transport Layer
@@ -87,6 +87,8 @@ typedef struct {
     UdpLength   length;
     UdpCheckSum checksum;
 } UdpHeader deriving( Bits, FShow, Eq, Bounded);
+
+typedef 4791 UDP_PORT_RDMA;
 
 
 ////////////////

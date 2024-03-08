@@ -8,7 +8,7 @@ CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 TARGET ?= PriorityFlowControl
 TESTFILE = Test$(TARGET).bsv
 TOP = mkTest$(TARGET)
-SUPPORT_RDMA ?= False
+SUPPORT_RDMA ?= True
 
 SIMEXE = $(BUILDDIR)/$(TOP).exe
 

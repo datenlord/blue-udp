@@ -3,6 +3,7 @@
 //`define ENABLE_CMAC_RSFEC
 //`define ENABLE_ARP_PROCESS
 //`define ENABLE_DEBUG_MODE
+//`define ENABLE_BYPASS_MODE
 
 module UdpCmacRxTxWrapper#(
     parameter GT_LANE_WIDTH = 4,
@@ -153,7 +154,9 @@ module UdpCmacRxTxWrapper#(
     wire            is_cmac_rx_aligned;
 
 `ifdef ENABLE_ARP_PROCESS
-    mkXdmaUdpIpArpEthCmacRxTx udp_inst1 
+    mkXdmaUdpIpArpEthCmacRxTx udp_inst1
+`elsif ENABLE_BYPASS_MODE
+    mkXdmaUdpIpEthBypassCmacRxTx udp_inst1
 `else
     mkXdmaUdpIpEthCmacRxTx udp_inst1
 `endif
