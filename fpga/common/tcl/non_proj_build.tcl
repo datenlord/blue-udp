@@ -132,7 +132,7 @@ proc runPostSynthReport {args} {
 
 
 proc runPlacement {args} {
-    global dir_output place_opts
+    global dir_output place_opts phys_opt_opts
 
     if {[dict get $args -open_checkpoint]} {
         open_checkpoint $dir_output/post_synth_design.dcp

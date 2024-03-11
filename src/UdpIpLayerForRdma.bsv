@@ -3,6 +3,7 @@ import FIFOF :: *;
 import Ports :: *;
 import EthUtils :: *;
 import UdpIpLayer :: *;
+import Connectable :: *;
 import EthernetTypes :: *;
 import StreamHandler :: *;
 
@@ -97,12 +98,13 @@ module mkUdpIpStreamForRdma#(
     DataStreamFifoOut dataStreamIn,
     UdpConfig udpConfig
 )(DataStreamFifoOut);
-
+    Integer udpIpStreamInterBufDepth = 16;
     FIFOF#(DataStream) dataStreamBuf <- mkFIFOF;
     FIFOF#(DataStream) dataStreamCrcBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataCrcBuf <- mkFIFOF;
     FIFOF#(UdpLength) preComputeLengthBuf <- mkFIFOF;
+    FIFOF#(DataStream) udpIpStreamInterBuf <- mkSizedFIFOF(udpIpStreamInterBufDepth);
 
     rule forkUdpIpMetaDataIn;
         let udpIpMetaData = udpIpMetaDataIn.first;
@@ -128,6 +130,7 @@ module mkUdpIpStreamForRdma#(
         convertFifoToFifoOut(udpIpMetaDataBuf),
         genUdpIpHeaderForRoCE
     );
+    mkConnection(udpIpStream, convertFifoToFifoIn(udpIpStreamInterBuf));
 
     DataStreamFifoOut udpIpStreamForICrc <- mkUdpIpStreamForICrcGen(
         convertFifoToFifoOut(udpIpMetaDataCrcBuf),
@@ -143,7 +146,7 @@ module mkUdpIpStreamForRdma#(
     DataStreamFifoOut udpIpStreamWithICrc <- mkAppendDataStreamTail(
         HOLD,
         HOLD,
-        udpIpStream,
+        convertFifoToFifoOut(udpIpStreamInterBuf),
         crc32Stream,
         convertFifoToFifoOut(preComputeLengthBuf)
     );
@@ -272,9 +275,9 @@ module mkRemoveICrcFromDataStream#(
 endmodule
 
 typedef 4096 RDMA_PACKET_MAX_SIZE;
-typedef 3 RDMA_META_BUF_SIZE;
-typedef TDiv#(RDMA_PACKET_MAX_SIZE, DATA_BUS_BYTE_WIDTH) RDMA_PACKET_MAX_FRAME;
-typedef TAdd#(RDMA_PACKET_MAX_FRAME, 16) RDMA_PAYLOAD_BUF_SIZE;
+typedef 4 RDMA_META_BUF_SIZE;
+typedef TDiv#(RDMA_PACKET_MAX_SIZE, DATA_BUS_BYTE_WIDTH) RDMA_PACKET_MAX_BEAT;
+typedef TAdd#(RDMA_PACKET_MAX_BEAT, 16) RDMA_PAYLOAD_BUF_SIZE;
 
 typedef enum {
     ICRC_IDLE,

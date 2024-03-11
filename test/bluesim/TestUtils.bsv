@@ -8,30 +8,37 @@ import Ports :: *;
 import EthUtils :: *;
 import SemiFifo :: *;
 
+typedef 32 DELAY_COUNT_WIDTH;
 typedef Server#(
     dType, dType
 ) RandomDelay#(type dType, numeric type maxDelay);
 
-module mkRandomDelay(RandomDelay#(dType, delay)) 
+module mkRandomDelay(RandomDelay#(dType, maxDelay)) 
     provisos(Bits#(dType, sz));
-
+    Bit#(DELAY_COUNT_WIDTH) maxRandDelay = fromInteger(valueOf(maxDelay));
+    
     FIFOF#(dType) buffer <- mkFIFOF;
     Reg#(Bool) hasInit <- mkReg(False);
-    Reg#(Bit#(TLog#(delay))) delayCounter <- mkReg(0);
-    Reg#(Bit#(TLog#(delay))) delayCountMax <- mkReg(0);
-    let passData = delayCounter == delayCountMax;
+    Reg#(Bit#(DELAY_COUNT_WIDTH)) delayCounter <- mkReg(0);
+    Reg#(Bit#(DELAY_COUNT_WIDTH)) randDelayReg <- mkReg(0);
+    let passData = delayCounter == randDelayReg;
     
-    Randomize#(Bit#(TLog#(delay))) delayRand <- mkGenericRandomizer;
+    Randomize#(Bit#(DELAY_COUNT_WIDTH)) delayRandomizer <- mkGenericRandomizer;
     rule doInit if (!hasInit);
-        delayRand.cntrl.init;
+        delayRandomizer.cntrl.init;
         hasInit <= True;
     endrule
 
     rule doCount;
-        if (delayCounter == delayCountMax) begin
+        if (delayCounter == randDelayReg) begin
             delayCounter <= 0;
-            Bit#(TLog#(delay)) randDelay <- delayRand.next;
-            delayCountMax <= randDelay;
+            let delay <- delayRandomizer.next;
+            if (valueOf(maxDelay) == 0) begin
+                randDelayReg <= 0;
+            end
+            else begin
+                randDelayReg <= delay > maxRandDelay ? maxRandDelay : delay;
+            end
         end
         else begin
             delayCounter <= delayCounter + 1;
@@ -46,7 +53,6 @@ module mkRandomDelay(RandomDelay#(dType, delay))
             return data;
         endmethod
     endinterface
-
 endmodule
 
 
