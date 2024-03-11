@@ -23,8 +23,8 @@ typedef 48'hd89c679c4829 DUT_MAC_ADDR;
 typedef 32'h00000000 DUT_NET_MASK;
 typedef 32'h00000000 DUT_GATE_WAY;
 
-typedef 7 BEAT_COUNT_WIDTH;
-typedef 0 MAX_AXI_STREAM_DELAY;
+typedef 6 BEAT_COUNT_WIDTH;
+typedef 4 MAX_AXI_STREAM_DELAY;
 
 typedef 1024 REF_BUF_DEPTH;
 
@@ -38,12 +38,6 @@ module mkTestUdpIpEthBypassRxTx();
     Reg#(Bit#(CYCLE_COUNT_WIDTH)) cycleCounter <- mkReg(0);
     Reg#(Bit#(CASE_COUNT_WIDTH)) inputCaseCounter <- mkReg(0);
     Reg#(Bit#(CASE_COUNT_WIDTH)) outputCaseCounter <- mkReg(0);
-    Reg#(Bit#(CYCLE_COUNT_WIDTH)) txChannelStartCycleIdx <- mkRegU;
-    Reg#(Bit#(CYCLE_COUNT_WIDTH)) rxChannelStartCycleIdx <- mkRegU;
-    Reg#(Bit#(CYCLE_COUNT_WIDTH)) txChannelEndCycleIdx <- mkRegU;
-    Reg#(Bit#(CYCLE_COUNT_WIDTH)) rxChannelEndCycleIdx <- mkRegU;
-    Reg#(Bit#(CYCLE_COUNT_WIDTH)) rxBlockCycle <- mkReg(0);
-    Reg#(Bit#(CYCLE_COUNT_WIDTH)) txBlockCycle <- mkReg(0);
 
     // Random Signals
     Randomize#(Data) randData <- mkGenericRandomizer;
@@ -108,10 +102,10 @@ module mkTestUdpIpEthBypassRxTx();
     endrule
 
     rule sendMetaData if (isInit && !metaDataSentFlag && inputCaseCounter < fromInteger(testCaseNum));  
-        // Bit#(BEAT_COUNT_WIDTH) beatNum <- randBeatNum.next;
-        Bit#(BEAT_COUNT_WIDTH) beatNum = 32;
-        //Bool bypassSelect <- randBypassSelect.next;
-        Bool bypassSelect = False;
+        Bit#(BEAT_COUNT_WIDTH) beatNum <- randBeatNum.next;
+        //Bit#(BEAT_COUNT_WIDTH) beatNum = 32;
+        Bool bypassSelect <- randBypassSelect.next;
+        //Bool bypassSelect = False;
         if (beatNum == 0) beatNum = 1;
         beatNumReg <= beatNum;
         bypassSelectReg <= bypassSelect;
@@ -155,7 +149,6 @@ module mkTestUdpIpEthBypassRxTx();
             refUdpIpMetaDataBuf.enq(udpIpMetaData);
             $display("Testbench: Testcase %d sends UdpIpMetaData and MacMetaData to packet generator", inputCaseCounter);
         end
-        if (inputCaseCounter == 0) txChannelStartCycleIdx <= cycleCounter;
     endrule
 
     rule sendDataStream if (metaDataSentFlag);
@@ -179,9 +172,6 @@ module mkTestUdpIpEthBypassRxTx();
         if (dataStream.isLast) begin
             metaDataSentFlag <= False;
             inputCaseCounter <= inputCaseCounter + 1;
-            if (inputCaseCounter == fromInteger(testCaseNum) - 1) begin
-                txChannelEndCycleIdx <= cycleCounter;
-            end
         end
 
         $display("Testbench: Sends %d DataStream of %d testcase", inputBeatCounter, inputCaseCounter);
@@ -242,19 +232,10 @@ module mkTestUdpIpEthBypassRxTx();
         else begin
             outputBeatCounter <= outputBeatCounter + 1;
         end
-        if (outputBeatCounter == 0 && outputCaseCounter == 0) begin
-            rxChannelStartCycleIdx <= cycleCounter;
-        end
-        if (dutDataStream.isLast && outputCaseCounter == (fromInteger(testCaseNum) - 1)) begin
-            rxChannelEndCycleIdx <= cycleCounter;
-        end
     endrule
 
     rule finishTest if (outputCaseCounter == fromInteger(testCaseNum));
         $display("Testbench: mkUdpIpEthBypassRxTx pass all %5d testcases", testCaseNum);
-        $display("Duration of send input data: %d", txChannelEndCycleIdx - txChannelStartCycleIdx + 1);
-        $display("Duration of recv output data: %d", rxChannelEndCycleIdx - rxChannelStartCycleIdx + 1);
-        $display("Cycles of Rx channel Blocked: %d", rxBlockCycle);
         $finish;
     endrule
 endmodule
