@@ -193,7 +193,7 @@ def test_UdpIpArpEthRxTx(target_ip, udp_port):
     module = os.path.splitext(os.path.basename(__file__))[0]
     test_dir = os.path.abspath(os.path.dirname(__file__))
     sim_build = os.path.join(test_dir, "build")
-    v_top_file = os.path.join(test_dir, "verilog", toplevel + ".v")
+    v_top_file = os.path.join(test_dir, "generated", toplevel + ".v")
     verilog_sources = [v_top_file]
 
     cocotb_test.simulator.run(

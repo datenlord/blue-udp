@@ -5,6 +5,7 @@ import ClientServer :: *;
 import Connectable :: *;
 
 import Ports :: *;
+import EthUtils :: *;
 import EthernetTypes :: *;
 import StreamHandler :: *;
 
@@ -13,8 +14,8 @@ import SemiFifo :: *;
 
 module mkIpHdrCheckSumServer(Server#(IpHeader, IpCheckSum)) 
     provisos(
-        NumAlias#(TDiv#(IP_HDR_WORD_WIDTH, 4), firstStageOutNum),
-        NumAlias#(TAdd#(IP_CHECKSUM_WIDTH, 2), firstStageOutWidth),
+        NumAlias#(TDiv#(IP_HDR_WORD_WIDTH, 2), firstStageOutNum),
+        NumAlias#(TAdd#(IP_CHECKSUM_WIDTH, 1), firstStageOutWidth),
         NumAlias#(TDiv#(firstStageOutNum, 4), secondStageOutNum),
         NumAlias#(TAdd#(firstStageOutWidth, 2), secondStageOutWidth)
     );
@@ -24,6 +25,7 @@ module mkIpHdrCheckSumServer(Server#(IpHeader, IpCheckSum))
 
     FIFOF#(Vector#(firstStageOutNum, Bit#(firstStageOutWidth))) firstStageOutBuf <- mkFIFOF;
     FIFOF#(Vector#(secondStageOutNum, Bit#(secondStageOutWidth))) secondStageOutBuf <- mkFIFOF;
+    FIFOF#(IpCheckSum) ipCheckSumOutBuf <- mkFIFOF;
 
     rule secondStageAdder;
         let firstStageOutVec = firstStageOutBuf.first;
@@ -33,26 +35,28 @@ module mkIpHdrCheckSumServer(Server#(IpHeader, IpCheckSum))
         secondStageOutBuf.enq(firstStageOutReducedBy4);
     endrule
 
+    rule lastStageAdder;
+        let secondStageOutVec = secondStageOutBuf.first;
+        secondStageOutBuf.deq;
+
+        let secondStageOutReducedBy2 = mapPairs(add, pass, secondStageOutVec);
+
+        let sum = secondStageOutReducedBy2[0];
+        Bit#(TLog#(IP_HDR_WORD_WIDTH)) overFlow = truncateLSB(sum);
+        IpCheckSum remainder = truncate(sum);
+        IpCheckSum checkSum = ~(remainder + zeroExtend(overFlow));
+        ipCheckSumOutBuf.enq(checkSum);
+    endrule
+
     interface Put request;
         method Action put(IpHeader hdr);
             Vector#(IP_HDR_WORD_WIDTH, Word) ipHdrVec = unpack(pack(hdr));
             let ipHdrVecReducedBy2 = mapPairs(add, pass, ipHdrVec);
-            let ipHdrVecReducedBy4 = mapPairs(add, pass, ipHdrVecReducedBy2);
-            firstStageOutBuf.enq(ipHdrVecReducedBy4);
+            firstStageOutBuf.enq(ipHdrVecReducedBy2);
         endmethod
     endinterface
 
-    interface Get response;
-        method ActionValue#(IpCheckSum) get();
-            let secondStageOutVec = secondStageOutBuf.first;
-            secondStageOutBuf.deq;
-            let sum = secondStageOutVec[0];
-            Bit#(TLog#(IP_HDR_WORD_WIDTH)) overFlow = truncateLSB(sum);
-            IpCheckSum remainder = truncate(sum);
-            IpCheckSum checkSum = remainder + zeroExtend(overFlow);
-            return ~checkSum;
-        endmethod
-    endinterface
+    interface Get response = toGet(ipCheckSumOutBuf);
 endmodule
 
 function UdpIpHeader genUdpIpHeader(UdpIpMetaData metaData, UdpConfig udpConfig, IpID ipId);
@@ -96,10 +100,11 @@ module mkUdpIpStream#(
     UdpIpMetaDataFifoOut udpIpMetaDataIn,
     function UdpIpHeader genHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId)
 )(DataStreamFifoOut);
+    Integer interBufDepth = 4;
     IpID defaultIpId = 1;
 
     Reg#(IpID) ipIdCounter <- mkReg(0);
-    FIFOF#(UdpIpHeader) interUdpIpHeaderBuf <- mkFIFOF;
+    FIFOF#(UdpIpHeader) interUdpIpHeaderBuf <- mkSizedFIFOF(interBufDepth);
     FIFOF#(UdpIpHeader) udpIpHeaderBuf <- mkFIFOF;
     Server#(IpHeader, IpCheckSum) checkSumServer <- mkIpHdrCheckSumServer;
 
@@ -121,8 +126,9 @@ module mkUdpIpStream#(
         $display("IpUdpGen: genHeader of %d frame", ipIdCounter);
     endrule
 
+    let interDataStream <- mkSizedFifoToFifoOut(interBufDepth, dataStreamIn);
     FifoOut#(UdpIpHeader) udpIpHdrStream = convertFifoToFifoOut(udpIpHeaderBuf);
-    DataStreamFifoOut udpIpStreamOut <- mkAppendDataStreamHead(HOLD, SWAP, dataStreamIn, udpIpHdrStream);
+    DataStreamFifoOut udpIpStreamOut <- mkAppendDataStreamHead(HOLD, SWAP, interDataStream, udpIpHdrStream);
 
     return udpIpStreamOut;
 endmodule
@@ -166,38 +172,40 @@ module mkUdpIpMetaDataAndDataStream#(
     DataStreamFifoOut udpIpStreamIn,
     function UdpIpMetaData extractMetaData(UdpIpHeader hdr)
 )(UdpIpMetaDataAndDataStream);
-    FIFOF#(DataStream) interDataStreamBuf <- mkFIFOF;
+    Integer interBufDepth = 4;
+
+    Reg#(Maybe#(Bool)) udpIpHdrChkState <- mkReg(Invalid);
     FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
-    FIFOF#(UdpIpMetaData) udpIpMetaDataInterBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataOutBuf <- mkFIFOF;
-    Server#(IpHeader, IpCheckSum) checkSumServer <- mkIpHdrCheckSumServer;
-    Reg#(Bool) interCheckRes <- mkReg(False);
-    Reg#(Maybe#(Bool)) checkRes <- mkReg(Invalid);
+    FIFOF#(UdpIpMetaData) udpIpMetaDataInterBuf <- mkFIFOF;
+    FIFOF#(Bool) udpIpHdrChkResBuf <- mkFIFOF;
     
+    Server#(IpHeader, IpCheckSum) checkSumServer <- mkIpHdrCheckSumServer;
     ExtractDataStream#(UdpIpHeader) udpIpExtractor <- mkExtractDataStreamHead(udpIpStreamIn);
-    mkConnection(udpIpExtractor.dataStreamOut, interDataStreamBuf);
+    let interDataStream <- mkSizedFifoToFifoOut(interBufDepth, udpIpExtractor.dataStreamOut);
 
     rule doCheckSumReq;
         let udpIpHeader = udpIpExtractor.extractDataOut.first; 
         udpIpExtractor.extractDataOut.deq;
-        let checkRes = checkUdpIpHeader(udpIpHeader, udpConfig);
+        udpIpHdrChkResBuf.enq(checkUdpIpHeader(udpIpHeader, udpConfig));
         checkSumServer.request.put(udpIpHeader.ipHeader);
-        interCheckRes <= checkRes;
         let metaData = extractMetaData(udpIpHeader);
         udpIpMetaDataInterBuf.enq(metaData);
     endrule
 
-    rule doCheckSumResp if (!isValid(checkRes));
+    rule doCheckSumResp if (!isValid(udpIpHdrChkState));
         let checkSum <- checkSumServer.response.get();
-        let passCheck = (checkSum == 0) && interCheckRes;
-        checkRes <= tagged Valid passCheck;
+        let udpIpHdrChkRes = udpIpHdrChkResBuf.first;
+        udpIpHdrChkResBuf.deq;
+        let passCheck = (checkSum == 0) && udpIpHdrChkRes;
+        udpIpHdrChkState <= tagged Valid passCheck;
         $display("UdpIpStreamExtractor: Check Pass");
     endrule
 
-    rule passMetaData if (isValid(checkRes));
+    rule passMetaData if (isValid(udpIpHdrChkState));
         let metaData = udpIpMetaDataInterBuf.first;
         udpIpMetaDataInterBuf.deq;
-        if (fromMaybe(?, checkRes)) begin
+        if (fromMaybe(?, udpIpHdrChkState)) begin
             udpIpMetaDataOutBuf.enq(metaData);
         end
         else begin
@@ -205,14 +213,14 @@ module mkUdpIpMetaDataAndDataStream#(
         end
     endrule
 
-    rule passDataStream if (isValid(checkRes));
-        let dataStream = interDataStreamBuf.first; 
-        interDataStreamBuf.deq;
-        if (fromMaybe(?, checkRes)) begin
+    rule passDataStream if (isValid(udpIpHdrChkState));
+        let dataStream = interDataStream.first; 
+        interDataStream.deq;
+        if (fromMaybe(?, udpIpHdrChkState)) begin
             dataStreamOutBuf.enq(dataStream);
         end
         if (dataStream.isLast) begin
-            checkRes <= tagged Invalid;
+            udpIpHdrChkState <= tagged Invalid;
         end
     endrule
 

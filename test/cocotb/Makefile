@@ -7,14 +7,14 @@ LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper/src
 LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
-TARGET = UdpIpEthRx
+TARGET = UdpIpEthTx
 FILE_PATH = $(ROOT_DIR)/src
 TEST_FILE = Test$(TARGET).py
 DESIGN_FILE ?= $(TARGET).bsv
 TOP ?= mkRaw$(TARGET)
-VLOGDIR = verilog
+VLOGDIR = generated
 VLOG_FILE = $(VLOGDIR)/$(TOP).v
-SUPPORT_RDMA ?= False
+SUPPORT_RDMA ?= True
 
 MACROFLAGS = -D IS_SUPPORT_RDMA=$(SUPPORT_RDMA)
 
@@ -42,7 +42,7 @@ else
 endif
 
 clean:
-	rm -rf $(BUILDDIR) __pycache__ .pytest_cache verilog *.mem *.json
+	rm -rf $(VLOGDIR) $(BUILDDIR) __pycache__ .pytest_cache verilog *.mem *.json
 
 
 .PHONY: table verilog cocotb clean
