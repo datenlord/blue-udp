@@ -363,11 +363,17 @@ module mkSizedBramFifoToFifoOut#(
 )(FifoOut#(dType)) provisos(Bits#(dType, dSize), Add#(1, a__, dSize), FShow#(dType));
 
     FIFOF#(dType) fifo <- mkSizedBRAMFIFOF(depth);
+    // to fix timing, BRAM fifo is complex at its output port, use simple FIFO as buffer
+    FIFOF#(dType) outBufferQ <- mkFIFOF;  
     rule doEnq;
         fifo.enq(pipe.first);
         pipe.deq;
     endrule
-    return convertFifoToFifoOut(fifo);
+    rule doDeq;
+        outBufferQ.enq(fifo.first);
+        fifo.deq;
+    endrule
+    return convertFifoToFifoOut(outBufferQ);
 endmodule
 
 module mkSizedFifoToFifoOut#(
