@@ -16,7 +16,8 @@ module mkMacStream#(
     FIFOF#(EthHeader) ethHeaderBuf <- mkFIFOF;
     
     rule genEthHeader;
-        let macMeta = macMetaDataIn.first; macMetaDataIn.deq;
+        let macMeta = macMetaDataIn.first; 
+        macMetaDataIn.deq;
         let ethHeader = EthHeader{
             dstMacAddr: macMeta.macAddr,
             srcMacAddr: udpConfig.macAddr,
@@ -49,41 +50,41 @@ module mkMacMetaDataAndUdpIpStream#(
     DataStreamFifoOut macStreamIn,
     UdpConfig udpConfig
 )(MacMetaDataAndUdpIpStream);
-    
+
     FIFOF#(MacMetaData) macMetaDataOutBuf <- mkFIFOF;
     FIFOF#(DataStream) udpIpStreamOutBuf <- mkFIFOF;
-    Reg#(Bool) throwUdpIpStream <- mkReg(False);
+    Reg#(Maybe#(Bool)) hdrCheckState <- mkReg(tagged Invalid);
 
     ExtractDataStream#(EthHeader) macExtractor <- mkExtractDataStreamHead(macStreamIn);
 
-    rule doCheck;
+    rule checkHdr if (!isValid(hdrCheckState));
         let header = macExtractor.extractDataOut.first; 
         macExtractor.extractDataOut.deq;
         let checkRes = checkMacHeader(header, udpConfig);
+
+        hdrCheckState <= tagged Valid checkRes;
         if (checkRes) begin
             let macMeta = MacMetaData{
                 macAddr: header.srcMacAddr,
                 ethType: header.ethType
             };
             macMetaDataOutBuf.enq(macMeta);
-            throwUdpIpStream <= False;
             $display("Mac Extractor Mac Addr Check: Pass");
         end
         else begin
-            throwUdpIpStream <= True;
             $display("Mac Extractor Mac Addr Check: Fail");
         end
     endrule
 
-    rule doPass if (!throwUdpIpStream);
+    rule passStream if (isValid(hdrCheckState));
         let udpIpStream = macExtractor.dataStreamOut.first; 
         macExtractor.dataStreamOut.deq;
-        udpIpStreamOutBuf.enq(udpIpStream);
-    endrule
-
-    rule doThrow if (throwUdpIpStream);
-        let udpIpStream = macExtractor.dataStreamOut.first;
-        macExtractor.dataStreamOut.deq;
+        if (fromMaybe(?, hdrCheckState)) begin
+            udpIpStreamOutBuf.enq(udpIpStream);
+        end
+        if (udpIpStream.isLast) begin
+            hdrCheckState <= tagged Invalid;
+        end
     endrule
 
     interface FifoOut udpIpStreamOut = convertFifoToFifoOut(udpIpStreamOutBuf);

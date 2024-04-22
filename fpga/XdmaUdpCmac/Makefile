@@ -15,6 +15,7 @@ BSV_DIR = ../common/bsv
 QSFP_IDX = 1
 ENABLE_CMAC_RSFEC = 1
 ENABLE_ARP_PROCESS = 0
+ENABLE_BYPASS_MODE = 0
 ENABLE_DEBUG_MODE = 1
 SUPPORT_RDMA ?= False
 
@@ -47,7 +48,7 @@ export TARGET_CLOCKS = xdma_axi_aclk
 export MAX_NET_PATH_NUM = 1000
 
 BSV_MODULES = CmacRecvMonitor CmacSendMonitor XdmaUdpIpArpEthCmacRxTx XdmaUdpIpEthCmacRxTx
-IP = xdma clk_wiz cmac_mon_ila axis512_mon_ila
+IP = xdma cmac_mon_ila axis512_mon_ila
 ifeq ($(ENABLE_CMAC_RSFEC), 1)
 IP += cmac_rsfec_q$(QSFP_IDX)
 else
@@ -90,6 +91,9 @@ ifeq ($(ENABLE_ARP_PROCESS), 1)
 endif
 ifeq ($(ENABLE_DEBUG_MODE), 1)
 	@echo "\`define ENABLE_DEBUG_MODE" >> $(CONFIG_FILE)
+endif
+ifeq ($(ENABLE_BYPASS_MODE), 1)
+	@echo "\`define ENABLE_BYPASS_MODE" >> $(CONFIG_FILE)
 endif
 
 build: table verilog ip xdc config

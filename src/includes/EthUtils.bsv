@@ -291,58 +291,9 @@ function Bit#(TLog#(oneHotWidth)) convertOneHotToIndex(Vector#(oneHotWidth, Bool
     return index;
 endfunction
 
-function AxiStream256FifoOut convertDataStreamToAxiStream256(DataStreamFifoOut stream);
-    return (
-        interface AxiStream256FifoOut;
-            method AxiStream256 first();
-                return AxiStream256 {
-                    tData: stream.first.data,
-                    tKeep: stream.first.byteEn,
-                    tUser: 0,
-                    tLast: stream.first.isLast
-                };
-            endmethod
-                 
-            method Action deq();
-                stream.deq;
-            endmethod
-           
-            method Bool notEmpty();
-                return stream.notEmpty;
-            endmethod
-        endinterface
-     );
-endfunction
-
-module mkAxiStream256ToDataStream#(
-    AxiStream256FifoOut axiStreamIn
-)(DataStreamFifoOut);
-    Reg#(Bool) isFirstReg <- mkReg(True);
-
-    
-    method DataStream first();
-        return DataStream {
-            data: axiStreamIn.first.tData,
-            byteEn: axiStreamIn.first.tKeep,
-            isFirst: isFirstReg,
-            isLast: axiStreamIn.first.tLast
-        };
-    endmethod
-
-    method Action deq();
-        isFirstReg <= axiStreamIn.first.tLast;
-        axiStreamIn.deq();
-    endmethod
-
-    method Bool notEmpty();
-        return axiStreamIn.notEmpty();
-    endmethod
-endmodule
-
-
-module mkCrc32AxiStream256FifoOut#(
+module mkCrc32AxiStream512FifoOut#(
     CrcMode crcMode,
-    AxiStream256FifoOut crcReq
+    AxiStream512FifoOut crcReq
 )(FifoOut#(Crc32Checksum));
     CrcConfig#(CRC32_WIDTH) conf = CrcConfig {
         polynominal: fromInteger(valueOf(CRC32_IEEE_POLY)),

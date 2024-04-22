@@ -100,7 +100,7 @@ module mkUdpIpStream#(
     UdpIpMetaDataFifoOut udpIpMetaDataIn,
     function UdpIpHeader genHeader(UdpIpMetaData meta, UdpConfig udpConfig, IpID ipId)
 )(DataStreamFifoOut);
-    Integer interBufDepth = 4;
+    Integer interBufDepth = 8;
     IpID defaultIpId = 1;
 
     Reg#(IpID) ipIdCounter <- mkReg(0);

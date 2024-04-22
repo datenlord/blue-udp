@@ -369,87 +369,45 @@ module mkDoubleAxiStreamFifoIn#(
     return convertFifoToFifoIn(axiStreamInBuf);
 endmodule
 
-module mkDataStreamToAxiStream512#(DataStreamFifoOut dataStreamIn)(AxiStream512FifoOut);
-    Reg#(Data) dataBuf <- mkRegU;
-    Reg#(ByteEn) byteEnBuf <- mkRegU;
-    Reg#(Bool) bufValid <- mkReg(False);
-
-    FIFOF#(AxiStream512) axiStreamOutBuf <- mkFIFOF;
-
-    rule doStreamExtension;
-        if (bufValid) begin
-            let dataStream = dataStreamIn.first;
-            dataStreamIn.deq;
-            AxiStream512 axiStream = AxiStream {
-                tData: { dataStream.data, dataBuf },
-                tKeep: { dataStream.byteEn, byteEnBuf },
-                tUser: 0,
-                tLast: dataStream.isLast
-            };
-            axiStreamOutBuf.enq(axiStream);
-            bufValid <= False;
-        end
-        else begin
-            let dataStream = dataStreamIn.first;
-            dataStreamIn.deq;
-            if (dataStream.isLast) begin
-                AxiStream512 axiStream = AxiStream {
-                    tData: zeroExtend(dataStream.data),
-                    tKeep: zeroExtend(dataStream.byteEn),
+function AxiStream512FifoOut mkDataStreamToAxiStream512(DataStreamFifoOut stream);
+    return (
+        interface AxiStream512FifoOut;
+            method AxiStream512 first();
+                return AxiStream256 {
+                    tData: stream.first.data,
+                    tKeep: stream.first.byteEn,
                     tUser: 0,
-                    tLast: True
+                    tLast: stream.first.isLast
                 };
-                axiStreamOutBuf.enq(axiStream);
-            end
-            else begin
-                dataBuf <= dataStream.data;
-                byteEnBuf <= dataStream.byteEn;
-                bufValid <= True;
-            end
-        end
-    endrule
-
-    return convertFifoToFifoOut(axiStreamOutBuf);
-endmodule
+            endmethod
+                 
+            method Action deq();
+                stream.deq;
+            endmethod
+           
+            method Bool notEmpty();
+                return stream.notEmpty;
+            endmethod
+        endinterface
+    );
+endfunction
 
 module mkAxiStream512ToDataStream#(AxiStream512FifoOut axiStreamIn)(DataStreamFifoOut);
     Reg#(Bool) isFirstReg <- mkReg(True);
-    Reg#(Maybe#(DataStream)) extraDataStreamBuf <- mkReg(Invalid);
 
     FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
 
     rule doStreamReduction;
-        if (extraDataStreamBuf matches tagged Valid .dataStream) begin
-            dataStreamOutBuf.enq(dataStream);
-            extraDataStreamBuf <= tagged Invalid;
-        end
-        else begin
-            let axiStream = axiStreamIn.first;
-            axiStreamIn.deq;
-
-            let extraDataStream = DataStream{
-                data: truncateLSB(axiStream.tData),
-                byteEn: truncateLSB(axiStream.tKeep),
-                isFirst: False,
-                isLast: axiStream.tLast
-            };
-
-            let dataStreamOut = DataStream{
-                data: truncate(axiStream.tData),
-                byteEn: truncate(axiStream.tKeep),
-                isFirst: isFirstReg,
-                isLast: False
-            };
-
-            if (extraDataStream.byteEn == 0) begin
-                dataStreamOut.isLast = True;
-            end
-            else begin
-                extraDataStreamBuf <= tagged Valid extraDataStream;
-            end
-            dataStreamOutBuf.enq(dataStreamOut);
-            isFirstReg <= axiStream.tLast;
-        end
+        let axiStream = axiStreamIn.first;
+        axiStreamIn.deq;
+        let dataStream = DataStream {
+            data: axiStream.tData,
+            byteEn: axiStream.tKeep,
+            isFirst: isFirstReg,
+            isLast: axiStream.tLast
+        };
+        dataStreamOutBuf.enq(dataStream);
+        isFirstReg <= axiStream.tLast;
     endrule
 
     return convertFifoToFifoOut(dataStreamOutBuf);

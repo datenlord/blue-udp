@@ -18,10 +18,10 @@ interface UdpIpEthRxTx;
     interface Put#(MacMetaData)   macMetaDataTxIn;
     interface Put#(UdpIpMetaData) udpIpMetaDataTxIn;
     interface Put#(DataStream)    dataStreamTxIn;
-    interface AxiStream256FifoOut axiStreamTxOut;
+    interface AxiStream512FifoOut axiStreamTxOut;
     
     // Rx Channel
-    interface Put#(AxiStream256)   axiStreamRxIn;
+    interface Put#(AxiStream512)   axiStreamRxIn;
     interface MacMetaDataFifoOut   macMetaDataRxOut;
     interface UdpIpMetaDataFifoOut udpIpMetaDataRxOut;
     interface DataStreamFifoOut    dataStreamRxOut;
@@ -131,9 +131,8 @@ module mkUdpIpEthCmacRxTx#(
     let udpReset <- exposeCurrentReset;
 
     let udpIpEthRxTx <- mkGenericUdpIpEthRxTx(isSupportRdma);
-    let axiStream512TxOut <- mkDoubleAxiStreamFifoOut(udpIpEthRxTx.axiStreamTxOut);
-    let axiStreamRxIn <- mkPutToFifoIn(udpIpEthRxTx.axiStreamRxIn);
-    let axiStream512RxIn <- mkDoubleAxiStreamFifoIn(axiStreamRxIn);
+    let axiStream512TxOut = udpIpEthRxTx.axiStreamTxOut;
+    let axiStream512RxIn <- mkPutToFifoIn(udpIpEthRxTx.axiStreamRxIn);
 
     let axiStream512Sync <- mkDuplexAxiStreamAsyncFifo(
         syncBramBufDepth,

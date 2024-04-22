@@ -18,7 +18,7 @@ import BusConversion :: *;
 interface UdpIpEthRx;
     interface Put#(UdpConfig) udpConfig;
     
-    interface Put#(AxiStream256) axiStreamIn;
+    interface Put#(AxiStream512) axiStreamIn;
     
     interface MacMetaDataFifoOut macMetaDataOut;
     interface UdpIpMetaDataFifoOut udpIpMetaDataOut;
@@ -26,12 +26,12 @@ interface UdpIpEthRx;
 endinterface
 
 module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
-    FIFOF#(AxiStream256) axiStreamInBuf <- mkFIFOF;
+    FIFOF#(AxiStream512) axiStreamInBuf <- mkFIFOF;
     
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
 
-    let macStream <- mkAxiStream256ToDataStream(
+    let macStream <- mkAxiStream512ToDataStream(
         convertFifoToFifoOut(axiStreamInBuf)
     );
 
@@ -62,7 +62,7 @@ module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
     endinterface
 
     interface Put axiStreamIn;
-        method Action put(AxiStream256 stream) if (isValid(udpConfigReg));
+        method Action put(AxiStream512 stream) if (isValid(udpConfigReg));
             axiStreamInBuf.enq(stream);
         endmethod
     endinterface
@@ -74,18 +74,15 @@ endmodule
 
 
 interface ForkRdmaPktStream;
-    interface AxiStream256FifoOut rdmaPktAxiStreamOut;
+    interface AxiStream512FifoOut rdmaPktAxiStreamOut;
     interface DataStreamFifoOut pktStreamOut;
 endinterface
 
 module mkForkRdmaPktStream#(
     AxiStream512FifoOut pktAxiStreamIn
 )(ForkRdmaPktStream);
-    FIFOF#(AxiStream512) rdmaPktAxiStreamInterBuf <- mkFIFOF;
-    FIFOF#(AxiStream512) pktAxiStreamInterBuf <- mkFIFOF;
-    
-    FIFOF#(AxiStream256) rdmaPktAxiStreamOutBuf <- mkFIFOF;
-    FIFOF#(AxiStream256) pktAxiStreamOutBuf <- mkFIFOF;
+    FIFOF#(AxiStream512) rdmaPktAxiStreamOutBuf <- mkFIFOF;
+    FIFOF#(AxiStream512) pktAxiStreamOutBuf <- mkFIFOF;
 
     Reg#(Bool) isFirstFrameReg <- mkReg(True);
     Reg#(Bool) isRdmaPktReg <- mkReg(False);
@@ -99,10 +96,10 @@ module mkForkRdmaPktStream#(
         let isUdpPkt = isIpPkt && (totalHdr.ipHeader.ipProtocol == fromInteger(valueOf(IP_PROTOCOL_UDP)));
         let isRdmaPkt = isUdpPkt && totalHdr.udpHeader.dstPort == fromInteger(valueOf(UDP_PORT_RDMA));
         if (isRdmaPkt) begin
-            rdmaPktAxiStreamInterBuf.enq(axiStream512);
+            rdmaPktAxiStreamOutBuf.enq(axiStream512);
         end
         else begin
-            pktAxiStreamInterBuf.enq(axiStream512);
+            pktAxiStreamOutBuf.enq(axiStream512);
         end
         isRdmaPktReg <= isRdmaPkt;
         isFirstFrameReg <= axiStream512.tLast;
@@ -112,24 +109,17 @@ module mkForkRdmaPktStream#(
         let axiStream512 = pktAxiStreamIn.first;
         pktAxiStreamIn.deq;
         if (isRdmaPktReg) begin
-            rdmaPktAxiStreamInterBuf.enq(axiStream512);
+            rdmaPktAxiStreamOutBuf.enq(axiStream512);
         end
         else begin
-            pktAxiStreamInterBuf.enq(axiStream512);
+            pktAxiStreamOutBuf.enq(axiStream512);
         end
         isFirstFrameReg <= axiStream512.tLast;
     endrule
 
-    // Convert Stream Width
-    let pktAxiStreamInterFifoIn <- mkDoubleAxiStreamFifoIn(convertFifoToFifoIn(pktAxiStreamOutBuf));
-    mkConnection(pktAxiStreamInterFifoIn, convertFifoToFifoOut(pktAxiStreamInterBuf));
-    let pktStreamFifoOut <- mkAxiStream256ToDataStream(convertFifoToFifoOut(pktAxiStreamOutBuf));
-    
-    let rdmaPktAxiStreamInterFifoIn <- mkDoubleAxiStreamFifoIn(convertFifoToFifoIn(rdmaPktAxiStreamOutBuf));
-    mkConnection(rdmaPktAxiStreamInterFifoIn, convertFifoToFifoOut(rdmaPktAxiStreamInterBuf));
-    
+    let interPktStream <- mkAxiStream512ToDataStream(convertFifoToFifoOut(pktAxiStreamOutBuf));
     interface rdmaPktAxiStreamOut = convertFifoToFifoOut(rdmaPktAxiStreamOutBuf);
-    interface pktStreamOut = pktStreamFifoOut;
+    interface pktStreamOut = interPktStream;
 endmodule
 
 interface UdpIpEthBypassRx;
@@ -168,7 +158,7 @@ interface RawUdpIpEthRx;
     (* prefix = "s_udp_config" *) 
     interface RawUdpConfigBusSlave rawUdpConfig;
     (* prefix = "s_axis" *) 
-    interface RawAxiStreamSlave#(AXIS256_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamIn;
+    interface RawAxiStreamSlave#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamIn;
     
     (* prefix = "m_mac_meta" *)
     interface RawMacMetaDataBusMaster rawMacMetaDataOut;

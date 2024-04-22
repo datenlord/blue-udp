@@ -47,7 +47,7 @@ export DEBUG_PROBES_EN = 0
 export TARGET_CLOCKS = xdma_axi_aclk
 export MAX_NET_PATH_NUM = 1000
 
-BSV_MODULES = CmacRecvMonitor CmacSendMonitor XdmaPerfMonitor XdmaUdpIpEthBypassCmacRxTx XdmaUdpIpArpEthCmacRxTx XdmaUdpIpEthCmacRxTx
+BSV_MODULES = CmacRecvMonitor CmacSendMonitor XdmaPerfMonitor XdmaUdpIpEthBypassCmacRxTx #XdmaUdpIpArpEthCmacRxTx XdmaUdpIpEthCmacRxTx
 IP = xdma_axil_desc clk_wiz xdma_perf_mon_ila cmac_mon_ila axis512_mon_ila
 ifeq ($(ENABLE_CMAC_RSFEC), 1)
 IP += cmac_rsfec_q$(QSFP_IDX)

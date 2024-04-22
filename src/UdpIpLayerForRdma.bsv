@@ -70,7 +70,6 @@ module mkUdpIpStreamForICrcGen#(
         UdpIpHeader udpIpHeader = genUdpIpHeaderForICrc(metaData, udpConfig, 1);
         udpIpHeaderBuf.enq(udpIpHeader);
         ipIdCounter <= ipIdCounter + 1;
-        $display("IpUdpGen: genHeader of %d frame", ipIdCounter);
     endrule
 
     rule genDummyBits;
@@ -138,9 +137,9 @@ module mkUdpIpStreamForRdma#(
         udpConfig
     );
 
-    let crc32Stream <- mkCrc32AxiStream256FifoOut(
+    let crc32Stream <- mkCrc32AxiStream512FifoOut(
         CRC_MODE_SEND,
-        convertDataStreamToAxiStream256(udpIpStreamForICrc)
+        mkDataStreamToAxiStream512(udpIpStreamForICrc)
     );
 
     DataStreamFifoOut udpIpStreamWithICrc <- mkAppendDataStreamTail(
@@ -164,30 +163,19 @@ endfunction
 module mkUdpIpStreamForICrcChk#(
     DataStreamFifoOut udpIpStreamIn
 )(DataStreamFifoOut);
-    Reg#(Bool) isFirst <- mkReg(True);
-    FIFOF#(AxiStream512) interAxiStreamBuf <- mkFIFOF;
+    FIFOF#(DataStream) interDataStreamBuf <- mkFIFOF;
     FIFOF#(Bit#(DUMMY_BITS_WIDTH)) dummyBitsBuf <- mkFIFOF;
-    let axiStream512FifoOut <- mkDataStreamToAxiStream512(udpIpStreamIn);
-    let udpIpStreamFifoOut <- mkAxiStream512ToDataStream(
-        convertFifoToFifoOut(interAxiStreamBuf)
-    );
-    let dummyBitsAndUdpIpStream <- mkAppendDataStreamHead(
-        HOLD,
-        SWAP,
-        udpIpStreamFifoOut,
-        convertFifoToFifoOut(dummyBitsBuf)
-    );
 
     rule genDummyBits;
         dummyBitsBuf.enq(setAllBits);
     endrule
 
     rule doTransform;
-        let axiStream512 = axiStream512FifoOut.first;
-        axiStream512FifoOut.deq;
-        if (isFirst) begin
-            let tData = swapEndian(axiStream512.tData);
-            BTHUdpIpHeader bthUdpIpHdr = unpack(truncateLSB(tData));
+        let udpIpStream = udpIpStreamIn.first;
+        udpIpStreamIn.deq;
+        if (udpIpStream.isFirst) begin
+            let data = swapEndian(udpIpStream.data);
+            BTHUdpIpHeader bthUdpIpHdr = unpack(truncateLSB(data));
             bthUdpIpHdr.bth.fecn = setAllBits;
             bthUdpIpHdr.bth.becn = setAllBits;
             bthUdpIpHdr.bth.resv6 = setAllBits;
@@ -196,12 +184,18 @@ module mkUdpIpStreamForICrcChk#(
             bthUdpIpHdr.ipHeader.ipEcn = setAllBits;
             bthUdpIpHdr.ipHeader.ipTTL = setAllBits;
             bthUdpIpHdr.ipHeader.ipChecksum = setAllBits;
-            tData = {pack(bthUdpIpHdr), truncate(tData)};
-            axiStream512.tData = swapEndian(tData);
+            data = {pack(bthUdpIpHdr), truncate(data)};
+            udpIpStream.data = swapEndian(data);
         end
-        isFirst <= axiStream512.tLast;
-        interAxiStreamBuf.enq(axiStream512);
+        interDataStreamBuf.enq(udpIpStream);
     endrule
+
+    let dummyBitsAndUdpIpStream <- mkAppendDataStreamHead(
+        HOLD,
+        SWAP,
+        convertFifoToFifoOut(interDataStreamBuf),
+        convertFifoToFifoOut(dummyBitsBuf)
+    );
 
     return dummyBitsAndUdpIpStream;
 endmodule
@@ -304,9 +298,9 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         convertFifoToFifoOut(udpIpStreamForICrcBuf)
     );
 
-    let crc32Stream <- mkCrc32AxiStream256FifoOut(
+    let crc32Stream <- mkCrc32AxiStream512FifoOut(
         CRC_MODE_RECV,
-        convertDataStreamToAxiStream256(udpIpStreamForICrc)
+        mkDataStreamToAxiStream512(udpIpStreamForICrc)
     );
 
     UdpIpMetaDataAndDataStream udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStream(

@@ -18,7 +18,7 @@ interface UdpIpEthTx;
     interface Put#(UdpIpMetaData) udpIpMetaDataIn;
     interface Put#(MacMetaData) macMetaDataIn;
     interface Put#(DataStream) dataStreamIn;
-    interface AxiStream256FifoOut axiStreamOut;
+    interface AxiStream512FifoOut axiStreamOut;
 endinterface
 
 module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
@@ -76,7 +76,7 @@ module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
         endmethod
     endinterface
 
-    interface FifoOut axiStreamOut = convertDataStreamToAxiStream256(macStream);
+    interface FifoOut axiStreamOut = mkDataStreamToAxiStream512(macStream);
 endmodule
 
 interface UdpIpEthBypassTx;
@@ -157,7 +157,7 @@ module mkGenericUdpIpEthBypassTx#(Bool isSupportRdma)(UdpIpEthBypassTx);
         convertFifoToFifoOut(macMetaDataInBuf), 
         udpConfigVal
     );
-    let macAxiStream <- mkDoubleAxiStreamFifoOut(convertDataStreamToAxiStream256(macStream));
+    let macAxiStream = mkDataStreamToAxiStream512(macStream);
 
     interface Put udpConfig;
         method Action put(UdpConfig conf);
@@ -198,7 +198,7 @@ interface RawUdpIpEthTx;
     interface RawDataStreamBusSlave rawDataStreamIn;
     
     (* prefix = "m_axis" *)
-    interface RawAxiStreamMaster#(AXIS256_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamOut;
+    interface RawAxiStreamMaster#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) rawAxiStreamOut;
 endinterface
 
 module mkGenericRawUdpIpEthTx#(Bool isSupportRdma)(RawUdpIpEthTx);

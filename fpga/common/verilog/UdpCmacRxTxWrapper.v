@@ -15,9 +15,6 @@ module UdpCmacRxTxWrapper#(
     input xdma_clk,
     input xdma_reset,
 
-    input udp_clk,
-    input udp_reset,
-
     input gt_ref_clk_p,
     input gt_ref_clk_n,
     input gt_init_clk,
@@ -166,8 +163,6 @@ module UdpCmacRxTxWrapper#(
         .cmac_rxtx_clk          (gt_txusrclk2    ),
         .cmac_rx_reset          (~gt_usr_rx_reset),
         .cmac_tx_reset          (~gt_usr_tx_reset),
-        .udp_clk                (udp_clk         ),
-        .udp_reset              (udp_reset       ),
 
         .cmac_tx_axis_tvalid    (gt_tx_axis_tvalid),
         .cmac_tx_axis_tdata     (gt_tx_axis_tdata ),

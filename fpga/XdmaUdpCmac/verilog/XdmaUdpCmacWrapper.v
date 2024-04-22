@@ -107,19 +107,8 @@ module XdmaUdpCmacWrapper#(
         .m_axis_h2c_tkeep_0 (xdma_tx_axis_tkeep)    // output wire [63 : 0] m_axis_h2c_tkeep_0
     );
     
-    clk_wiz_0 clk_wiz_inst (
-        // Clock out ports
-        .clk_out1 (udp_clk         ),    // output clk_out1
-        .clk_out2 (cmac_init_clk   ),    // output clk_out2
-        // Status and control signals
-        .resetn   (xdma_axi_aresetn),    // input resetn
-        .locked   (clk_wiz_locked  ),    // output locked
-        // Clock in ports
-        .clk_in1  (xdma_axi_aclk   )     // input clk_in1
-    );
-    
-    assign udp_reset = clk_wiz_locked;
-    assign cmac_sys_reset = ~ clk_wiz_locked;
+    assign cmac_init_clk = xdma_axi_aclk;
+    assign cmac_sys_reset = ~ xdma_axi_aresetn;
 
     // Extra Buffer for Cross-Die Connections
     xpm_fifo_axis #(
@@ -189,9 +178,6 @@ module XdmaUdpCmacWrapper#(
 
         .xdma_clk  (xdma_axi_aclk   ),
         .xdma_reset(xdma_axi_aresetn),
-
-        .udp_clk   (udp_clk  ),
-        .udp_reset (udp_reset),
 
         .gt_ref_clk_p(qsfp_ref_clk_p    ),
         .gt_ref_clk_n(qsfp_ref_clk_n    ),
