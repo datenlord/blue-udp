@@ -291,11 +291,11 @@ function Bit#(TLog#(oneHotWidth)) convertOneHotToIndex(Vector#(oneHotWidth, Bool
     return index;
 endfunction
 
-function AxiStream256FifoOut convertDataStreamToAxiStream256(DataStreamFifoOut stream);
+function AxiStreamLocalFifoOut convertDataStreamToAxiStream(DataStreamFifoOut stream);
     return (
-        interface AxiStream256FifoOut;
-            method AxiStream256 first();
-                return AxiStream256 {
+        interface AxiStreamLocalFifoOut;
+            method AxiStreamLocal first();
+                return AxiStreamLocal {
                     tData: stream.first.data,
                     tKeep: stream.first.byteEn,
                     tUser: 0,
@@ -314,8 +314,8 @@ function AxiStream256FifoOut convertDataStreamToAxiStream256(DataStreamFifoOut s
      );
 endfunction
 
-module mkAxiStream256ToDataStream#(
-    AxiStream256FifoOut axiStreamIn
+module mkAxiStreamToDataStream#(
+    AxiStreamLocalFifoOut axiStreamIn
 )(DataStreamFifoOut);
     Reg#(Bool) isFirstReg <- mkReg(True);
 
@@ -340,9 +340,9 @@ module mkAxiStream256ToDataStream#(
 endmodule
 
 
-module mkCrc32AxiStream256FifoOut#(
+module mkCrc32AxiStreamLocalFifoOut#(
     CrcMode crcMode,
-    AxiStream256FifoOut crcReq
+    AxiStreamLocalFifoOut crcReq
 )(FifoOut#(Crc32Checksum));
     CrcConfig#(CRC32_WIDTH) conf = CrcConfig {
         polynominal: fromInteger(valueOf(CRC32_IEEE_POLY)),

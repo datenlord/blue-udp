@@ -9,13 +9,13 @@ import EthUtils :: *;
 import MacLayer :: *;
 import EthernetTypes :: *;
 import TestUtils :: *;
-import UdpIpEthCmacRxTx :: *;
+import UdpIpEthBypassCmacRxTx :: *;
 
 import SemiFifo :: *;
 
 typedef 32 CYCLE_COUNT_WIDTH;
 typedef 16 CASE_COUNT_WIDTH;
-typedef 100000 MAX_CYCLE_NUM;
+typedef 200000 MAX_CYCLE_NUM;
 typedef 1000 TEST_CASE_NUM;
 
 typedef 32'h7F000001 DUT_IP_ADDR;
@@ -59,7 +59,7 @@ module mkTestUdpIpEthBypassRxTx();
         gateWay: fromInteger(valueOf(DUT_GATE_WAY))
     };
     let udpIpEthBypassRxTx <- mkGenericUdpIpEthBypassRxTx(`IS_SUPPORT_RDMA);
-    RandomDelay#(AxiStream512, MAX_AXI_STREAM_DELAY) randDelayGen <- mkRandomDelay;
+    RandomDelay#(AxiStreamLocal, MAX_AXI_STREAM_DELAY) randDelayGen <- mkRandomDelay;
     mkConnection(toGet(udpIpEthBypassRxTx.axiStreamTxOut), randDelayGen.request);
     mkConnection(randDelayGen.response, udpIpEthBypassRxTx.axiStreamRxIn);
 
@@ -104,8 +104,8 @@ module mkTestUdpIpEthBypassRxTx();
     rule sendMetaData if (isInit && !metaDataSentFlag && inputCaseCounter < fromInteger(testCaseNum));  
         Bit#(BEAT_COUNT_WIDTH) beatNum <- randBeatNum.next;
         //Bit#(BEAT_COUNT_WIDTH) beatNum = 32;
-        Bool bypassSelect <- randBypassSelect.next;
-        //Bool bypassSelect = False;
+        //Bool bypassSelect <- randBypassSelect.next;
+        Bool bypassSelect = False;
         if (beatNum == 0) beatNum = 1;
         beatNumReg <= beatNum;
         bypassSelectReg <= bypassSelect;

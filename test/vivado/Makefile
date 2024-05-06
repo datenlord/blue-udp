@@ -32,7 +32,7 @@ endif
 
 table:
 ifeq ($(SUPPORT_RDMA), True)
-	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_256.json $(GEN_SRC_DIR)
+	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_1024.json $(GEN_SRC_DIR)
 endif
 
 verilog:

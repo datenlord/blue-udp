@@ -153,9 +153,7 @@ module UdpCmacRxTxWrapper#(
     wire [3:0]      cmac_ctrl_rx_state;
     wire            is_cmac_rx_aligned;
 
-`ifdef ENABLE_ARP_PROCESS
-    mkXdmaUdpIpArpEthCmacRxTx udp_inst1
-`elsif ENABLE_BYPASS_MODE
+`ifdef ENABLE_BYPASS_MODE
     mkXdmaUdpIpEthBypassCmacRxTx udp_inst1
 `else
     mkXdmaUdpIpEthCmacRxTx udp_inst1

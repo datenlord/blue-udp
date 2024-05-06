@@ -1,0 +1,11 @@
+{
+    "crc_width": 32,
+    "axi_keep_width": 64,
+    "polynomial": "0x04C11DB7",
+    "init_value": "0xFFFFFFFF",
+    "final_xor": "0xFFFFFFFF",
+    "reverse_input": true,
+    "reverse_output": true,
+    "mem_file_prefix": "crc_tab",
+    "crc_mode": "CRC_MODE_SEND"
+}

@@ -138,9 +138,9 @@ module mkUdpIpStreamForRdma#(
         udpConfig
     );
 
-    let crc32Stream <- mkCrc32AxiStream256FifoOut(
+    let crc32Stream <- mkCrc32AxiStreamLocalFifoOut(
         CRC_MODE_SEND,
-        convertDataStreamToAxiStream256(udpIpStreamForICrc)
+        convertDataStreamToAxiStream(udpIpStreamForICrc)
     );
 
     DataStreamFifoOut udpIpStreamWithICrc <- mkAppendDataStreamTail(
@@ -164,17 +164,39 @@ endfunction
 module mkUdpIpStreamForICrcChk#(
     DataStreamFifoOut udpIpStreamIn
 )(DataStreamFifoOut);
-    Reg#(Bool) isFirst <- mkReg(True);
-    FIFOF#(AxiStream512) interAxiStreamBuf <- mkFIFOF;
+
+    function BTHUdpIpHeader setBTHUdpIpHeader(BTHUdpIpHeader header);
+        header.bth.fecn = setAllBits;
+        header.bth.becn = setAllBits;
+        header.bth.resv6 = setAllBits;
+        header.udpHeader.checksum = setAllBits;
+        header.ipHeader.ipDscp = setAllBits;
+        header.ipHeader.ipEcn = setAllBits;
+        header.ipHeader.ipTTL = setAllBits;
+        header.ipHeader.ipChecksum = setAllBits;
+        return header;
+    endfunction
+
+    function DoubleDataStream processUdpIpStream(DoubleDataStream udpIpStream);
+        if (udpIpStream.isFirst) begin
+            let data = swapEndian(udpIpStream.data);
+            let bthUdpIpHdr = setBTHUdpIpHeader(unpack(truncateLSB(data)));
+            data = {pack(bthUdpIpHdr), truncate(data)};
+            udpIpStream.data = swapEndian(data);
+        end
+        return udpIpStream;
+    endfunction
+
+    let doubleUdpIpStreamIn <- mkDoubleDataStreamFifoOut(udpIpStreamIn);
+    let newUdpIpStream = processUdpIpStream(doubleUdpIpStreamIn.first);
+    let interDoubleUdpIpStreamFifoOut = translateFifoOut(doubleUdpIpStreamIn, newUdpIpStream);
+    let interUdpIpStreamFifoOut <- mkHalfDataStreamFifoOut(interDoubleUdpIpStreamFifoOut);
+    
     FIFOF#(Bit#(DUMMY_BITS_WIDTH)) dummyBitsBuf <- mkFIFOF;
-    let axiStream512FifoOut <- mkDataStreamToAxiStream512(udpIpStreamIn);
-    let udpIpStreamFifoOut <- mkAxiStream512ToDataStream(
-        convertFifoToFifoOut(interAxiStreamBuf)
-    );
-    let dummyBitsAndUdpIpStream <- mkAppendDataStreamHead(
+    let udpIpStreamOut <- mkAppendDataStreamHead(
         HOLD,
         SWAP,
-        udpIpStreamFifoOut,
+        interUdpIpStreamFifoOut,
         convertFifoToFifoOut(dummyBitsBuf)
     );
 
@@ -182,28 +204,7 @@ module mkUdpIpStreamForICrcChk#(
         dummyBitsBuf.enq(setAllBits);
     endrule
 
-    rule doTransform;
-        let axiStream512 = axiStream512FifoOut.first;
-        axiStream512FifoOut.deq;
-        if (isFirst) begin
-            let tData = swapEndian(axiStream512.tData);
-            BTHUdpIpHeader bthUdpIpHdr = unpack(truncateLSB(tData));
-            bthUdpIpHdr.bth.fecn = setAllBits;
-            bthUdpIpHdr.bth.becn = setAllBits;
-            bthUdpIpHdr.bth.resv6 = setAllBits;
-            bthUdpIpHdr.udpHeader.checksum = setAllBits;
-            bthUdpIpHdr.ipHeader.ipDscp = setAllBits;
-            bthUdpIpHdr.ipHeader.ipEcn = setAllBits;
-            bthUdpIpHdr.ipHeader.ipTTL = setAllBits;
-            bthUdpIpHdr.ipHeader.ipChecksum = setAllBits;
-            tData = {pack(bthUdpIpHdr), truncate(tData)};
-            axiStream512.tData = swapEndian(tData);
-        end
-        isFirst <= axiStream512.tLast;
-        interAxiStreamBuf.enq(axiStream512);
-    endrule
-
-    return dummyBitsAndUdpIpStream;
+    return udpIpStreamOut;
 endmodule
 
 
@@ -304,9 +305,9 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         convertFifoToFifoOut(udpIpStreamForICrcBuf)
     );
 
-    let crc32Stream <- mkCrc32AxiStream256FifoOut(
+    let crc32Stream <- mkCrc32AxiStreamLocalFifoOut(
         CRC_MODE_RECV,
-        convertDataStreamToAxiStream256(udpIpStreamForICrc)
+        convertDataStreamToAxiStream(udpIpStreamForICrc)
     );
 
     UdpIpMetaDataAndDataStream udpIpMetaAndDataStream <- mkUdpIpMetaDataAndDataStream(
@@ -349,7 +350,7 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
             ICRC_IDLE: begin
                 let crcChecksum = crc32Stream.first;
                 crc32Stream.deq;
-                $display("RdmaUdpIpEthRx gets iCRC result");
+                $display("RdmaUdpIpEthRx gets iCRC result %x", crcChecksum);
                 if (crcChecksum == 0) begin
                     isPassICrcCheck <= True;
                     $display("Pass ICRC check");

@@ -6,8 +6,9 @@ LIB_CRC_DIR = $(ROOT_DIR)/lib/blue-crc/src
 LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper/src
 LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
+CRC_CONFIG_FILE = $(SCRIPTS_DIR)/crc_ieee_32_1024.json
 
-TARGET = UdpIpEthTx
+TARGET = UdpIpEthRx
 FILE_PATH = $(ROOT_DIR)/src
 TEST_FILE = Test$(TARGET).py
 DESIGN_FILE ?= $(TARGET).bsv
@@ -24,7 +25,7 @@ UDP_PORT ?=
 
 table:
 ifeq ($(SUPPORT_RDMA), True)
-	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_256.json $(BUILDDIR)
+	python3 $(CRC_TAB_SCRIPT) $(CRC_CONFIG_FILE) $(BUILDDIR)
 endif
 
 verilog:

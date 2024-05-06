@@ -50,8 +50,8 @@ endinterface
 module mkUdpIpEthRxTxForXdma(UdpIpEthRxTxForXdma);
     Reg#(Bool) isUdpConfig <- mkReg(False);
 
-    FIFOF#(AxiStream256) xdmaAxiStreamInBuf <- mkFIFOF;
-    let dataStreamTxIn <- mkAxiStream256ToDataStream(convertFifoToFifoOut(xdmaAxiStreamInBuf));
+    FIFOF#(AxiStreamLocal) xdmaAxiStreamInBuf <- mkFIFOF;
+    let dataStreamTxIn <- mkAxiStreamToDataStream(convertFifoToFifoOut(xdmaAxiStreamInBuf));
     let udpIpEthRxTx <- mkGenericUdpIpEthRxTx(`IS_SUPPORT_RDMA);
 
     rule udpConfig if (!isUdpConfig);
@@ -96,14 +96,14 @@ module mkUdpIpEthRxTxForXdma(UdpIpEthRxTxForXdma);
         udpIpEthRxTx.macMetaDataRxOut.deq;
     endrule
 
-    let xdmaAxiStream256TxIn = convertFifoToFifoIn(xdmaAxiStreamInBuf);
-    let xdmaAxiStream256RxOut = convertDataStreamToAxiStream256(udpIpEthRxTx.dataStreamRxOut);
-    let xdmaAxiStream512TxIn <- mkDoubleAxiStreamFifoIn(xdmaAxiStream256TxIn);
-    let xdmaAxiStream512RxOut <- mkDoubleAxiStreamFifoOut(xdmaAxiStream256RxOut);
+    let xdmaAxiStreamLocalTxIn = convertFifoToFifoIn(xdmaAxiStreamInBuf);
+    let xdmaAxiStreamLocalRxOut = convertDataStreamToAxiStream(udpIpEthRxTx.dataStreamRxOut);
+    let xdmaAxiStream512TxIn <- mkAxiStream512FifoIn(xdmaAxiStreamLocalTxIn);
+    let xdmaAxiStream512RxOut <- mkAxiStream512FifoOut(xdmaAxiStreamLocalRxOut);
 
-    let cmacAxiStream256RxIn <- mkPutToFifoIn(udpIpEthRxTx.axiStreamRxIn);
-    let cmacAxiStream512RxIn <- mkDoubleAxiStreamFifoIn(cmacAxiStream256RxIn);
-    let cmacAxiStream512TxOut <- mkDoubleAxiStreamFifoOut(udpIpEthRxTx.axiStreamTxOut);
+    let cmacAxiStreamLocalRxIn <- mkPutToFifoIn(udpIpEthRxTx.axiStreamRxIn);
+    let cmacAxiStream512RxIn <- mkAxiStream512FifoIn(cmacAxiStreamLocalRxIn);
+    let cmacAxiStream512TxOut <- mkAxiStream512FifoOut(udpIpEthRxTx.axiStreamTxOut);
     interface xdmaAxiStreamTxIn  = xdmaAxiStream512TxIn;
     interface xdmaAxiStreamRxOut = xdmaAxiStream512RxOut;
     interface cmacAxiStreamRxIn  = cmacAxiStream512RxIn;

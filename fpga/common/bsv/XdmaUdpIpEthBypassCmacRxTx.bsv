@@ -9,7 +9,7 @@ import EthUtils :: *;
 import BusConversion :: *;
 import StreamHandler :: *;
 import EthernetTypes :: *;
-import UdpIpEthCmacRxTx :: *;
+import UdpIpEthBypassCmacRxTx :: *;
 import XilinxCmacController :: *;
 import XilinxAxiStreamAsyncFifo :: *;
 
@@ -50,8 +50,8 @@ endinterface
 module mkUdpIpEthBypassRxTxForXdma(UdpIpEthBypassRxTxForXdma);
     Reg#(Bool) isUdpConfig <- mkReg(False);
 
-    FIFOF#(AxiStream256) xdmaAxiStreamInBuf <- mkFIFOF;
-    let dataStreamTxIn <- mkAxiStream256ToDataStream(convertFifoToFifoOut(xdmaAxiStreamInBuf));
+    FIFOF#(AxiStreamLocal) xdmaAxiStreamInBuf <- mkFIFOF;
+    let dataStreamTxIn <- mkAxiStreamToDataStream(convertFifoToFifoOut(xdmaAxiStreamInBuf));
     let udpIpEthBypassRxTx <- mkGenericUdpIpEthBypassRxTx(`IS_SUPPORT_RDMA);
 
     rule udpConfig if (!isUdpConfig);
@@ -106,13 +106,15 @@ module mkUdpIpEthBypassRxTxForXdma(UdpIpEthBypassRxTxForXdma);
         udpIpEthBypassRxTx.rawPktStreamRxOut.deq;
     endrule
 
-    let xdmaAxiStream256TxIn = convertFifoToFifoIn(xdmaAxiStreamInBuf);
-    let xdmaAxiStream256RxOut = convertDataStreamToAxiStream256(udpIpEthBypassRxTx.dataStreamRxOut);
-    let xdmaAxiStream512TxIn <- mkDoubleAxiStreamFifoIn(xdmaAxiStream256TxIn);
-    let xdmaAxiStream512RxOut <- mkDoubleAxiStreamFifoOut(xdmaAxiStream256RxOut);
+    let xdmaAxiStreamLocalTxIn = convertFifoToFifoIn(xdmaAxiStreamInBuf);
+    let xdmaAxiStreamLocalRxOut = convertDataStreamToAxiStream(udpIpEthBypassRxTx.dataStreamRxOut);
+    let xdmaAxiStream512TxIn <- mkAxiStream512FifoIn(xdmaAxiStreamLocalTxIn);
+    let xdmaAxiStream512RxOut <- mkAxiStream512FifoOut(xdmaAxiStreamLocalRxOut);
 
-    let cmacAxiStream512RxIn <- mkPutToFifoIn(udpIpEthBypassRxTx.axiStreamRxIn);
-    let cmacAxiStream512TxOut = udpIpEthBypassRxTx.axiStreamTxOut;
+    let cmacAxiStreamLocalTxOut = udpIpEthBypassRxTx.axiStreamTxOut;
+    let cmacAxiStreamLocalRxIn <- mkPutToFifoIn(udpIpEthBypassRxTx.axiStreamRxIn);
+    let cmacAxiStream512RxIn <- mkAxiStream512FifoIn(cmacAxiStreamLocalRxIn);
+    let cmacAxiStream512TxOut <- mkAxiStream512FifoOut(cmacAxiStreamLocalTxOut);
     interface xdmaAxiStreamTxIn  = xdmaAxiStream512TxIn;
     interface xdmaAxiStreamRxOut = xdmaAxiStream512RxOut;
     interface cmacAxiStreamRxIn  = cmacAxiStream512RxIn;

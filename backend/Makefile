@@ -29,7 +29,7 @@ MACROFLAGS = -D IS_SUPPORT_RDMA=$(SUPPORT_RDMA)
 
 table:
 ifeq ($(SUPPORT_RDMA), True)
-	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_256.json $(PWD)
+	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_1024.json $(PWD)
 endif
 
 compile:

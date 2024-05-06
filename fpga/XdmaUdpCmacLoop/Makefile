@@ -12,7 +12,7 @@ BSV_DIR = ../common/bsv
 # ENABLE_DEBUG_MODE: 0 - Disable, 1 - Enable
 # SUPPORT_RDMA: False - Disable, True - Enable
 ENABLE_CMAC_RSFEC = 1
-ENABLE_ARP_PROCESS = 0
+#ENABLE_ARP_PROCESS = 0
 ENABLE_DEBUG_MODE = 1
 SUPPORT_RDMA ?= False
 
@@ -44,7 +44,7 @@ export DEBUG_PROBES_EN = 0
 export TARGET_CLOCKS = xdma_axi_aclk
 export MAX_NET_PATH_NUM = 1000
 
-BSV_MODULES = CmacRecvMonitor CmacSendMonitor XdmaUdpIpArpEthCmacRxTx XdmaUdpIpEthCmacRxTx
+BSV_MODULES = CmacRecvMonitor CmacSendMonitor XdmaUdpIpEthCmacRxTx
 IP = xdma clk_wiz cmac_mon_ila axis512_mon_ila
 ifeq ($(ENABLE_CMAC_RSFEC), 1)
 IP += cmac_rsfec_q2
@@ -56,7 +56,7 @@ XDC = common pciex16 qsfp_loop
 
 table:
 ifeq ($(SUPPORT_RDMA), True)
-	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_256.json $(DIR_MEM_CONFIG)
+	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_1024.json $(DIR_MEM_CONFIG)
 endif
 
 verilog: $(BSV_MODULES)
@@ -83,9 +83,9 @@ config:
 ifeq ($(ENABLE_CMAC_RSFEC), 1)
 	@echo "\`define ENABLE_CMAC_RSFEC" >> $(CONFIG_FILE)
 endif
-ifeq ($(ENABLE_ARP_PROCESS), 1)
-	@echo "\`define ENABLE_ARP_PROCESS" >> $(CONFIG_FILE)
-endif
+# ifeq ($(ENABLE_ARP_PROCESS), 1)
+# 	@echo "\`define ENABLE_ARP_PROCESS" >> $(CONFIG_FILE)
+# endif
 ifeq ($(ENABLE_DEBUG_MODE), 1)
 	@echo "\`define ENABLE_DEBUG_MODE" >> $(CONFIG_FILE)
 endif

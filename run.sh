@@ -52,13 +52,13 @@ make clean
 
 # Test UdpIpArpEthRxTx on virtual docker network
 
-echo -e "\nStart testing UdpIpArpEthRxTx on docker virtual network"
+# echo -e "\nStart testing UdpIpArpEthRxTx on docker virtual network"
 
-make verilog TARGET=UdpIpArpEthRxTx SUPPORT_RDMA=False
-if [ $in_server == 1 ]; then
-    ./run_udp_docker_test.sh -s
-else
-    ./run_udp_docker_test.sh
-fi
+# make verilog TARGET=UdpIpArpEthRxTx SUPPORT_RDMA=False
+# if [ $in_server == 1 ]; then
+#     ./run_udp_docker_test.sh -s
+# else
+#     ./run_udp_docker_test.sh
+# fi
 
 
