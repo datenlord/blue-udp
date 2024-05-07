@@ -1,59 +1,59 @@
 
 # Intro
 
-This repo implements a collection of Ethernet-related components in Bluespec SystemVerilog(BSV) for high-performance packet processing on FPGA. Specifically, this repo provides modules for generating and parsing [UDP](https://en.wikipedia.org/wiki/User_Datagram_Protocol)/[IP](https://en.wikipedia.org/wiki/Internet_Protocol)/[Ethernet](https://en.wikipedia.org/wiki/Ethernet_frame) packets. An [ARP](https://en.wikipedia.org/wiki/Address_Resolution_Protocol) processing unit with non-blocking cache storing address information is also provided to handle MAC address resolution automatically. Beside building a standard UDP/IP/Ethernet stack, blue-ethernet adds support for RoCE(RDMA over Converged Ethernet): 1) integrate the generation and verification of ICRC(Invariant Cyclic Redundancy) in UDP/IP packet processing;  2) provide modules to handle PFC(Priority Flow Control) to realize the lossless network transmission. And finally interface conversion modules are also provided for packet generator and parser to interact with [Xilinx 100G Ethernet Subsystem](https://china.xilinx.com/products/intellectual-property/cmac_usplus.html)(CMAC).
-
-<div align=center><img src="./img/top.jpeg" width="85%"></div>
+This repo implements a collection of hardware components in Bluespec SystemVerilog(BSV) for high-performance processing of [UDP](https://en.wikipedia.org/wiki/User_Datagram_Protocol) packets on FPGA. Specifically, this repo provides modules for generating and parsing [UDP](https://en.wikipedia.org/wiki/User_Datagram_Protocol)/[IP](https://en.wikipedia.org/wiki/Internet_Protocol)/[Ethernet](https://en.wikipedia.org/wiki/Ethernet_frame) packets. Beside building a standard UDP/IP/Ethernet stack, blue-udp also supports RoCE(RDMA over Converged Ethernet) by integrating the generation and verification of ICRC(Invariant Cyclic Redundancy) into packet processing logic;
 
 # Directories Overview
 
-Some key directories of this repo are shown below:
-
+Some key directories of this repo are introduced below:
 ```bash
+├── fpga              # On-board FPGA verification projects
 ├── lib               # external libraries/repos
 │   ├── blue-crc      # high-performance CRC hardware implementation
 │   └── blue-wrapper  # BSV wrappers for generating ready-to-use Verilog interface
+├── README.md         # readme document
+├── run.sh            # main running script of CI
+├── setup.sh          # environment setup script of CI
 ├── scripts           # scripts used to build project
 ├── src               # design source files
-│   └── includes      # files containing some commonly-used BSV types and modules
-├── syn               # scripts for vivado synthesis and implementation
+│   └──includes       # files containing some commonly-used BSV types and modules
 └── test              # source files for verification
     ├── bluesim       # testbenches based on bluesim
     ├── cocotb        # python testbenches based on cocotb
     └── vivado        # co-simulation with cmac using vivado
 ```
 
-Here is a list of some critical source files:
+Here is a list of core source files under `./src` directory:
 
 ```bash
 ./src
-├── ArpCache.bsv               # Cache implementation storing MAC addresses got from ARP
-├── ArpProcessor.bsv           # processing unit handling ARP requests and responses
 ├── includes                   
 │   ├── CompletionBuf.bsv      
 │   ├── ContentAddressMem.bsv  
-│   ├── EthernetTypes.bsv      # numeric and struct types about protocol definition
-│   ├── PortConversion.bsv     # interface conversion modules used to generate ready-to-use Verilog
-│   ├── Ports.bsv              # numeric and struct types about in/output ports of modules
+│   ├── EthernetTypes.bsv       # numeric and struct types about protocol definition
+│   ├── PortConversion.bsv      # interface conversion modules used to generate ready-to-use Verilog
+│   ├── Ports.bsv               # numeric and struct types about in/output ports of modules
 │   ├── RFile.bsv
-│   ├── StreamHandler.bsv      # modules implemented for manipulating data stream
-│   └── EthUtils.bsv           # utility functions and modules
-├── MacLayer.bsv               # generator and parser for Ethernet packet
-├── PfcUdpIpArpEthRxTx.bsv     # generator and parser for UDP/IP/Ethernet packet with PFC
-├── PriorityFlowControl.bsv    # modules handling PFC
-├── UdpIpArpEthRxTx.bsv        # generator and parser for UDP/IP/Ethernet packet 
-├── UdpIpEthRx.bsv             # parser for UDP/IP/Ethernet packet
-├── UdpIpEthTx.bsv             # generator for UDP/IP/Ethernet packet
-├── UdpIpLayer.bsv             # parser and generator for UDP/IP packet
-├── UdpIpLayerForRdma.bsv      # parser and generator for UDP/IP packet with support for RoCE
-└── XilinxCmacRxTxWrapper.bsv  # bridge modules between parser/generator and Xilinx CMAC
+│   ├── StreamHandler.bsv       # modules implemented for manipulating data stream
+│   ├── XilinxAxiStreamAsyncFifo.bsv # wrappers of Xilinx asynchronous fifo
+│   └── EthUtils.bsv            # utility functions and modules
+├── MacLayer.bsv                # generator and parser for Ethernet packet
+├── UdpIpEthCmacRxTx.bsv        # UDP/IP/Ethernet packet transceiver with CMAC controller 
+├── UdpIpEthRx.bsv              # UDP/IP/Ethernet packet receiver
+├── UdpIpEthTx.bsv              # UDP/IP/Ethernet packet transmitter
+├── UdpIpEthBypassCmacRxTx.bsv  # UDP/IP/Ethernet transceiver with bypass channel and CMAC controller
+├── UdpIpEthBypassRx.bsv        # UDP/IP/Ethernet packet receiver with bypass channel
+├── UdpIpEthBypassTx.bsv        # UDP/IP/Ethernet packet transmitter with bypass channel
+├── UdpIpLayer.bsv              # parser and generator for UDP/IP packet
+├── UdpIpLayerForRdma.bsv       # parser and generator for UDP/IP packet with support for RoCE
+└── XilinxCmacController.bsv    # controller for Xilinx CMAC IP
 ```
 
 # Components
 
-This section provides detailed descriptions of some important components implemented in blue-ethernet, including their functionality, interface and hardware architecture.
+This section provides detailed descriptions of some important components implemented in blue-udp, including their functionality, interface and hardware architecture.
 
-## Stream Handler
+## StreamHandler
 What Ethernet-related hardware components do is basically a series of stream manipulations. The packet generator is responsible for inserting the header stream into the head of payload stream to generate complete packet stream. On the contrary, what the parser does is to extract the header stream and payload stream from packet stream. As for adding the checksum for a packet, the packet stream is passed into CRC calculator and then the output CRC value is appended to the tail of the packet stream.
 
 The hardware entity corresponding to the stream we mention here is actually a group of data signals guarded by the valid-ready control signal pair. The valid signal indicates that  the source component wants to transfer data. And the ready indicates that the sink is ready to receive data from source. A transfer between source and sink only happens successfully when both valid and ready are high. If the size of data to be transmitted is larger than the size of one transfer, the data needs to be fragmented and transmitted in a series of transfers.
@@ -63,7 +63,7 @@ The hardware entity corresponding to the stream we mention here is actually a gr
 The most tricky and error-prone part of stream processing is about how to handle the valid-ready control signals of different streams. In BSV, the manipulation of control signals is implemented by the compiler and invisible in the grammatical level, which helps designers focus on the logic of stream processing.
 
 <details>
-<summary>The stream processing modules provided in blue-ethernet include:</summary>
+<summary>The stream processing modules provided in blue-udp include:</summary>
 
 Data signals used to transfer packet stream between different components are encapsulated in **DataStream** struct, which includes 256-bit data signal, 32-bit byte-enable signal, two Boolean signals represents whether this transfer is the last or first of a packet stream.
 
@@ -115,9 +115,10 @@ module mkExtractDataStreamHead#(
 )(ExtractDataStream#(dType));
 ```
 
-- **mkAxiStream512ToDataStream** converts 512-bit AXI-Stream interface required by Xilinx CMAC IP to 256- bit **DataStream** used in blue-ethernet.
-- **mkDataStreamToAxiStream512** converts 256-bit **DataStream** used in blue-ethernet ****to 512-bit AXI-Stream required by Xilinx CMAC IP.
-
+- **mkDoubleAxiStreamFifoOut** doubles the width of input AXI-Stream bus.
+- **mkHalfAxiStreamFifoOut** halves the width of input AXI-Stream bus.
+- **mkDoubleDataStreamFifoOut** doubles the width of input DataStream bus.
+- **mkHalfDataStreamFifoOut** halves the width of input DataStream bus.
 </details>
 
 
@@ -151,7 +152,7 @@ typedef struct {
 } UdpConfig;
 ```
 
-- **mkUdpIpStream** generates UDP/IP packet stream by combining **udpIpMetaDataIn** carrying header infomation and **dataStreamIn** carrying payload stream. This module also takes in a function returning complete UDP/IP header, in which the value of constant fields of header are specified. The packet generation includes following steps: 1) generate UDP/IP header; 2) calculate and set the checksum field of IP header(the checksum of UDP header is unused in blue-ethernet); 3)insert the header at the head of payload stream.
+- **mkUdpIpStream** generates UDP/IP packet stream by combining **udpIpMetaDataIn** carrying header infomation and **dataStreamIn** carrying payload stream. This module also takes in a function returning complete UDP/IP header, in which the value of constant fields of header are specified. The packet generation includes following steps: 1) generate UDP/IP header; 2) calculate and set the checksum field of IP header(the checksum of UDP header is unused in blue-udp); 3)insert the header at the head of payload stream.
 
 ```bluespec
 module mkUdpIpStream#(
@@ -241,55 +242,6 @@ module mkMacMetaDataAndUdpIpStream#(
 </details>
 
 
-## ARP Processor
-
-The Address Resolution Protocol (ARP) is used for discovering MAC address associated with a given IP address. In blue-ethernet, the module **mkArpProcessor** is implemented for ARP processing, which integrates ARP packet generator, parser and **mkArpCache** module storing MAC addresses.
-
-<details>
-<summary> Detailed Description of mkArpCache and mkArpProcessor:</summary>
-
-### mkArpCache 
-For cache used in ARP processing, 32-bit IP address  corresponds to cache address and 48-bit MAC address corresponds to cache data. The default arrangement of memory array for ARP cache is shown below, which is 4-way set-associative structure, each way contains 64 lines and each line includes 1-bit valid, 26-bit tag and 48-bit data. The total size of this default array configuration is about 1.2KB. It’s supported to change the size of memory array by setting the number of lines and ways. Based on this memory array, cache is designed to be non-blocking, support outstanding requests(multiple requests on flight) and use pseudo-LRU algorithm for cache line replacement.
-
-<div align=center><img src="./img/cache_mem.png" width="50%"></div>
-
-The interface definition and simplified structure diagram of **mkArpCache** module is shown below. The **ArpCache** has two subinterfaces: **cacheServer** handles interactions with components that MAC address resolution service; and **arpClient** handles interations with **mkArpProcessor** to initiate ARP request and get MAC address from ARP response. The basic workflow of **mkArpCache** module is as follows:
-
-When cache receives a read request, it first searches the memory array to get all tags and data corresponding to the given IP address. Then it checks tags to see whether the data we need is stored in the cache. If cache hits, the fetched data is sent to **hitBuf**. Or the IP address is sent to **arpReqBuf** to initiate an ARP request. And when the ARP response comes back, the data and address information it carries is both written to **cacheWrBuf** and **missHitBuf** to update memory array and return cache read response.
-
-```bluespec
-interface ArpCache;
-    interface Server#(CacheAddr, CacheData) cacheServer;
-    interface Client#(CacheAddr,   ArpResp) arpClient;
-endinterface
-```
-
-<div align=center><img src="./img/cache.png" width="60%"></div>
-
-The most difficult part of cache implementation is to support the feature of outstanding, that is supporting multiple read requests on flight. The problem induced by outstanding is that the response time is different for each on-flight ARP request, which means that a late request may receive its response first. So reorder mechanism is needed to guarantee correspondence between request address and response data when cache miss happens. To realize in-order response, the completion buffer **respCBuf** and content addressable memory **missReqTab** are integrated in the dataflow. The completion buffer works like FIFO with additional support for the functionality of reservation. Before actual enqueue operation, we can first reserves an order in the completion buffer. And dequeue operation follows the reserved order no matter the actual sequential order of enqueue operations. For each read request, a dequeue order is reversed in **respCBuf** once it’s received. And because of the ARP request can’t carry the order information, **missReqTab** is implemented to storing it.
-
-### mkArpProcessor
-
-The module can behave as both ARP client and server. As a server, processor needs to generate ARP request if MAC address of target IP is unknown and then waits for ARP response from the target device. As a client, ARP processor receives ARP request from other devices and sends back ARP response carrying its own MAC address.
-
-<div align=center><img src="./img/arpProcessor.png" width="70%"></div>
-
-```bluespec
-interface ArpProcessor;
-    interface FifoOut#(DataStream) arpStreamOut;
-    interface FifoOut#(MacMetaData) macMetaDataOut;
-    interface Put#(UdpConfig) udpConfig;
-endinterface
-
-module mkArpProcessor#(
-    FifoOut#(DataStream) arpStreamIn,
-    FifoOut#(UdpIpMetaData) udpIpMetaDataIn
-)(ArpProcessor);
-```
-</details>
-
-
-
 ## UdpIpEthRx
 
 Modules in **UdpIpEthRx** package are implemented for receiving and parsing UDP/IP/Ethernet packets.
@@ -319,7 +271,6 @@ module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx)
 </details>
 
 
-
 ## UdpIpEthTx
 
 Modules in **UdpIpEthTx** package are implemented for generating and transmitting UDP/IP/Ethernet packets.
@@ -346,104 +297,149 @@ module mkGenericUdpIpEthTx#(Bool isSupportRdma)(UdpIpEthTx);
 - **mkGenericRawUdpIpEthTx**: this module wraps **mkGenericUdpIpEthTx** using modules provided in [blue-wrapper](https://github.com/wengwz/blue-wrapper) to generate ready-to-use Verilog interface.
 </details>
 
-
-## UdpIpArpEthRxTx
-Modules provided in **UdpIpArpEthRxTx** package is designed to receive and transmit UDP/IP/Ethernet packets and handle ARP request and response at the same time.
+## UdpIpEthCmacRxTx
+**UdpIpEthCmacRxTx** package implements transceiver module of UDP/IP/Ethernet packets, which can be perceived as a combination of **UdpIpEthTx** and **UdpIpEthRx** modules. Besides, this module is integrated with **XilinxCmacController** for the convenient interation with Xilinx CMAC IP.
 
 <details>
 <summary> Detailed Package Description: </summary>
 
-#### mkGenericUdpIpArpEthRxTx
-The module can be divided into two opposite paths of streams, including transmission path and reception path:
+#### mkGenericUdpIpEthRxTx
+This module is a combination of both **mkUdpIpEthTx** and **mkUdpIpEthRx** modules and it contains two opposite channels: 
 
-For transmission path, it takes in **dataStreamInTx** carrying payload stream and **udpIpMetaDataIn** carrying header information stream and generates **axiStreamOutTx** carring UDP/IP/Ethernet packet stream. There is no need to provides **MacMetaData** that contains Ethernet header information as **mkUdpIpEthTx** module, because **mkArpProcessor** is responsible for handling MAC address resolution and generating Ethernet header information. 
+The Tx channel takes in **dataStreamInTx** carrying payload stream, **macMetaDataIn** carrying Ethernet header information and **udpIpMetaDataIn** carrying UDP/IP header information and generates **axiStreamOutTx** carring full UDP/IP/Ethernet packet stream.
 
-For the reception path, it works in the opposite way by extracting **dataStreamOutRx** carrying payload stream and **udpIpMetaDataOutRx** carrying header information stream from **axiStreamInRx** carrying UDP/IP/Ethernet packet stream. 
+The Rx channel works in the opposite way by extracting **dataStreamOutRx** carrying payload stream, **maxMetaDataRxOut** carrying Ethernet header fields and **udpIpMetaDataOutRx** carrying UDP/IP header fields from **axiStreamInRx** carrying full UDP/IP/Ethernet packet stream. 
 
-The Ethernet packet generator and parser are shared by both UDP/IP packet and ARP packet, so additional **Mux** and **Demux** are needed in the transmission and reception path for stream arbitration and distribution. The module parameter **isSupportRdma** specifies whether or not it supports RoCE packet processing. If support for RDMA is disabled, we only need **mkUdpIpStream** and **mkUdpIpMetaAndDataStream** in the transmision and reception path respectively.
+The module parameter **isSupportRdma** specifies whether or not it supports RoCE packet processing.
 
 ```bluespec
-interface UdpIpArpEthRxTx;
+interface UdpIpEthRxTx;
+    interface Put#(UdpConfig) udpConfig;
+    
+    // Tx Channel
+    interface Put#(MacMetaData)   macMetaDataTxIn;
+    interface Put#(UdpIpMetaData) udpIpMetaDataTxIn;
+    interface Put#(DataStream)    dataStreamTxIn;
+    interface AxiStreamLocalFifoOut axiStreamTxOut;
+    
+    // Rx Channel
+    interface Put#(AxiStreamLocal)   axiStreamRxIn;
+    interface MacMetaDataFifoOut   macMetaDataRxOut;
+    interface UdpIpMetaDataFifoOut udpIpMetaDataRxOut;
+    interface DataStreamFifoOut    dataStreamRxOut;
+endinterface
+
+module mkGenericUdpIpEthRxTx#(Bool isSupportRdma)(UdpIpEthRxTx);
+```
+
+<div align=center><img src="./img/udpIpEthRxTx.png" width="80%"></div>
+
+### mkUdpIpEthCmacRxTx
+This module integrates both **mkGenericUdpIpEthRxTx** module and **mkXilinxCmacController** module. Besides these two submodules, it also implements the bus width converter and asynchronous fifo for the cross-clock-domains interaction between packet processing logic and CMAC controller.
+```bluespec
+// UdpIpEthRxTx with Xilinx 100Gb CMAC Controller
+interface UdpIpEthCmacRxTx;
+    // Interface with CMAC IP
+    (* prefix = "" *)
+    interface XilinxCmacController cmacController;
+    
+    // Configuration Interface
     interface Put#(UdpConfig)  udpConfig;
-    // Tx
-    interface Put#(UdpIpMetaData) udpIpMetaDataInTx;
-    interface Put#(DataStream)    dataStreamInTx;
-    interface AxiStream512FifoOut axiStreamOutTx;
-    // Rx
-    interface Put#(AxiStream512)   axiStreamInRx;
-    interface FifoOut#(UdpIpMetaData) udpIpMetaDataOutRx;
-    interface FifoOut#(DataStream)    dataStreamOutRx;
+
+    // Tx Channel
+    interface Put#(UdpIpMetaData) udpIpMetaDataTxIn;
+    interface Put#(DataStream)    dataStreamTxIn;
+    interface Put#(MacMetaData)   macMetaDataTxIn;
+    
+    // Rx Channel
+    interface UdpIpMetaDataFifoOut udpIpMetaDataRxOut;
+    interface DataStreamFifoOut    dataStreamRxOut;
+    interface MacMetaDataFifoOut   macMetaDataRxOut;
 endinterface
 
-module mkGenericUdpIpArpEthRxTx#(Bool isSupportRdma)(UdpIpArpEthRxTx);
+(* default_clock_osc = "udp_clk", default_reset = "udp_reset" *)
+module mkUdpIpEthCmacRxTx#(
+    Bool isSupportRdma,
+    Bool isEnableRsFec,
+    Bool isCmacTxWaitRxAligned,
+    Integer syncBramBufDepth,
+    Integer cdcSyncStages
+)(
+    Clock cmacRxTxClk,
+    Reset cmacRxReset,
+    Reset cmacTxReset,
+    UdpIpEthCmacRxTx ifc
+);
 ```
-
-<div align=center><img src="./img/udpIpArpEthRxTx.jpeg" width="80%"></div>
-
-### mkGenericRawUdpIpArpEthRxTx
-The module wraps **mkGenericUdpIpArpEthRxTx** using modules provided in [blue-wrapper](https://github.com/wengwz/blue-wrapper) so that it generates ready-to-use Verilog interface.
-
-### mkUdpIpArpEthCmacRxTx
-The module integrates both **mkGenericUdpIpArpEthRxTx** module and **mkXilinxCmacTxWrapper** module. It’s designed to interact with Xilinx CMAC IP to transmits and receives UDP/IP/Ethernet packets to and from physical medium.
 </details>
 
-
-## PriorityFlowControl
-
-Modules in **PriorityFlowControl** package are implemented to realize mechanism of [priority flow control](https://en.wikipedia.org/wiki/Ethernet_flow_control) to ensure lossless network transmission.
+## UdpIpEthBypassTx
+Modules in **UdpIpEthBypassTx** package are implemented based on **UdpIpEthTx** with an additional bypass channel to transmitting packets of other types.
 
 <details>
 <summary> Detailed Package Description: </summary>
 
-- **mkPriorityFlowControlTx** takes in **dataStreamInVec** carrying eight channels of payload stream and **udpIpMetaDataInVec** carrying eight channels of header information, then performs arbitration over eight channels and outputs arbitraion result through **udpIpMetaDataOut** and **dataStreamOut**. The round robin arbitration strategy is adopted in this module to give all channels the same priority. This module is also responsible for pausing or resuming each channel according to flow control information from **flowControlReqVecIn**.
+- **mkGenericUdpIpEthBypassTx** module provides an additional channel, which bypasses the UDP/IP packet generation logic, for transmitting arbitrary kinds of transport-layer packets. The **mkGenericUdpIpEthBypassTx** has similar top interface as **mkGenericUdpIpEthTx** module, except for **macMetaDataIn** sub-interface. Compared to **MacMetaData**, **MacMetaDataWithBypassTag** adds an additional tag signal which indicates whether **dataStreamIn** bypasses UDP/IP generation logic and is combined with Ethernet header information directly.
 
 ```bluespec
-interface PriorityFlowControlTx;
-    interface Get#(UdpIpMetaData) udpIpMetaDataOut;
-    interface Get#(DataStream) dataStreamOut;
+typedef struct {
+    MacMetaData macMetaData;
+    Bool isBypass;
+} MacMetaDataWithBypassTag deriving(Bits, Eq, FShow);
+
+interface UdpIpEthBypassTx;
+    interface Put#(UdpConfig) udpConfig;
+    interface Put#(UdpIpMetaData) udpIpMetaDataIn;
+    interface Put#(MacMetaDataWithBypassTag) macMetaDataIn;
+    interface Put#(DataStream) dataStreamIn;
+    interface AxiStreamLocalFifoOut axiStreamOut;
 endinterface
 
-module mkPriorityFlowControlTx#(
-    FifoOut#(FlowControlReqVec) flowControlReqVecIn,
-    Vector#(VIRTUAL_CHANNEL_NUM, DataStreamFifoOut) dataStreamInVec,
-    Vector#(VIRTUAL_CHANNEL_NUM, UdpIpMetaDataFifoOut) udpIpMetaDataInVec
-)(PriorityFlowControlTx);
+module mkGenericUdpIpEthBypassTx#(Bool isSupportRdma)(UdpIpEthBypassTx);
 ```
 
-<div align=center><img src="./img/pfcTx.png" width="60%"></div>
-
-- **mkPriorityFlowControlRx** takes in **udpIpMetaDataIn** carrying header information stream and **dataStreamIn** carrying payload stream and then routes these two stream to their corresponding output channel specified by the channel index included in header information. Besides, this module needs to monitor the number of elements stored in the intermediate buffer of each channel. And when a channel’s buffer reaches its threshold, it sends out flow control request to pause packet transmission of this channel. The parameter **bufPacketNum** sets the maximum number of packets stored in the intermeidate buffer and **maxPacketFrameNum** sets the maximun number of frames in one packet. The width of each frame is 256-bit, equaling to the data width of intermediate buffer. The **pfcThreshold** sets the threshold number of packets stored in the buffer that triggers flow control request.
-
-```bluespec
-interface PriorityFlowControlRx#(
-    numeric type bufPacketNum, 
-    numeric type maxPacketFrameNum,
-    numeric type pfcThreshold
-);
-    interface FifoOut#(FlowControlReqVec) flowControlReqVecOut;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(DataStream)) dataStreamOutVec;
-    interface Vector#(VIRTUAL_CHANNEL_NUM, Get#(UdpIpMetaData)) udpIpMetaDataOutVec;
-endinterface
-
-module mkPriorityFlowControlRx#(
-    DataStreamFifoOut dataStreamIn,
-    UdpIpMetaDataFifoOut udpIpMetaDataIn
-)(PriorityFlowControlRx#(bufPacketNum, maxPacketFrameNum, pfcThreshold));
-```
-
-<div align=center><img src="./img/pfcRx.png" width="60%"></div>
 </details>
 
+## UdpIpEthBypassRx
 
-## PfcUdpIpArpEthRxTx
+Modules in **UdpIpEthBypassRx** package are built on the basis of **UdpIpEthRx** with an additional bypass channel to receive packets of other types.
 
-- **mkGenericPfcUdpIpArpEthRxTx** integrates **mkPriorityFlowControlRx/Tx** and **mkGenericUdpIpArpEthRxTx** to provide the functionality of generating and parsing UDP/IP/Ethernet packets while supporting priority flow control. For packet transmission, it takes eight channels of payload stream and UDP/IP header information, and outputs one UDP/IP/Ethernet packet stream. For packet reception, it takes in one UDP/IP/Ethernet packet stream and routes the extracted UDP/IP header and payload stream to one of eight output channels.
+<details>
+<summary> Detailed Package Description: </summary>
 
-- **mkPfcUdpIpArpEthCmacRxTx** integrates both **mkGenericPfcUdpIpArpEthRxTx** module and **mkXilinxCmacTxWrapper** module. It’s designed to interact with Xilinx CMAC IP to transmits and receives UDP/IP/Ethernet packets to and from physical medium.
+- **mkGenericUdpIpEthBypassRx** module enhances the **mkGenericUdpIpEthRx** module by adding an extra reception channel which bypasses the UDP/IP packet parsing logic. This module is designed to receives arbitrary types of transport-layer packets. Each time the module receives a new packet, it will check packet type first and then decide whether to output packet directly through **rawPktStreamOut** or pass packet stream to UDP/IP/Ethernet parsing logic.
+
+```bluespec
+interface UdpIpEthBypassRx;
+    interface Put#(UdpConfig) udpConfig;
+    
+    interface Put#(AxiStreamLocal) axiStreamIn;
+        
+    interface MacMetaDataFifoOut macMetaDataOut;
+    interface UdpIpMetaDataFifoOut udpIpMetaDataOut;
+    interface DataStreamFifoOut  dataStreamOut;
+    
+    interface DataStreamFifoOut  rawPktStreamOut;
+endinterface
+
+module mkGenericUdpIpEthBypassRx#(Bool isSupportRdma)(UdpIpEthBypassRx);
+```
+</details>
+
+## UdpIpEthBypassCmacRxTx
+**UdpIpEthBypassCmacRxTx** package implements transceiver module of UDP/IP/Ethernet packets with additional bypass channels for receiving and transmitting packets of other types. Besides, this module is integrated with **XilinxCmacController** for the convenient interation with Xilinx CMAC IP.
+
+<details>
+<summary> Detailed Package Description: </summary>
+
+- **mkUdpIpEthBypassRxTx** is a combination od both **mkUdpIpEthBypassRx** and **mkUdpIpEthBypassTx**, which provides capability of transmitting and receiving arbitrary types of packets, in addition to generating and parsing UDP/IP/Ethernet packets.
+
+- **mkUdpIpEthBypassCmacRxTx** integrates **mkUdpIpEthBypassRxTx** and **mkXilinxCmacController** for the convenient interation with Xilinx CMAC IP.
+</details>
 
 # Performance and Area
 
-The synthesis and implementation of the main module **mkGenericUdpIpArpEthRxTx** are performed based on **Xilinx xcvu9p** device using Vivado. And results show that the circuit can reach the working frequency of 500MHz and provide the peak throughput of 128Gbps. The usage of hardware resources is listed as follows:
+The synthesis and implementation of the main module **mkGenericUdpIpEthRxTx** are performed based on **Xilinx xcvu9p** device using Vivado. And results show that the circuit configured with 256-bit channel width can reach the working frequency of 500MHz and provide the peak throughput of 128Gbps. The usage of hardware resources is listed as follows:
 
 ```bluespec
 CLB Logic
@@ -487,80 +483,61 @@ This section introduces how to get started with this project. Before any other s
 - Python packages: cocotb, cocotb-test, netifaces, scapy, cocotbext-axi
 - Hardware Simulator: iverilog/verilator
 
-After setting up the environment, clone this repo to a specific directory. Here we refer to this directory as BLUE_ETH:
+After setting up the environment, clone this repo to a specific directory. Here we refer to this directory as BLUE_UDP:
 
 ```bash
-git clone --recursive https://github.com/wengwz/blue-ethernet.git $(BLUE_ETH)
+git clone --recursive https://github.com/datenlord/blue-udp.git $(BLUE_UDP)
 ```
 
 ## Run Simulation
 
-There are three different levels of testbenches provided in blue-ethernet:
+There are three different levels of testbenches provided in blue-udp:
 
-- Unit Level: testbenches of this level are located in [$(BLUE_ETH)/test/bluesim](./test/bluesim) and provide functional verification of some important subcomponents, like ArpCache, CompletionBuf and AppendDataStreamTail. To launch simulation, you can follow commands below:
+- Unit Level: testbenches of this level are located in [$(BLUE_UDP)/test/bluesim](./test/bluesim) and provide functional verification of some important subcomponents, like CompletionBuf and AppendDataStreamTail. To launch simulation, you can follow commands below:
 
 ```bash
 # Specify TARGET to the name of target component
-cd $(BLUE_ETH)/test/bluesim
+cd $(BLUE_UDP)/test/bluesim
 make TARGET=ArpCache
 ```
 
-- System Level: testbenches of this level are located in [$(BLUE_ETH)/test/cocotb](./test/cocotb) and implemented in Python based on [cocotb](https://docs.cocotb.org/en/stable/) simulation platform. The functional verification of module **UdpIpEthRx** and **UdpIpEthTx** uses [scapy](https://github.com/secdev/scapy) to build reference model. And module **UdpIpArpEthRxTx** is tested over virtual network built from docker.
-
+- System Level: testbenches of this level are located in [$(BLUE_UDP)/test/cocotb](./test/cocotb) and implemented in Python based on [cocotb](https://docs.cocotb.org/en/stable/) simulation platform. The functional verification of module **UdpIpEthRx** and **UdpIpEthTx** uses [scapy](https://github.com/secdev/scapy) to build reference model.
 ```bash
 # Run tests of UdpIpEthRx/Tx
 # Enable/Disable support for RDMA by setting SUPPORT_RDAM to True/False
-cd $(BLUE_ETH)/test/cocotb
+cd $(BLUE_UDP)/test/cocotb
 make cocotb TARGET=UdpIpEthTx SUPPORT_RDMA=TRUE
-
-# Run simulation on virtual network
-# Change NET_IFC in run_docker_net_test.sh to the name of your network card
-cd $(BLUE_ETH)/test/cocotb
-docker build -f ./build_docker/Dockerfile -t ethernet-test ./build_docker
-./run_docker_net_test.sh
 ```
 
-- Simulation with CMAC: The source files and scripts used to run co-simulation of implemented designs and Xilinx CMAC IP are provided in the directory [$(BLUE_ETH)/test/vivado](./test/vivado).
+- Simulation with CMAC: The source files and scripts used to run co-simulation of implemented designs and Xilinx CMAC IP are provided in the directory [$(BLUE_UDP)/test/vivado](./test/vivado).
 
-```bash
-# Available TARGET includes UdpIpArpEthCmacRxTx/PfcUdpIpArpEthCmacRxTx
-# Enable/Disable support for RDMA by setting SUPPORT_RDAM to True/False
-cd $(BLUE_ETH)/test/vivado
-make sim TARGET=UdpIpArpEthCmacRxTx SUPPORT_RDMA=False
-```
-
-## Run Synthesis and Implementation
-
-Scripts used to run synthesis and implementation of designs are provided in the directory [$(BLUE_ETH)/syn](./syn). 
-
-```bash
-# TARGET specifies the top module to be synthsized or implemented
-# SUPPORT_RDMA specifies whether modules supports RoCE packet processing
-# ONLYSYNTH decides whether or not run implemetation after synthesis 
-cd $(BLUE_ETH)/syn
-make vivado TARGET=UdpIpArpEthRxTx SUPPORT_RDMA=False ONLYSYNTH=0
-```
+## FPGA On-Board Verification
+Based on different components introduced above, this repo implements some hardware systems for on-board functionality and performance verfication on FPGA. For details of these systems, please refer to the introduction under the directory `./fpga`.
 
 ## Usage
+- Channel Width Selection: blue-udp supports three different configurations of channel width, including 256-bit, 512-bit and 1024-bit. You can specify the desired width by changing the definition of DATA_BUS_WIDTH in the `./src/includes/Ports.bsv`
+```bluespec
+typedef 512 DATA_BUS_WIDTH;
+//typedef 256 DATA_BUS_WIDTH;
+//typedef 1024 DATA_BUS_WIDTH;
+```
 
-- Verilog User: The BSV designs provided in this repo can generate Verilog codes to be integrated in other projects. Some modules has been wrapped with modules provided in [blue-wrapper](https://github.com/wengwz/blue-wrapper) to generate ready-to-use Verilog interface, including **mkRawUdpIpEthRx**, **mkRawUdpIpArpEthRxTx** and **mkRawUdpIpEthRx**. For other modules, you can also wrap them if needed. To generate Verilog codes, you can follow commands below and the generated codes are located in $(BLUE_ETH)/test/cocotb/verilog
+- Verilog User: The BSV designs provided in this repo can generate Verilog codes to be integrated in other projects. Some modules has been wrapped with modules provided in [blue-wrapper](https://github.com/wengwz/blue-wrapper) to generate ready-to-use Verilog interface, including **mkRawUdpIpEthRx**, **mkRawUdpIpArpEthRxTx** and **mkRawUdpIpEthRx**. For other modules, you can also wrap them if needed. To generate Verilog codes, you can follow commands below and the generated codes are located in $(BLUE_UDP)/test/cocotb/verilog
 
 ```bash
 # TARGET specifies the name of top module to be generated
 # Specify SUPPORT_RDMA if needed
-cd $(BLUE_ETH)/test/cocotb
+cd $(BLUE_UDP)/test/cocotb
 make verilog TARGET=UdpIpEthTx SUPPORT_RDMA=TRUE
 ```
 
 - BSV User: For designers using BSV, it’s more convenient to integrate modules provided in this repo into their own projects. Just import used package in your codes and add source file paths of this repo to compile options:
 
 ```bash
-bsc -p +:$(BLUE_ETH)/src:$(BLUE_ETH)/src/includes ...
+bsc -p +:$(BLUE_UDP)/src:$(BLUE_UDP)/src/includes ...
 ```
 
 # Related Links
-
-The implementation of blue-ethernet involves the usage of following external libraries:
-
+The implementation of blue-udp involves the usage of following external libraries:
 - blue-crc: [https://github.com/datenlord/blue-crc.git](https://github.com/datenlord/blue-crc.git)
 - blue-wrapper: [https://github.com/wengwz/blue-wrapper](https://github.com/wengwz/blue-wrapper)
