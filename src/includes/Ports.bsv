@@ -14,7 +14,7 @@ typedef 32 CRC32_WIDTH;
 typedef TDiv#(CRC32_WIDTH, BYTE_WIDTH) CRC32_BYTE_WIDTH;
 typedef Bit#(CRC32_WIDTH) Crc32Checksum;
 
-typedef 512 DATA_BUS_WIDTH;
+typedef 256 DATA_BUS_WIDTH;
 typedef TDiv#(DATA_BUS_WIDTH, 8) DATA_BUS_BYTE_WIDTH;
 typedef Bit#(DATA_BUS_WIDTH) Data;
 typedef Bit#(DATA_BUS_BYTE_WIDTH) ByteEn;
