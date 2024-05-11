@@ -103,9 +103,9 @@ module mkTestUdpIpEthBypassRxTx();
 
     rule sendMetaData if (isInit && !metaDataSentFlag && inputCaseCounter < fromInteger(testCaseNum));  
         Bit#(BEAT_COUNT_WIDTH) beatNum <- randBeatNum.next;
+        Bool bypassSelect <- randBypassSelect.next;
         //Bit#(BEAT_COUNT_WIDTH) beatNum = 32;
-        //Bool bypassSelect <- randBypassSelect.next;
-        Bool bypassSelect = False;
+        //Bool bypassSelect = False;
         if (beatNum == 0) beatNum = 1;
         beatNumReg <= beatNum;
         bypassSelectReg <= bypassSelect;

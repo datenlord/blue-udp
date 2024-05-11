@@ -5,7 +5,7 @@ LOCALSRCDIR = $(ROOT_DIR)/src:$(ROOT_DIR)/src/includes
 LIBSRCDIR = $(ROOT_DIR)/lib/blue-wrapper/src:$(ROOT_DIR)/lib/blue-crc/src
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 
-TARGET ?= PriorityFlowControl
+TARGET ?= UdpIpEthBypassRxTx
 TESTFILE = Test$(TARGET).bsv
 TOP = mkTest$(TARGET)
 SUPPORT_RDMA ?= True

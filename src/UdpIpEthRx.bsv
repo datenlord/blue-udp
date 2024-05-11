@@ -26,7 +26,10 @@ interface UdpIpEthRx;
 endinterface
 
 module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
+    Integer macMetaInterBufDepth = 4;
+
     FIFOF#(AxiStreamLocal) axiStreamInBuf <- mkFIFOF;
+    FIFOF#(MacMetaData) macMetaDataOutBuf <- mkFIFOF;
     
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
@@ -38,6 +41,13 @@ module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
     let macMetaAndUdpIpStream <- mkMacMetaDataAndUdpIpStream(
         macStream, 
         udpConfigVal
+    );
+    
+    // An intermediate buffer for MacMetaData to avoid pipeline 
+    // blockage caused by waiting the integrity check result
+    let interMacMetaData <- mkSizedBramFifoToFifoOut(
+        macMetaInterBufDepth,
+        macMetaAndUdpIpStream.macMetaDataOut
     );
 
     UdpIpMetaDataAndDataStream udpIpMetaAndDataStream;
@@ -55,6 +65,17 @@ module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
         );
     end
 
+    rule checkPktIntegrity;
+        let pktIntegrityCheckRes = udpIpMetaAndDataStream.integrityCheckOut.first;
+        udpIpMetaAndDataStream.integrityCheckOut.deq;
+        let macMetaData = interMacMetaData.first;
+        interMacMetaData.deq;
+
+        if (pktIntegrityCheckRes) begin
+            macMetaDataOutBuf.enq(macMetaData);
+        end
+    endrule
+
     interface Put udpConfig;
         method Action put(UdpConfig conf);
             udpConfigReg <= tagged Valid conf;
@@ -67,7 +88,7 @@ module mkGenericUdpIpEthRx#(Bool isSupportRdma)(UdpIpEthRx);
         endmethod
     endinterface
 
-    interface FifoOut macMetaDataOut = macMetaAndUdpIpStream.macMetaDataOut;
+    interface FifoOut macMetaDataOut = convertFifoToFifoOut(macMetaDataOutBuf);
     interface FifoOut udpIpMetaDataOut = udpIpMetaAndDataStream.udpIpMetaDataOut;
     interface FifoOut dataStreamOut = udpIpMetaAndDataStream.dataStreamOut;
 endmodule

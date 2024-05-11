@@ -165,6 +165,8 @@ endfunction
 interface UdpIpMetaDataAndDataStream;
     interface UdpIpMetaDataFifoOut udpIpMetaDataOut;
     interface DataStreamFifoOut dataStreamOut;
+    // An additional channel to pass UDP/IP packet check result out
+    interface FifoOut#(Bool) integrityCheckOut;
 endinterface
 
 module mkUdpIpMetaDataAndDataStream#(
@@ -179,6 +181,7 @@ module mkUdpIpMetaDataAndDataStream#(
     FIFOF#(UdpIpMetaData) udpIpMetaDataOutBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataInterBuf <- mkFIFOF;
     FIFOF#(Bool) udpIpHdrChkResBuf <- mkFIFOF;
+    FIFOF#(Bool) integrityCheckOutBuf <- mkSizedFIFOF(interBufDepth);
     
     Server#(IpHeader, IpCheckSum) checkSumServer <- mkIpHdrCheckSumServer;
     ExtractDataStream#(UdpIpHeader) udpIpExtractor <- mkExtractDataStreamHead(udpIpStreamIn);
@@ -199,6 +202,7 @@ module mkUdpIpMetaDataAndDataStream#(
         udpIpHdrChkResBuf.deq;
         let passCheck = (checkSum == 0) && udpIpHdrChkRes;
         udpIpHdrChkState <= tagged Valid passCheck;
+        integrityCheckOutBuf.enq(passCheck);
         $display("UdpIpStreamExtractor: Check Pass");
     endrule
 
@@ -226,6 +230,7 @@ module mkUdpIpMetaDataAndDataStream#(
 
     interface FifoOut dataStreamOut = convertFifoToFifoOut(dataStreamOutBuf);
     interface FifoOut udpIpMetaDataOut = convertFifoToFifoOut(udpIpMetaDataOutBuf);
+    interface FifoOut integrityCheckOut = convertFifoToFifoOut(integrityCheckOutBuf);
 endmodule
 
 

@@ -294,6 +294,8 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
     FIFOF#(DataStream) udpIpStreamBuf <- mkFIFOF;
     FIFOF#(DataStream) udpIpStreamForICrcBuf <- mkFIFOF;
 
+    FIFOF#(Bool) integrityCheckOutBuf <- mkFIFOF;
+
     rule forkUdpIpStream;
         let udpIpStream = udpIpStreamIn.first;
         udpIpStreamIn.deq;
@@ -359,7 +361,15 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
                     isPassICrcCheck <= False;
                     $display("FAIL ICRC check");
                 end
-                iCrcCheckStateReg <= ICRC_META;
+
+                // check the integrity of UDP/IP Header
+                let udpIpHdrChkRes = udpIpMetaAndDataStream.integrityCheckOut.first;
+                udpIpMetaAndDataStream.integrityCheckOut.deq;
+                
+                integrityCheckOutBuf.enq(udpIpHdrChkRes && crcChecksum == 0);
+                if (udpIpHdrChkRes) begin
+                    iCrcCheckStateReg <= ICRC_META;
+                end
             end
             ICRC_META: begin
                 let udpIpMetaData = udpIpMetaDataBuffered.first;
@@ -382,6 +392,7 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         endcase
     endrule
 
-    interface FifoOut udpIpMetaDataOut = convertFifoToFifoOut(udpIpMetaDataOutBuf);
-    interface FifoOut dataStreamOut = convertFifoToFifoOut(dataStreamOutBuf);
+    interface udpIpMetaDataOut = convertFifoToFifoOut(udpIpMetaDataOutBuf);
+    interface dataStreamOut = convertFifoToFifoOut(dataStreamOutBuf);
+    interface integrityCheckOut = convertFifoToFifoOut(integrityCheckOutBuf);
 endmodule
