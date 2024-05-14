@@ -30,7 +30,7 @@ module mkGenericUdpIpEthBypassTx#(Bool isSupportRdma)(UdpIpEthBypassTx);
     FIFOF#(Bool) isJoinBypassChannelBuf <- mkFIFOF;
     FIFOF#(DataStream) dataStreamInterBuf <- mkFIFOF;
     FIFOF#(DataStream) rawPktStreamInterBuf <- mkFIFOF;
-    FIFOF#(DataStream) macPayloadStreamInterBuf <- mkFIFOF;
+    FIFOF#(DataStream) joinedFinalMacOutputStreamBuf <- mkFIFOF;
 
     rule forkDataStream if (isForkBypassChannelBuf.notEmpty);
         let dataStream = dataStreamInBuf.first;
@@ -64,6 +64,12 @@ module mkGenericUdpIpEthBypassTx#(Bool isSupportRdma)(UdpIpEthBypassTx);
         );
     end
 
+    DataStreamFifoOut macStream <- mkMacStream(
+        udpIpStream, 
+        convertFifoToFifoOut(macMetaDataInBuf), 
+        udpConfigVal
+    );
+
     rule joinDataStream if (isJoinBypassChannelBuf.notEmpty);
         DataStream dataStream;
 
@@ -72,20 +78,16 @@ module mkGenericUdpIpEthBypassTx#(Bool isSupportRdma)(UdpIpEthBypassTx);
             rawPktStreamInterBuf.deq;
         end
         else begin
-            dataStream = udpIpStream.first;
-            udpIpStream.deq;
+            dataStream = macStream.first;
+            macStream.deq;
         end
         if (dataStream.isLast) begin
             isJoinBypassChannelBuf.deq;
         end
-        macPayloadStreamInterBuf.enq(dataStream);
+        joinedFinalMacOutputStreamBuf.enq(dataStream);
     endrule
 
-    DataStreamFifoOut macStream <- mkMacStream(
-        convertFifoToFifoOut(macPayloadStreamInterBuf), 
-        convertFifoToFifoOut(macMetaDataInBuf), 
-        udpConfigVal
-    );
+
 
     interface Put udpConfig;
         method Action put(UdpConfig conf);
@@ -112,5 +114,5 @@ module mkGenericUdpIpEthBypassTx#(Bool isSupportRdma)(UdpIpEthBypassTx);
             isJoinBypassChannelBuf.enq(macMetaAndTag.isBypass);
         endmethod
     endinterface
-    interface FifoOut axiStreamOut = convertDataStreamToAxiStream(macStream);
+    interface FifoOut axiStreamOut = convertDataStreamToAxiStream(convertFifoToFifoOut(joinedFinalMacOutputStreamBuf));
 endmodule
