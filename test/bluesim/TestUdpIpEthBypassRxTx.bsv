@@ -71,14 +71,6 @@ module mkTestUdpIpEthBypassRxTx();
     FIFOF#(DataStream) refDataStreamBuf <- mkSizedFIFOF(valueOf(REF_BUF_DEPTH));
     
     FIFOF#(DataStream) refRawPktStreamBuf <- mkSizedFIFOF(valueOf(REF_BUF_DEPTH));
-    FIFOF#(MacMetaData) macMetaDataInterBuf <- mkFIFOF;
-    FIFOF#(DataStream) dataStreamInterBuf <- mkFIFOF;
-    let refMacStream <- mkMacStream(
-        convertFifoToFifoOut(dataStreamInterBuf),
-        convertFifoToFifoOut(macMetaDataInterBuf),
-        udpConfigVal
-    );
-    mkConnection(refMacStream, convertFifoToFifoIn(refRawPktStreamBuf));
 
     // Initialize Testbench
     rule initTest if (!isInit);
@@ -105,7 +97,7 @@ module mkTestUdpIpEthBypassRxTx();
         Bit#(BEAT_COUNT_WIDTH) beatNum <- randBeatNum.next;
         Bool bypassSelect <- randBypassSelect.next;
         //Bit#(BEAT_COUNT_WIDTH) beatNum = 32;
-        //Bool bypassSelect = False;
+        //Bool bypassSelect = True;
         if (beatNum == 0) beatNum = 1;
         beatNumReg <= beatNum;
         bypassSelectReg <= bypassSelect;
@@ -134,7 +126,6 @@ module mkTestUdpIpEthBypassRxTx();
                     isBypass: True
                 }
             );
-            macMetaDataInterBuf.enq(macMetaData);
             $display("Testbench: Testcase %d sends MacMetaData to bypass channel", inputCaseCounter);
         end
         else begin
@@ -163,7 +154,7 @@ module mkTestUdpIpEthBypassRxTx();
 
         udpIpEthBypassRxTx.dataStreamTxIn.put(dataStream);
         if (bypassSelectReg) begin
-            dataStreamInterBuf.enq(dataStream);
+            refRawPktStreamBuf.enq(dataStream);
         end
         else begin
             refDataStreamBuf.enq(dataStream);

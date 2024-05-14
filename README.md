@@ -374,12 +374,12 @@ module mkUdpIpEthCmacRxTx#(
 </details>
 
 ## UdpIpEthBypassTx
-Modules in **UdpIpEthBypassTx** package are implemented based on **UdpIpEthTx** with an additional bypass channel to transmitting packets of other types.
+Modules in **UdpIpEthBypassTx** package are implemented based on **UdpIpEthTx** with an additional bypass channel to transmitting packets of any other types.
 
 <details>
 <summary> Detailed Package Description: </summary>
 
-- **mkGenericUdpIpEthBypassTx** module provides an additional channel, which bypasses the UDP/IP packet generation logic, for transmitting arbitrary kinds of transport-layer packets. The **mkGenericUdpIpEthBypassTx** has similar top interface as **mkGenericUdpIpEthTx** module, except for **macMetaDataIn** sub-interface. Compared to **MacMetaData**, **MacMetaDataWithBypassTag** adds an additional tag signal which indicates whether **dataStreamIn** bypasses UDP/IP generation logic and is combined with Ethernet header information directly.
+- **mkGenericUdpIpEthBypassTx** module provides an additional transmission channel, which bypasses the packet generation logic, for transmitting raw link-layer packets directly. The **mkGenericUdpIpEthBypassTx** has similar top interface as **mkGenericUdpIpEthTx** module, except for **macMetaDataIn** sub-interface. Compared to **MacMetaData**, **MacMetaDataWithBypassTag** adds an additional tag signal which indicates whether **dataStreamIn** bypasses the whole generation logic and is passed out directly.
 
 ```bluespec
 typedef struct {

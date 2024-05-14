@@ -109,7 +109,9 @@ module mkGenericUdpIpEthBypassTx#(Bool isSupportRdma)(UdpIpEthBypassTx);
 
     interface Put macMetaDataIn;
         method Action put(MacMetaDataWithBypassTag macMetaAndTag) if (isValid(udpConfigReg));
-            macMetaDataInBuf.enq(macMetaAndTag.macMetaData);
+            if (!macMetaAndTag.isBypass) begin
+                macMetaDataInBuf.enq(macMetaAndTag.macMetaData);
+            end
             isForkBypassChannelBuf.enq(macMetaAndTag.isBypass);
             isJoinBypassChannelBuf.enq(macMetaAndTag.isBypass);
         endmethod

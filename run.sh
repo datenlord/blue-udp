@@ -30,8 +30,9 @@ else
 fi
 
 ROOT_DIR=`pwd`
-TEST_DIR=${ROOT_DIR}/test/cocotb
-cd ${TEST_DIR}
+TEST_DIR=${ROOT_DIR}/test/
+# Run Cocotb Testbench
+cd ${TEST_DIR}/cocotb
 # Run Tests with SUPPORT_RDMA=True
 echo -e "\nStart testing UdpIpEthTx with SUPPORT_RDMA=True"
 make cocotb TARGET=UdpIpEthTx SUPPORT_RDMA=True
@@ -42,13 +43,25 @@ make cocotb TARGET=UdpIpEthRx SUPPORT_RDMA=True
 make clean
 
 # Run Tests with SUPPORT_RDMA=False
-echo -e "\nStart testing UdpIpEthTx with SUPPORT_RDMA=True"
+echo -e "\nStart testing UdpIpEthTx with SUPPORT_RDMA=False"
 make cocotb TARGET=UdpIpEthTx SUPPORT_RDMA=False
 
-echo -e "\nStart testing UdpIpEthRx with SUPPORT_RDMA=True"
+echo -e "\nStart testing UdpIpEthRx with SUPPORT_RDMA=False"
 make cocotb TARGET=UdpIpEthRx SUPPORT_RDMA=False
 
 make clean
+
+# Run Bluesim Testbench
+cd ${TEST_DIR}/bluesim
+echo -e "\nStart testing UdpIpEthBypassRxTx with SUPPORT_RDMA=False"
+make sim TARGET=UdpIpEthBypassRxTx SUPPORT_RDMA=False
+
+make clean
+
+echo -e "\nStart testing UdpIpEthBypassRxTx with SUPPORT_RDMA=True"
+make sim TARGET=UdpIpEthBypassRxTx SUPPORT_RDMA=True
+
+
 
 # Test UdpIpArpEthRxTx on virtual docker network
 
