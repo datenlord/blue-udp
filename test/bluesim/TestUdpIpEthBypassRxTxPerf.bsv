@@ -30,7 +30,7 @@ typedef 32 TEST_PKT_BEAT_NUM;
 
 
 (* synthesize *)
-module mkTestUdpIpEthBypassTxPerf();
+module mkTestUdpIpEthBypassRxTxPerf();
     Integer testCaseNum = valueOf(TEST_CASE_NUM);
     Integer maxCycleNum = valueOf(MAX_CYCLE_NUM);
     Integer pktBeatNum = valueOf(TEST_PKT_BEAT_NUM);
@@ -39,17 +39,24 @@ module mkTestUdpIpEthBypassTxPerf();
     // Common Signals
     Reg#(Bool) isInit <- mkReg(False);
     Reg#(Bit#(CYCLE_COUNT_WIDTH)) cycleCounter <- mkReg(0);
+
     Reg#(Bit#(BEAT_COUNT_WIDTH)) inputBeatCounter <- mkReg(0);
+    Reg#(Bit#(BEAT_COUNT_WIDTH)) outputBeatCounter <- mkReg(0);
 
     Reg#(Bit#(CASE_COUNT_WIDTH)) inputPktCounter <- mkReg(0);
+    Reg#(Bit#(CASE_COUNT_WIDTH)) interPktCounter <- mkReg(0);
     Reg#(Bit#(CASE_COUNT_WIDTH)) outputPktCounter <- mkReg(0);
 
-    Reg#(Bit#(CYCLE_COUNT_WIDTH)) inputStartCycle <- mkRegU;
-    Reg#(Bit#(CYCLE_COUNT_WIDTH)) inputEndCycle <- mkRegU;
-    Reg#(Bit#(CYCLE_COUNT_WIDTH)) outputStartCycle <- mkRegU;
-    Reg#(Bit#(CYCLE_COUNT_WIDTH)) outputEndCycle <- mkRegU;
+    Reg#(Bit#(CYCLE_COUNT_WIDTH)) inputDataStreamStartCycle <- mkRegU;
+    Reg#(Bit#(CYCLE_COUNT_WIDTH)) inputDataStreamEndCycle <- mkRegU;
+    
+    Reg#(Bit#(CYCLE_COUNT_WIDTH)) interAxiStreamStartCycle <- mkRegU;
+    Reg#(Bit#(CYCLE_COUNT_WIDTH)) interAxiStreamEndCycle <- mkRegU;
 
-    Reg#(Bool) isRecvFirstBeat <- mkReg(False);
+    Reg#(Bit#(CYCLE_COUNT_WIDTH)) outputDataStreamStartCycle <- mkRegU;
+    Reg#(Bit#(CYCLE_COUNT_WIDTH)) outputDataStreamEndCycle <- mkRegU;
+
+    Reg#(Bool) isFirstAxiStreamBeat <- mkReg(False);
 
     // DUT
     let udpConfigVal = UdpConfig {
@@ -59,6 +66,8 @@ module mkTestUdpIpEthBypassTxPerf();
         gateWay: fromInteger(valueOf(DUT_GATE_WAY))
     };
     let udpIpEthBypassRxTx <- mkGenericUdpIpEthBypassRxTx(`IS_SUPPORT_RDMA);
+    FIFOF#(AxiStreamLocal) interAxiStreamBuf <- mkFIFOF;
+
 
     // Initialize Testbench
     rule initTest if (!isInit);
@@ -78,7 +87,7 @@ module mkTestUdpIpEthBypassTxPerf();
     endrule
 
     // Tx Channel
-    rule sendUdpIpMetaData if (isInit);
+    rule sendUdpIpMetaDataTx if (isInit);
         let udpIpMetaData = UdpIpMetaData {
             dataLen: fromInteger(valueOf(TEST_PKT_BEAT_NUM)) * fromInteger(valueOf(DATA_BUS_BYTE_WIDTH)),
             ipAddr: fromInteger(valueOf(DUT_IP_ADDR)),
@@ -94,7 +103,7 @@ module mkTestUdpIpEthBypassTxPerf();
         $display("Testbench: send UdpIpMetaData to DUT");
     endrule
 
-    rule sendMacMetaData if (isInit);
+    rule sendMacMetaDataTx if (isInit);
         let macMetaData = MacMetaData {
             macAddr: fromInteger(valueOf(DUT_MAC_ADDR)),
             ethType: fromInteger(valueOf(ETH_TYPE_IP))
@@ -109,7 +118,7 @@ module mkTestUdpIpEthBypassTxPerf();
         $display("Testbench: send MacMetaData to DUT");
     endrule
 
-    rule sendDataStream if (isInit && inputPktCounter < fromInteger(testCaseNum));
+    rule sendDataStreamTx if (isInit && inputPktCounter < fromInteger(testCaseNum));
         let dataStream = DataStream {
             data: ?,
             byteEn: setAllBits,
@@ -122,7 +131,7 @@ module mkTestUdpIpEthBypassTxPerf();
             inputPktCounter <= inputPktCounter + 1;
             inputBeatCounter <= 0;
             if (inputPktCounter == fromInteger(testCaseNum) - 1) begin
-                inputEndCycle <= cycleCounter;
+                inputDataStreamEndCycle <= cycleCounter;
             end
         end
         else begin
@@ -130,32 +139,76 @@ module mkTestUdpIpEthBypassTxPerf();
         end
 
         if (inputPktCounter == 0 && inputBeatCounter == 0) begin
-            inputStartCycle <= cycleCounter;
+            inputDataStreamStartCycle <= cycleCounter;
         end
 
         $display("Testbench: Sends %d DataStream of %d testcase", inputBeatCounter, inputPktCounter);
     endrule
 
-    rule recvOutputData;
+    rule connectTxRxChannel;
         let axiStream = udpIpEthBypassRxTx.axiStreamTxOut.first;
         udpIpEthBypassRxTx.axiStreamTxOut.deq;
+        udpIpEthBypassRxTx.axiStreamRxIn.put(axiStream);
+
         if (axiStream.tLast) begin
-            outputPktCounter <= outputPktCounter + 1;
-            if (outputPktCounter == fromInteger(testCaseNum) - 1) begin
-                outputEndCycle <= cycleCounter;
+            interPktCounter <= interPktCounter + 1;
+            if (interPktCounter == fromInteger(testCaseNum) - 1) begin
+                interAxiStreamEndCycle <= cycleCounter;
             end
         end
-        if (!isRecvFirstBeat) begin
-            outputStartCycle <= cycleCounter;
-            isRecvFirstBeat <= True;
+        if (!isFirstAxiStreamBeat) begin
+            interAxiStreamStartCycle <= cycleCounter;
+            isFirstAxiStreamBeat <= True;
         end
-        $display("Testbench: recv one AXI-Stream Beat of %d testcase", outputPktCounter);
+        $display("Testbench: pass one AXI-Stream Beat of %d testcase", interPktCounter);
+    endrule
+
+    rule recvMacMetaDataRx;
+        if (!isSelectBypassChannel) begin
+            udpIpEthBypassRxTx.macMetaDataRxOut.deq;
+        end
+    endrule
+
+    rule recvUdpMetaDataRx;
+        if (!isSelectBypassChannel) begin
+            udpIpEthBypassRxTx.udpIpMetaDataRxOut.deq;
+        end
+    endrule
+
+    rule recvDataStreamRx;
+        DataStream dataStreamRx;
+        if (isSelectBypassChannel) begin
+            dataStreamRx = udpIpEthBypassRxTx.rawPktStreamRxOut.first;
+            udpIpEthBypassRxTx.rawPktStreamRxOut.deq;
+        end
+        else begin
+            dataStreamRx = udpIpEthBypassRxTx.dataStreamRxOut.first;
+            udpIpEthBypassRxTx.dataStreamRxOut.deq;
+        end
+
+        if (dataStreamRx.isLast) begin
+            outputPktCounter <= outputPktCounter + 1;
+            outputBeatCounter <= 0;
+            if (outputPktCounter == fromInteger(testCaseNum) - 1) begin
+                outputDataStreamEndCycle <= cycleCounter;
+            end
+        end
+        else begin
+            outputBeatCounter <= outputBeatCounter + 1;
+        end
+
+        if (outputPktCounter == 0 && outputBeatCounter == 0) begin
+            outputDataStreamStartCycle <= cycleCounter;
+        end
+        $display("Testbench: Receives %d DataStream of %d testcase", outputBeatCounter, outputPktCounter);
     endrule
 
     rule finishTest if (outputPktCounter == fromInteger(testCaseNum));
-        $display("Testbench: mkUdpIpEthBypassRxTx pass all %5d testcases", testCaseNum);
-        $display("Duration of send input data: %d", inputEndCycle - inputStartCycle + 1);
-        $display("Duration of recv output data: %d", outputEndCycle - outputStartCycle + 1);
+        $display("Performance Test of mkUdpIpEthBypassRxTx Completes");
+        $display("  Packet Number = %6d  Packet Size = %6d beats", testCaseNum, pktBeatNum);
+        $display("  Duration of send input DataStream: %6d", inputDataStreamEndCycle - inputDataStreamStartCycle + 1);
+        $display("  Duration of pass inter AxiStream: %6d", interAxiStreamEndCycle - interAxiStreamStartCycle + 1);
+        $display("  Duration of recv output DataStream: %6d", outputDataStreamEndCycle - outputDataStreamStartCycle + 1);
         $finish;
     endrule
 endmodule

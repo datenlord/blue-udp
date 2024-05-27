@@ -69,7 +69,8 @@ provisos(
     endrule
 
     rule doPass if (state == PASS);
-        let dataStream = dataStreamIn.first; dataStreamIn.deq;
+        let dataStream = dataStreamIn.first; 
+        dataStreamIn.deq;
         SepDataStream#(rWidth, rByteWidth) sepData = seperateDataStream(dataStream);
         
         dataStream.data = {sepData.lowData, residueBuf};
@@ -90,7 +91,7 @@ provisos(
     endrule
 
     rule doClean if (state == CLEAN);
-        DataStream dataStream = DataStream{
+        DataStream dataStream = DataStream {
             isFirst: False,
             isLast: True,
             data: zeroExtend(residueBuf),
@@ -211,7 +212,7 @@ module mkExtractDataStreamHead#(
     Reg#(Bit#(rWidth)) residueBuf <- mkRegU;
     Reg#(Bit#(rByteWidth)) residueByteEnBuf <- mkRegU;
 
-    rule doExtraction if (state == EXTRACT);
+    rule doHeadExtraction if (state == EXTRACT);
         let dataStream = dataStreamIn.first; 
         dataStreamIn.deq;
 
@@ -220,7 +221,16 @@ module mkExtractDataStreamHead#(
         residueByteEnBuf <= sepData.highByteEn;
         extractDataBuf.enq(unpack(swapEndian(sepData.lowData))); // change to little endian
         if (dataStream.isLast) begin
-            if (sepData.highByteEn != 0) state <= CLEAN;
+            if (sepData.highByteEn != 0) begin
+                dataStreamBuf.enq(
+                    DataStream {
+                        data: zeroExtend(sepData.highData),
+                        byteEn: zeroExtend(sepData.highByteEn),
+                        isFirst: True,
+                        isLast: True
+                    }
+                );
+            end
         end
         else begin
             state <= PASS;
@@ -261,7 +271,32 @@ module mkExtractDataStreamHead#(
             byteEn: zeroExtend(residueByteEnBuf)
         };
         dataStreamBuf.enq(dataStream);
-        state <= EXTRACT;
+
+        if (dataStreamIn.notEmpty && extractDataBuf.notFull) begin
+            let newDataStream = dataStreamIn.first; 
+            dataStreamIn.deq;
+
+            SepDataStream#(dWidth, dByteWidth) sepData = seperateDataStream(newDataStream);
+            residueBuf <= sepData.highData;
+            residueByteEnBuf <= sepData.highByteEn;
+            extractDataBuf.enq(unpack(swapEndian(sepData.lowData))); // change to little endian
+            
+            if (newDataStream.isLast) begin
+                if (sepData.highByteEn != 0) begin
+                    state <= CLEAN;
+                end
+                else begin
+                    state <= EXTRACT;
+                end
+            end
+            else begin
+                state <= PASS;
+            end
+            isFirstReg <= True;
+        end
+        else begin
+            state <= EXTRACT; 
+        end
     endrule
 
     interface FifoOut extractDataOut = convertFifoToFifoOut(extractDataBuf);

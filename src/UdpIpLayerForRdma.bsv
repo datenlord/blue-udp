@@ -99,11 +99,13 @@ module mkUdpIpStreamForRdma#(
     UdpConfig udpConfig
 )(DataStreamFifoOut);
     Integer udpIpStreamInterBufDepth = 16;
+    Integer preComputeLengthBufDepth = 4;
+
     FIFOF#(DataStream) dataStreamBuf <- mkFIFOF;
     FIFOF#(DataStream) dataStreamCrcBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataCrcBuf <- mkFIFOF;
-    FIFOF#(UdpLength) preComputeLengthBuf <- mkFIFOF;
+    FIFOF#(UdpLength) preComputeLengthBuf <- mkSizedFIFOF(preComputeLengthBufDepth);
     FIFOF#(DataStream) udpIpStreamInterBuf <- mkSizedFIFOF(udpIpStreamInterBufDepth);
 
     rule forkUdpIpMetaDataIn;
@@ -191,7 +193,7 @@ module mkUdpIpStreamForICrcChk#(
     let newUdpIpStream = processUdpIpStream(doubleUdpIpStreamIn.first);
     let interDoubleUdpIpStreamFifoOut = translateFifoOut(doubleUdpIpStreamIn, newUdpIpStream);
     let interUdpIpStreamFifoOut <- mkHalfDataStreamFifoOut(interDoubleUdpIpStreamFifoOut);
-    
+
     FIFOF#(Bit#(DUMMY_BITS_WIDTH)) dummyBitsBuf <- mkFIFOF;
     let udpIpStreamOut <- mkAppendDataStreamHead(
         HOLD,
@@ -219,7 +221,7 @@ module mkRemoveICrcFromDataStream#(
     Integer crc32ByteWidth = valueOf(CRC32_BYTE_WIDTH);
     // +Reg +Cnt
     Reg#(Bool) isGetStreamLenReg <- mkReg(False);
-    Reg#(Bool) isICrcInterFrameReg <- mkRegU;
+    Reg#(Bool) isICrcCrossBeatReg <- mkRegU;
     Reg#(Bit#(shiftAmtWidth)) frameShiftAmtReg <- mkRegU;
     Reg#(DataStream) foreDataStreamReg <- mkRegU;
 
@@ -228,17 +230,31 @@ module mkRemoveICrcFromDataStream#(
     rule getStreamLen if (!isGetStreamLenReg);
         let streamLen = streamLenIn.first;
         streamLenIn.deq;
+
         Bit#(frameLenWidth) lastFrameLen = truncate(streamLen);
+        let isICrcIntraOneBeat = lastFrameLen > fromInteger(crc32ByteWidth) || lastFrameLen == 0;
         
-        if (lastFrameLen > fromInteger(crc32ByteWidth) || lastFrameLen == 0) begin
-            isICrcInterFrameReg <= False;
+        isICrcCrossBeatReg <= !isICrcIntraOneBeat;
+        if (isICrcIntraOneBeat) begin
             frameShiftAmtReg <= fromInteger(crc32ByteWidth);
-            //$display("Remove ICRC shiftAmt=%d", frameShiftAmtReg);
         end
         else begin
-            isICrcInterFrameReg <= True;
             frameShiftAmtReg <= truncate(fromInteger(crc32ByteWidth) - lastFrameLen);
         end
+
+        if (dataStreamIn.notEmpty) begin
+            let dataStream = dataStreamIn.first;
+            if (!dataStream.isLast) begin
+                dataStreamIn.deq;
+                if (isICrcIntraOneBeat) begin
+                    dataStreamOutBuf.enq(dataStream);
+                end
+                else begin
+                    foreDataStreamReg <= dataStream;
+                end
+            end
+        end
+
         isGetStreamLenReg <= True;
     endrule
 
@@ -246,7 +262,7 @@ module mkRemoveICrcFromDataStream#(
         let dataStream = dataStreamIn.first;
         dataStreamIn.deq;
         
-        if (!isICrcInterFrameReg) begin
+        if (!isICrcCrossBeatReg) begin
             if (dataStream.isLast) begin
                 let byteEn = dataStream.byteEn >> frameShiftAmtReg;
                 dataStream.byteEn = byteEn;
@@ -267,6 +283,7 @@ module mkRemoveICrcFromDataStream#(
                 dataStreamOutBuf.enq(foreDataStream);
             end
         end
+
         if (dataStream.isLast) begin
             isGetStreamLenReg <= False;
         end
@@ -276,7 +293,6 @@ module mkRemoveICrcFromDataStream#(
 endmodule
 
 typedef 4096 RDMA_PACKET_MAX_SIZE;
-typedef 4 RDMA_META_BUF_SIZE;
 typedef TDiv#(RDMA_PACKET_MAX_SIZE, DATA_BUS_BYTE_WIDTH) RDMA_PACKET_MAX_BEAT;
 typedef TAdd#(RDMA_PACKET_MAX_BEAT, 16) RDMA_PAYLOAD_BUF_SIZE;
 
@@ -290,11 +306,12 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
     DataStreamFifoOut udpIpStreamIn,
     UdpConfig udpConfig
 )(UdpIpMetaDataAndDataStream);
+    Integer udpIpMetaDataBufSize = 8;
 
     FIFOF#(DataStream) udpIpStreamBuf <- mkFIFOF;
     FIFOF#(DataStream) udpIpStreamForICrcBuf <- mkFIFOF;
 
-    FIFOF#(Bool) integrityCheckOutBuf <- mkFIFOF;
+    FIFOF#(Bool) integrityCheckOutBuf <- mkSizedFIFOF(4);
 
     rule forkUdpIpStream;
         let udpIpStream = udpIpStreamIn.first;
@@ -318,8 +335,8 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         extractUdpIpMetaDataForRoCE
     );
 
-    FIFOF#(UdpLength) dataStreamLengthBuf <- mkFIFOF;
-    FIFOF#(UdpIpMetaData) udpIpMetaDataBuf <- mkFIFOF;
+    FIFOF#(UdpLength) dataStreamLengthBuf <- mkSizedFIFOF(udpIpMetaDataBufSize);
+    FIFOF#(UdpIpMetaData) udpIpMetaDataBuf <- mkSizedFIFOF(udpIpMetaDataBufSize);
     rule forkUdpIpMetaData;
         Integer iCrcByteWidth = valueOf(CRC32_BYTE_WIDTH);
         let udpIpMetaData = udpIpMetaAndDataStream.udpIpMetaDataOut.first;
@@ -328,14 +345,16 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         udpIpMetaDataBuf.enq(udpIpMetaData);
     endrule
 
-    let udpIpMetaDataBuffered <- mkSizedFifoToFifoOut(
-        valueOf(RDMA_META_BUF_SIZE),
-        convertFifoToFifoOut(udpIpMetaDataBuf)
-    );
+    FIFOF#(DataStream) dataStreamForCrcRemovalBuf <- mkFIFOF;
+    rule passDataStreamForCrcRemoval;
+        let dataStream = udpIpMetaAndDataStream.dataStreamOut.first;
+        udpIpMetaAndDataStream.dataStreamOut.deq;
+        dataStreamForCrcRemovalBuf.enq(dataStream);
+    endrule
 
     DataStreamFifoOut dataStreamWithOutICrc <- mkRemoveICrcFromDataStream(
         convertFifoToFifoOut(dataStreamLengthBuf),
-        udpIpMetaAndDataStream.dataStreamOut
+        convertFifoToFifoOut(dataStreamForCrcRemovalBuf)
     );
 
     DataStreamFifoOut dataStreamBuffered <- mkSizedBramFifoToFifoOut(
@@ -343,53 +362,62 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         dataStreamWithOutICrc
     );
 
-    Reg#(Bool) isPassICrcCheck <- mkReg(False);
-    Reg#(ICrcCheckState) iCrcCheckStateReg <- mkReg(ICRC_IDLE);
+    Reg#(Maybe#(Bool)) isPassDataStreamReg <- mkReg(tagged Invalid);
     FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataOutBuf <- mkFIFOF;
-    rule doCrcCheck;
-        case(iCrcCheckStateReg) matches
-            ICRC_IDLE: begin
-                let crcChecksum = crc32Stream.first;
-                crc32Stream.deq;
-                $display("RdmaUdpIpEthRx gets iCRC result %x", crcChecksum);
-                if (crcChecksum == 0) begin
-                    isPassICrcCheck <= True;
-                    $display("Pass ICRC check");
-                end
-                else begin
-                    isPassICrcCheck <= False;
-                    $display("FAIL ICRC check");
-                end
 
-                // check the integrity of UDP/IP Header
-                let udpIpHdrChkRes = udpIpMetaAndDataStream.integrityCheckOut.first;
-                udpIpMetaAndDataStream.integrityCheckOut.deq;
-                
-                integrityCheckOutBuf.enq(udpIpHdrChkRes && crcChecksum == 0);
-                if (udpIpHdrChkRes) begin
-                    iCrcCheckStateReg <= ICRC_META;
-                end
+    rule getCrcResultAndPassMetaData if (!isValid(isPassDataStreamReg));
+        let isPassUdpIpHdrChk = udpIpMetaAndDataStream.integrityCheckOut.first;
+        udpIpMetaAndDataStream.integrityCheckOut.deq;
+
+        let isPassICrcChk = crc32Stream.first == 0;
+        crc32Stream.deq;
+
+        if (!isPassICrcChk) begin
+            $display("mkUdpIpMetaDataAndDataStreamForRdma: ICRC Check Fails");
+        end
+        else begin
+            $display("mkUdpIpMetaDataAndDataStreamForRdma: ICRC Check Passes");
+        end
+
+        if (isPassUdpIpHdrChk) begin
+        // if check of UdpIpHeader fails, mkUdpIpMetaDataAndDataStream throws metadata and datastream
+            let udpIpMetaData = udpIpMetaDataBuf.first;
+            udpIpMetaDataBuf.deq;
+
+            if (isPassICrcChk) begin
+                udpIpMetaDataOutBuf.enq(udpIpMetaData);
             end
-            ICRC_META: begin
-                let udpIpMetaData = udpIpMetaDataBuffered.first;
-                udpIpMetaDataBuffered.deq;
-                if (isPassICrcCheck) begin
-                    udpIpMetaDataOutBuf.enq(udpIpMetaData);
-                end
-                iCrcCheckStateReg <= ICRC_PAYLOAD;
-            end
-            ICRC_PAYLOAD: begin
+
+            if (dataStreamBuffered.notEmpty()) begin
                 let dataStream = dataStreamBuffered.first;
                 dataStreamBuffered.deq;
-                if (isPassICrcCheck) begin
+                if (isPassICrcChk) begin
                     dataStreamOutBuf.enq(dataStream);
                 end
-                if (dataStream.isLast) begin
-                    iCrcCheckStateReg <= ICRC_IDLE;
+                if (!dataStream.isLast) begin
+                    isPassDataStreamReg <= tagged Valid isPassICrcChk;
                 end
             end
-        endcase
+            else begin
+                isPassDataStreamReg <= tagged Valid isPassICrcChk;
+            end
+        end
+
+        integrityCheckOutBuf.enq(isPassICrcChk && isPassUdpIpHdrChk);
+    endrule
+
+    rule passDataStream if (isValid(isPassDataStreamReg));
+        let dataStream = dataStreamBuffered.first;
+        dataStreamBuffered.deq;
+
+        if (fromMaybe(?, isPassDataStreamReg)) begin
+            dataStreamOutBuf.enq(dataStream);
+        end
+
+        if (dataStream.isLast) begin
+            isPassDataStreamReg <= tagged Invalid;
+        end
     endrule
 
     interface udpIpMetaDataOut = convertFifoToFifoOut(udpIpMetaDataOutBuf);

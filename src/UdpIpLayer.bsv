@@ -174,14 +174,17 @@ module mkUdpIpMetaDataAndDataStream#(
     DataStreamFifoOut udpIpStreamIn,
     function UdpIpMetaData extractMetaData(UdpIpHeader hdr)
 )(UdpIpMetaDataAndDataStream);
-    Integer interBufDepth = 4;
+    Integer integrityCheckBufDepth = 8;
+    Integer interBufDepth = 8;
 
     Reg#(Maybe#(Bool)) udpIpHdrChkState <- mkReg(Invalid);
+    
     FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataOutBuf <- mkFIFOF;
-    FIFOF#(UdpIpMetaData) udpIpMetaDataInterBuf <- mkFIFOF;
-    FIFOF#(Bool) udpIpHdrChkResBuf <- mkFIFOF;
-    FIFOF#(Bool) integrityCheckOutBuf <- mkSizedFIFOF(interBufDepth);
+    FIFOF#(Bool) integrityCheckOutBuf <- mkSizedFIFOF(integrityCheckBufDepth);
+    
+    FIFOF#(UdpIpMetaData) udpIpMetaDataInterBuf <- mkSizedFIFOF(interBufDepth);
+    FIFOF#(Bool) udpIpHdrChkResBuf <- mkSizedFIFOF(interBufDepth);
     
     Server#(IpHeader, IpCheckSum) checkSumServer <- mkIpHdrCheckSumServer;
     ExtractDataStream#(UdpIpHeader) udpIpExtractor <- mkExtractDataStreamHead(udpIpStreamIn);
@@ -201,19 +204,28 @@ module mkUdpIpMetaDataAndDataStream#(
         let udpIpHdrChkRes = udpIpHdrChkResBuf.first;
         udpIpHdrChkResBuf.deq;
         let passCheck = (checkSum == 0) && udpIpHdrChkRes;
-        udpIpHdrChkState <= tagged Valid passCheck;
+        //
         integrityCheckOutBuf.enq(passCheck);
-        $display("UdpIpStreamExtractor: Check Pass");
-    endrule
-
-    rule passMetaData if (isValid(udpIpHdrChkState));
-        let metaData = udpIpMetaDataInterBuf.first;
+        //
+        let udpIpMetaData = udpIpMetaDataInterBuf.first;
         udpIpMetaDataInterBuf.deq;
-        if (fromMaybe(?, udpIpHdrChkState)) begin
-            udpIpMetaDataOutBuf.enq(metaData);
+        if (passCheck) begin
+            udpIpMetaDataOutBuf.enq(udpIpMetaData);
+            $display("UdpIpStreamExtractor: Check Pass");
+        end
+        // 
+        if (interDataStream.notEmpty) begin
+            let dataStream = interDataStream.first; 
+            interDataStream.deq;
+            if (passCheck) begin
+                dataStreamOutBuf.enq(dataStream);
+            end
+            if (!dataStream.isLast) begin
+                udpIpHdrChkState <= tagged Valid passCheck;
+            end
         end
         else begin
-            $display("UdpIpStreamExtractor: Check Fail");
+            udpIpHdrChkState <= tagged Valid passCheck;
         end
     endrule
 

@@ -19,6 +19,8 @@ endinterface
 
 module mkGenericUdpIpEthBypassTx#(Bool isSupportRdma)(UdpIpEthBypassTx);
 
+    Integer bypassTagBufDepth = 8;
+
     Reg#(Maybe#(UdpConfig)) udpConfigReg <- mkReg(Invalid);
     let udpConfigVal = fromMaybe(?, udpConfigReg);
 
@@ -26,8 +28,8 @@ module mkGenericUdpIpEthBypassTx#(Bool isSupportRdma)(UdpIpEthBypassTx);
     FIFOF#(UdpIpMetaData) udpIpMetaDataInBuf <- mkFIFOF;
     FIFOF#(MacMetaData) macMetaDataInBuf <- mkFIFOF;
 
-    FIFOF#(Bool) isForkBypassChannelBuf <- mkFIFOF;
-    FIFOF#(Bool) isJoinBypassChannelBuf <- mkFIFOF;
+    FIFOF#(Bool) isForkBypassChannelBuf <- mkSizedFIFOF(bypassTagBufDepth);
+    FIFOF#(Bool) isJoinBypassChannelBuf <- mkSizedFIFOF(bypassTagBufDepth);
     FIFOF#(DataStream) dataStreamInterBuf <- mkFIFOF;
     FIFOF#(DataStream) rawPktStreamInterBuf <- mkFIFOF;
     FIFOF#(DataStream) joinedFinalMacOutputStreamBuf <- mkFIFOF;

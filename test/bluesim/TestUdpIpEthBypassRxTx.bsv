@@ -15,8 +15,8 @@ import SemiFifo :: *;
 
 typedef 32 CYCLE_COUNT_WIDTH;
 typedef 16 CASE_COUNT_WIDTH;
-typedef 200000 MAX_CYCLE_NUM;
-typedef 1000 TEST_CASE_NUM;
+typedef 500000 MAX_CYCLE_NUM;
+typedef 2000 TEST_CASE_NUM;
 
 typedef 32'h7F000001 DUT_IP_ADDR;
 typedef 48'hd89c679c4829 DUT_MAC_ADDR;
@@ -97,7 +97,7 @@ module mkTestUdpIpEthBypassRxTx();
         Bit#(BEAT_COUNT_WIDTH) beatNum <- randBeatNum.next;
         Bool bypassSelect <- randBypassSelect.next;
         //Bit#(BEAT_COUNT_WIDTH) beatNum = 32;
-        //Bool bypassSelect = True;
+        //Bool bypassSelect = False;
         if (beatNum == 0) beatNum = 1;
         beatNumReg <= beatNum;
         bypassSelectReg <= bypassSelect;

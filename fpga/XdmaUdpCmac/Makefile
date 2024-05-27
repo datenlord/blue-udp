@@ -9,7 +9,6 @@ BSV_DIR = ../common/bsv
 # Design Configurations
 # QSFP_IDX: 1 - QSFP1, 2 - QSFP2
 # ENABLE_CMAC_RSFEC: 0 - Disable, 1 - Enable
-# ENABLE_ARP_PROCESS: 0 - Disable, 1 - Enable
 # ENABLE_DEBUG_MODE: 0 - Disable, 1 - Enable
 # SUPPORT_RDMA: False - Disable, True - Enable
 QSFP_IDX = 1
@@ -39,8 +38,8 @@ export CONFIG_FILE = ./generated/design_config.vh
 export SYNTH_EN = 1
 export PLACE_EN = 1
 export ROUTE_EN = 1
-export BITSTREAM_EN = 0
-export DEBUG_PROBES_EN = 0
+export BITSTREAM_EN = 1
+export DEBUG_PROBES_EN = 1
 
 ## Report Options
 export TARGET_CLOCKS = xdma_axi_aclk
@@ -85,9 +84,6 @@ config:
 ifeq ($(ENABLE_CMAC_RSFEC), 1)
 	@echo "\`define ENABLE_CMAC_RSFEC" >> $(CONFIG_FILE)
 endif
-# ifeq ($(ENABLE_ARP_PROCESS), 1)
-# 	@echo "\`define ENABLE_ARP_PROCESS" >> $(CONFIG_FILE)
-# endif
 ifeq ($(ENABLE_DEBUG_MODE), 1)
 	@echo "\`define ENABLE_DEBUG_MODE" >> $(CONFIG_FILE)
 endif
