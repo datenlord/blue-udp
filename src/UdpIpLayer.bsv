@@ -12,6 +12,55 @@ import StreamHandler :: *;
 import SemiFifo :: *;
 
 
+module mkIpHdrCheckSumStream#(
+    FifoOut#(IpHeader) ipHeaderStream
+)(FifoOut#(IpCheckSum)) 
+    provisos(
+        NumAlias#(TDiv#(IP_HDR_WORD_WIDTH, 2), firstStageOutNum),
+        NumAlias#(TAdd#(IP_CHECKSUM_WIDTH, 1), firstStageOutWidth),
+        NumAlias#(TDiv#(firstStageOutNum, 4), secondStageOutNum),
+        NumAlias#(TAdd#(firstStageOutWidth, 2), secondStageOutWidth)
+    );
+
+    function Bit#(TAdd#(width, 1)) add(Bit#(width) a, Bit#(width) b) = zeroExtend(a) + zeroExtend(b);
+    function Bit#(TAdd#(width, 1)) pass(Bit#(width) a) = zeroExtend(a);
+
+    FIFOF#(Vector#(firstStageOutNum, Bit#(firstStageOutWidth))) firstStageOutBuf <- mkFIFOF;
+    FIFOF#(Vector#(secondStageOutNum, Bit#(secondStageOutWidth))) secondStageOutBuf <- mkFIFOF;
+    FIFOF#(IpCheckSum) ipCheckSumOutBuf <- mkFIFOF;
+
+    rule firstStageAdder;
+        let ipHeader = ipHeaderStream.first;
+        ipHeaderStream.deq;
+        Vector#(IP_HDR_WORD_WIDTH, Word) ipHdrVec = unpack(pack(ipHeader));
+        let ipHdrVecReducedBy2 = mapPairs(add, pass, ipHdrVec);
+        firstStageOutBuf.enq(ipHdrVecReducedBy2);
+    endrule
+
+    rule secondStageAdder;
+        let firstStageOutVec = firstStageOutBuf.first;
+        firstStageOutBuf.deq;
+        let firstStageOutReducedBy2 = mapPairs(add, pass, firstStageOutVec);
+        let firstStageOutReducedBy4 = mapPairs(add, pass, firstStageOutReducedBy2);
+        secondStageOutBuf.enq(firstStageOutReducedBy4);
+    endrule
+
+    rule lastStageAdder;
+        let secondStageOutVec = secondStageOutBuf.first;
+        secondStageOutBuf.deq;
+
+        let secondStageOutReducedBy2 = mapPairs(add, pass, secondStageOutVec);
+
+        let sum = secondStageOutReducedBy2[0];
+        Bit#(TLog#(IP_HDR_WORD_WIDTH)) overFlow = truncateLSB(sum);
+        IpCheckSum remainder = truncate(sum);
+        IpCheckSum checkSum = ~(remainder + zeroExtend(overFlow));
+        ipCheckSumOutBuf.enq(checkSum);
+    endrule
+
+    return convertFifoToFifoOut(ipCheckSumOutBuf);
+endmodule
+
 module mkIpHdrCheckSumServer(Server#(IpHeader, IpCheckSum)) 
     provisos(
         NumAlias#(TDiv#(IP_HDR_WORD_WIDTH, 2), firstStageOutNum),
@@ -175,35 +224,41 @@ module mkUdpIpMetaDataAndDataStream#(
     function UdpIpMetaData extractMetaData(UdpIpHeader hdr)
 )(UdpIpMetaDataAndDataStream);
     Integer integrityCheckBufDepth = 8;
-    Integer interBufDepth = 8;
+    Integer interBufDepth = 6;
 
-    Reg#(Maybe#(Bool)) udpIpHdrChkState <- mkReg(Invalid);
-    
+    // Reg#(Maybe#(Bool)) udpIpHdrChkState <- mkReg(Invalid);
+    // Output Buffer
     FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataOutBuf <- mkFIFOF;
     FIFOF#(Bool) integrityCheckOutBuf <- mkSizedFIFOF(integrityCheckBufDepth);
     
+    // Intermediate Buffer
+    FIFOF#(IpHeader) ipHeaderInterBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataInterBuf <- mkSizedFIFOF(interBufDepth);
-    FIFOF#(Bool) udpIpHdrChkResBuf <- mkSizedFIFOF(interBufDepth);
+    FIFOF#(Bool) udpIpHdrFieldChkInterBuf <- mkSizedFIFOF(interBufDepth);
+    FIFOF#(Bool) dataStreamPassFlagBuf <- mkSizedFIFOF(interBufDepth);
     
-    Server#(IpHeader, IpCheckSum) checkSumServer <- mkIpHdrCheckSumServer;
+    
     ExtractDataStream#(UdpIpHeader) udpIpExtractor <- mkExtractDataStreamHead(udpIpStreamIn);
     let interDataStream <- mkSizedFifoToFifoOut(interBufDepth, udpIpExtractor.dataStreamOut);
+    let ipHdrCheckSumStream <- mkIpHdrCheckSumStream(convertFifoToFifoOut(ipHeaderInterBuf));
 
-    rule doCheckSumReq;
+    rule forkMetaDataStream;
         let udpIpHeader = udpIpExtractor.extractDataOut.first; 
         udpIpExtractor.extractDataOut.deq;
-        udpIpHdrChkResBuf.enq(checkUdpIpHeader(udpIpHeader, udpConfig));
-        checkSumServer.request.put(udpIpHeader.ipHeader);
-        let metaData = extractMetaData(udpIpHeader);
-        udpIpMetaDataInterBuf.enq(metaData);
+
+        ipHeaderInterBuf.enq(udpIpHeader.ipHeader);
+        udpIpHdrFieldChkInterBuf.enq(checkUdpIpHeader(udpIpHeader, udpConfig));
+        udpIpMetaDataInterBuf.enq(extractMetaData(udpIpHeader));
     endrule
 
-    rule doCheckSumResp if (!isValid(udpIpHdrChkState));
-        let checkSum <- checkSumServer.response.get();
-        let udpIpHdrChkRes = udpIpHdrChkResBuf.first;
-        udpIpHdrChkResBuf.deq;
-        let passCheck = (checkSum == 0) && udpIpHdrChkRes;
+    rule joinCheckSumStream;
+        let ipHdrCheckSum = ipHdrCheckSumStream.first;
+        ipHdrCheckSumStream.deq;
+
+        let udpIpHdrFieldChk = udpIpHdrFieldChkInterBuf.first;
+        udpIpHdrFieldChkInterBuf.deq;
+        let passCheck = (ipHdrCheckSum == 0) && udpIpHdrFieldChk;
         //
         integrityCheckOutBuf.enq(passCheck);
         //
@@ -213,30 +268,21 @@ module mkUdpIpMetaDataAndDataStream#(
             udpIpMetaDataOutBuf.enq(udpIpMetaData);
             $display("UdpIpStreamExtractor: Check Pass");
         end
-        // 
-        if (interDataStream.notEmpty) begin
-            let dataStream = interDataStream.first; 
-            interDataStream.deq;
-            if (passCheck) begin
-                dataStreamOutBuf.enq(dataStream);
-            end
-            if (!dataStream.isLast) begin
-                udpIpHdrChkState <= tagged Valid passCheck;
-            end
-        end
-        else begin
-            udpIpHdrChkState <= tagged Valid passCheck;
-        end
+        //
+        dataStreamPassFlagBuf.enq(passCheck);
     endrule
 
-    rule passDataStream if (isValid(udpIpHdrChkState));
-        let dataStream = interDataStream.first; 
-        interDataStream.deq;
-        if (fromMaybe(?, udpIpHdrChkState)) begin
-            dataStreamOutBuf.enq(dataStream);
-        end
-        if (dataStream.isLast) begin
-            udpIpHdrChkState <= tagged Invalid;
+    rule passDataStream;
+        if (dataStreamPassFlagBuf.notEmpty()) begin
+            let isPassDataStream = dataStreamPassFlagBuf.first;
+            let dataStream = interDataStream.first; 
+            interDataStream.deq;
+            if (isPassDataStream) begin
+                dataStreamOutBuf.enq(dataStream);
+            end
+            if (dataStream.isLast) begin
+                dataStreamPassFlagBuf.deq;
+            end
         end
     endrule
 

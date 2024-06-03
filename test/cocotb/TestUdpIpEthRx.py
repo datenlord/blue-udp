@@ -15,7 +15,7 @@ from TestUtils import *
 
 MIN_PAYLOAD_LEN = 46
 MAX_PAYLOAD_LEN = 2048
-CASES_NUM = 512
+CASES_NUM = 1024
 
 
 class UdpIpEthRxTester:

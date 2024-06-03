@@ -2,9 +2,9 @@ ROOT_DIR = $(abspath ../../)
 SCRIPTS_DIR = $(ROOT_DIR)/scripts
 include $(SCRIPTS_DIR)/Makefile.base
 LOCALSRCDIR = $(ROOT_DIR)/src:$(ROOT_DIR)/src/includes
-LIB_CRC_DIR = $(ROOT_DIR)/lib/blue-crc/src
-LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper/src
-LIBSRCDIR = $(LIB_CRC_DIR):$(LIB_WRAPPER_DIR)
+LIB_CRC_DIR = $(ROOT_DIR)/lib/blue-crc
+LIB_WRAPPER_DIR = $(ROOT_DIR)/lib/blue-wrapper
+LIBSRCDIR = $(LIB_CRC_DIR)/src:$(LIB_WRAPPER_DIR)/src
 CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
 CRC_CONFIG_FILE = $(SCRIPTS_DIR)/crc_ieee_32_1024.json
 
@@ -34,6 +34,9 @@ verilog:
 	mkdir -p $(VLOGDIR)
 	echo "" > $(VLOG_FILE)
 	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) $(TOP) $(TOP) | grep -i '\.v' | xargs -I {} cat {} >> $(VLOG_FILE)
+ifeq ($(SUPPORT_RDMA), True)
+	find $(LIB_CRC_DIR)/lib/primitives/ -name "*.v" -exec cat {} \; >> $(VLOG_FILE)
+endif
 
 cocotb: verilog table
 ifeq ($(TARGET), UdpIpArpEthRxTx)

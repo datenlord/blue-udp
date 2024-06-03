@@ -2,8 +2,9 @@ ROOT_DIR = $(abspath ../../)
 SCRIPTS_DIR = $(ROOT_DIR)/scripts
 include $(SCRIPTS_DIR)/Makefile.base
 LOCALSRCDIR = $(ROOT_DIR)/src:$(ROOT_DIR)/src/includes
-LIBSRCDIR = $(ROOT_DIR)/lib/blue-wrapper/src:$(ROOT_DIR)/lib/blue-crc/src
-CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
+LIB_CRC_DIR = $(ROOT_DIR)/lib/blue-crc
+LIBSRCDIR = $(ROOT_DIR)/lib/blue-wrapper/src:$(LIB_CRC_DIR)/src
+CRC_TAB_SCRIPT = $(LIB_CRC_DIR)/scripts/gen_crc_tab.py
 BSV_DIR = ../common/bsv
 
 # Design Configurations
@@ -62,6 +63,10 @@ endif
 
 verilog: $(BSV_MODULES)
 	cp ../common/verilog/UdpCmacRxTxWrapper.v $(DIR_VLOG_GEN)
+ifeq ($(SUPPORT_RDMA), True)
+	find $(LIB_CRC_DIR)/lib/primitives/ -name "*.v" -exec cp {} $(DIR_VLOG_GEN) \;
+endif
+
 $(BSV_MODULES):
 	mkdir -p $(BUILDDIR)
 	mkdir -p $(DIR_VLOG_GEN)

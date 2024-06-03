@@ -1,5 +1,5 @@
 
-module XdmaUdpCmacWrapper#(
+module XdmaUdpCmacWrapper256#(
     parameter PCIE_GT_LANE_WIDTH = 16,
     parameter CMAC_GT_LANE_WIDTH = 4
 )(
@@ -419,8 +419,8 @@ module XdmaUdpCmacWrapper512#(
         .xdma_clk  (xdma_axi_aclk   ),
         .xdma_reset(xdma_axi_aresetn),
 
-        .udp_clk   (udp_clk  ),
-        .udp_reset (udp_reset),
+        .udp_clk   (xdma_axi_aclk   ),
+        .udp_reset (xdma_axi_aresetn),
 
         .gt_ref_clk_p(qsfp_ref_clk_p    ),
         .gt_ref_clk_n(qsfp_ref_clk_n    ),

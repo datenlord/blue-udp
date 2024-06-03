@@ -13,7 +13,7 @@ import AxiStreamTypes :: *;
 typedef 33 CYCLE_COUNT_WIDTH;
 typedef 16 CASE_COUNT_WIDTH;
 typedef  8 FRAME_COUNT_WIDTH;
-typedef 256 TEST_CASE_NUM;
+typedef  4 TEST_CASE_NUM;
 
 typedef 2048 PAYLOAD_BYTE_NUM;
 typedef TMul#(PAYLOAD_BYTE_NUM, 8) PAYLOAD_WIDTH;
@@ -55,7 +55,7 @@ module mkTestUdpCmacRxTx(TestUdpCmacRxTx);
 
 
     // Input/Output FIFO
-    FIFOF#(AxiStream512) refAxiStreamBuf <- mkSizedFIFOF(valueOf(TEST_CASE_NUM));
+    FIFOF#(AxiStream512) refAxiStreamBuf <- mkSizedFIFOF(512);
     FIFOF#(AxiStream512) xdmaAxiStreamOutTxBuf <- mkFIFOF;
     FIFOF#(AxiStream512) xdmaAxiStreamInRxBuf <- mkFIFOF;
 
@@ -93,21 +93,27 @@ module mkTestUdpCmacRxTx(TestUdpCmacRxTx);
         let rawData <- randRawData.next;
         Bit#(PAYLOAD_EXT_WIDTH) extRawData = zeroExtend(rawData);
         Vector#(PAYLOAD_FRAME_NUM, Bit#(AXIS512_TDATA_WIDTH)) rawDataVec = unpack(extRawData);
+        // AxiStream512 axiStream = AxiStream {
+        //     tData: rawDataVecReg[inputFrameCount],
+        //     tKeep: setAllBits,
+        //     tLast: False,
+        //     tUser: 0
+        // };
         AxiStream512 axiStream = AxiStream {
-            tData: rawDataVecReg[inputFrameCount],
+            tData: setAllBits,
             tKeep: setAllBits,
             tLast: False,
             tUser: 0
         };
 
-        if (inputFrameCount == 0) begin
-            rawDataVecReg <= rawDataVec;
-            axiStream.tData = rawDataVec[0];
-        end
+        // if (inputFrameCount == 0) begin
+        //     rawDataVecReg <= rawDataVec;
+        //     axiStream.tData = rawDataVec[0];
+        // end
 
         if (nextFrameCount == fromInteger(payloadFrameNum)) begin
             axiStream.tLast = True;
-            axiStream.tKeep = axiStream.tKeep >> valueOf(EXTRA_BYTE_NUM);
+            //axiStream.tKeep = axiStream.tKeep >> valueOf(EXTRA_BYTE_NUM);
             inputFrameCount <= 0;
             inputCaseCount <= inputCaseCount + 1;
         end

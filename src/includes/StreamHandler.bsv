@@ -204,103 +204,72 @@ module mkExtractDataStreamHead#(
     Mul#(dByteWidth, BYTE_WIDTH, dWidth),
     Add#(dByteWidth, rByteWidth, DATA_BUS_BYTE_WIDTH)
 );
+    Integer residueDataBufDepth = 4;
+    FIFOF#(dType) extractDataOutBuf <- mkFIFOF;
+    FIFOF#(GenericDataStream#(rWidth, rByteWidth)) residueDataBuf <- mkSizedFIFOF(residueDataBufDepth);
+    FIFOF#(GenericDataStream#(dWidth, dByteWidth)) complementDataBuf <- mkFIFOF;
+    FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
 
-    FIFOF#(dType) extractDataBuf <- mkFIFOF;
-    FIFOF#(DataStream) dataStreamBuf <- mkFIFOF;
-    Reg#(ExtractState) state <- mkReg(EXTRACT);
-    Reg#(Bool) isFirstReg <- mkReg(False);
-    Reg#(Bit#(rWidth)) residueBuf <- mkRegU;
-    Reg#(Bit#(rByteWidth)) residueByteEnBuf <- mkRegU;
-
-    rule doHeadExtraction if (state == EXTRACT);
-        let dataStream = dataStreamIn.first; 
+    rule forkInputDataStream;
+        let dataStream = dataStreamIn.first;
         dataStreamIn.deq;
 
         SepDataStream#(dWidth, dByteWidth) sepData = seperateDataStream(dataStream);
-        residueBuf <= sepData.highData;
-        residueByteEnBuf <= sepData.highByteEn;
-        extractDataBuf.enq(unpack(swapEndian(sepData.lowData))); // change to little endian
-        if (dataStream.isLast) begin
-            if (sepData.highByteEn != 0) begin
-                dataStreamBuf.enq(
-                    DataStream {
-                        data: zeroExtend(sepData.highData),
-                        byteEn: zeroExtend(sepData.highByteEn),
-                        isFirst: True,
-                        isLast: True
-                    }
-                );
-            end
+        if (dataStream.isFirst) begin
+            extractDataOutBuf.enq(unpack(swapEndian(sepData.lowData))); // change to little endian
         end
-        else begin
-            state <= PASS;
+
+        if (sepData.highByteEn != 0) begin
+            residueDataBuf.enq(
+                GenericDataStream {
+                    data: sepData.highData,
+                    byteEn: sepData.highByteEn,
+                    isFirst: dataStream.isFirst,
+                    isLast: dataStream.isLast
+                }
+            );            
         end
-        isFirstReg <= True;
+
+        if (!dataStream.isFirst) begin
+            complementDataBuf.enq(
+                GenericDataStream {
+                    data: sepData.lowData,
+                    byteEn: sepData.lowByteEn,
+                    isFirst: dataStream.isFirst,
+                    isLast: sepData.highByteEn == 0
+                }
+            );
+        end
     endrule
 
-    rule doPass if (state == PASS);
-        let dataStream = dataStreamIn.first; 
-        dataStreamIn.deq;
+    rule joinResidueAndComplementData;
+        let residueData = residueDataBuf.first;
+        residueDataBuf.deq;
 
-        SepDataStream#(dWidth, dByteWidth) sepData = seperateDataStream(dataStream);
-        dataStream.data = {sepData.lowData, residueBuf};
-        dataStream.byteEn = {sepData.lowByteEn, residueByteEnBuf};
-        dataStream.isFirst = isFirstReg;
-        residueBuf <= sepData.highData;
-        residueByteEnBuf <= sepData.highByteEn;
-
-        if (dataStream.isLast) begin
-            if (sepData.highByteEn != 0) begin
-                state <= CLEAN;
-                dataStream.isLast = False;
-            end
-            else begin
-                state <= EXTRACT;
-            end
-        end
-
-        dataStreamBuf.enq(dataStream);
-        isFirstReg <= False;
-    endrule
-
-    rule doClean if (state == CLEAN);
-        DataStream dataStream = DataStream{
-            isFirst: isFirstReg,
-            isLast: True,
-            data: zeroExtend(residueBuf),
-            byteEn: zeroExtend(residueByteEnBuf)
+        GenericDataStream#(dWidth, dByteWidth) complementData = GenericDataStream {
+            data: 0,
+            byteEn: 0,
+            isFirst: False,
+            isLast: residueData.isLast
         };
-        dataStreamBuf.enq(dataStream);
 
-        if (dataStreamIn.notEmpty && extractDataBuf.notFull) begin
-            let newDataStream = dataStreamIn.first; 
-            dataStreamIn.deq;
+        if (!residueData.isLast) begin
+            complementData = complementDataBuf.first;
+            complementDataBuf.deq;
+        end
 
-            SepDataStream#(dWidth, dByteWidth) sepData = seperateDataStream(newDataStream);
-            residueBuf <= sepData.highData;
-            residueByteEnBuf <= sepData.highByteEn;
-            extractDataBuf.enq(unpack(swapEndian(sepData.lowData))); // change to little endian
-            
-            if (newDataStream.isLast) begin
-                if (sepData.highByteEn != 0) begin
-                    state <= CLEAN;
-                end
-                else begin
-                    state <= EXTRACT;
-                end
-            end
-            else begin
-                state <= PASS;
-            end
-            isFirstReg <= True;
-        end
-        else begin
-            state <= EXTRACT; 
-        end
+        dataStreamOutBuf.enq(
+            DataStream {
+                data: {complementData.data, residueData.data},
+                byteEn: {complementData.byteEn, residueData.byteEn},
+                isFirst: residueData.isFirst,
+                isLast: complementData.isLast
+            }
+        );
     endrule
 
-    interface FifoOut extractDataOut = convertFifoToFifoOut(extractDataBuf);
-    interface FifoOut dataStreamOut = convertFifoToFifoOut(dataStreamBuf);
+    interface FifoOut extractDataOut = convertFifoToFifoOut(extractDataOutBuf);
+    interface FifoOut dataStreamOut = convertFifoToFifoOut(dataStreamOutBuf);
 endmodule
 
 // ToDo: 

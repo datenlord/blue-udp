@@ -2,8 +2,9 @@ ROOT_DIR = $(abspath ../../)
 SCRIPTS_DIR = $(ROOT_DIR)/scripts
 include $(SCRIPTS_DIR)/Makefile.base
 LOCALSRCDIR = $(ROOT_DIR)/src:$(ROOT_DIR)/src/includes
-LIBSRCDIR = $(ROOT_DIR)/lib/blue-wrapper/src:$(ROOT_DIR)/lib/blue-crc/src
-CRC_TAB_SCRIPT = $(ROOT_DIR)/lib/blue-crc/scripts/gen_crc_tab.py
+LIB_CRC_DIR = $(ROOT_DIR)/lib/blue-crc
+LIBSRCDIR = $(ROOT_DIR)/lib/blue-wrapper/src:$(LIB_CRC_DIR)/src
+CRC_TAB_SCRIPT = $(LIB_CRC_DIR)/scripts/gen_crc_tab.py
 BSV_DIR = ../common/bsv
 
 # Design Configurations
@@ -13,15 +14,15 @@ BSV_DIR = ../common/bsv
 # SUPPORT_RDMA: False - Disable, True - Enable
 QSFP_IDX = 1
 ENABLE_CMAC_RSFEC = 1
-#ENABLE_ARP_PROCESS = 0
+ENABLE_BYPASS_MODE = 1
 ENABLE_DEBUG_MODE = 1
-SUPPORT_RDMA ?= False
+SUPPORT_RDMA ?= True
 
 MACROFLAGS = -D IS_SUPPORT_RDMA=$(SUPPORT_RDMA)
 
 # Pass arguments to vivado
 export PART = xcvu13p-fhgb2104-2-i
-export BUILD_TOP = XdmaUdpCmacWrapper
+export BUILD_TOP = XdmaUdpCmacWrapper512
 
 ## Directories and Files
 export DIR_VLOG = ./verilog
@@ -45,7 +46,7 @@ export DEBUG_PROBES_EN = 1
 export TARGET_CLOCKS = xdma_axi_aclk
 export MAX_NET_PATH_NUM = 1000
 
-BSV_MODULES = CmacRecvMonitor CmacSendMonitor XdmaUdpIpEthCmacRxTx
+BSV_MODULES = CmacRecvMonitor CmacSendMonitor XdmaUdpIpEthCmacRxTx XdmaUdpIpEthBypassCmacRxTx
 IP = xdma clk_wiz cmac_mon_ila axis512_mon_ila
 ifeq ($(ENABLE_CMAC_RSFEC), 1)
 IP += cmac_rsfec_q$(QSFP_IDX)
@@ -55,18 +56,23 @@ endif
 XDC = common pciex16 qsfp$(QSFP_IDX)
 
 
-table:
+mem_init:
 ifeq ($(SUPPORT_RDMA), True)
+	mkdir -p $(DIR_MEM_CONFIG)
 	python3 $(CRC_TAB_SCRIPT) $(SCRIPTS_DIR)/crc_ieee_32_1024.json $(DIR_MEM_CONFIG)
 endif
 
 verilog: $(BSV_MODULES)
 	cp ../common/verilog/UdpCmacRxTxWrapper.v $(DIR_VLOG_GEN)
+ifeq ($(SUPPORT_RDMA), True)
+	find $(LIB_CRC_DIR)/lib/primitives/ -name "*.v" -exec cp {} $(DIR_VLOG_GEN) \;
+endif
 $(BSV_MODULES):
 	mkdir -p $(BUILDDIR)
 	mkdir -p $(DIR_VLOG_GEN)
 	bsc -elab $(VERILOGFLAGS) $(DIRFLAGS) $(MISCFLAGS) $(RECOMPILEFLAGS) $(RUNTIMEFLAGS) $(TRANSFLAGS) $(MACROFLAGS) -g mk$@ $(BSV_DIR)/$@.bsv
 	bluetcl $(SCRIPTS_DIR)/listVlogFiles.tcl -bdir $(BUILDDIR) -vdir $(BUILDDIR) mk$@ mk$@ | grep -i '\.v' | xargs -I {} cp {} $(DIR_VLOG_GEN)
+
 
 ip: $(IP)
 $(IP):
@@ -87,8 +93,11 @@ endif
 ifeq ($(ENABLE_DEBUG_MODE), 1)
 	@echo "\`define ENABLE_DEBUG_MODE" >> $(CONFIG_FILE)
 endif
+ifeq ($(ENABLE_BYPASS_MODE), 1)
+	@echo "\`define ENABLE_BYPASS_MODE" >> $(CONFIG_FILE)
+endif
 
-build: table verilog ip xdc config
+build: mem_init verilog ip xdc config
 	vivado -mode batch -source ../common/tcl/non_proj_build.tcl 2>&1 | tee ./build_run.log
 
 clean:

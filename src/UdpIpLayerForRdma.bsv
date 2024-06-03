@@ -345,16 +345,9 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         udpIpMetaDataBuf.enq(udpIpMetaData);
     endrule
 
-    FIFOF#(DataStream) dataStreamForCrcRemovalBuf <- mkFIFOF;
-    rule passDataStreamForCrcRemoval;
-        let dataStream = udpIpMetaAndDataStream.dataStreamOut.first;
-        udpIpMetaAndDataStream.dataStreamOut.deq;
-        dataStreamForCrcRemovalBuf.enq(dataStream);
-    endrule
-
     DataStreamFifoOut dataStreamWithOutICrc <- mkRemoveICrcFromDataStream(
         convertFifoToFifoOut(dataStreamLengthBuf),
-        convertFifoToFifoOut(dataStreamForCrcRemovalBuf)
+        udpIpMetaAndDataStream.dataStreamOut
     );
 
     DataStreamFifoOut dataStreamBuffered <- mkSizedBramFifoToFifoOut(
@@ -362,11 +355,12 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         dataStreamWithOutICrc
     );
 
-    Reg#(Maybe#(Bool)) isPassDataStreamReg <- mkReg(tagged Invalid);
+    FIFOF#(Bool) isPassDataStreamFlagBuf <- mkFIFOF;
+    //Reg#(Maybe#(Bool)) isPassDataStreamReg <- mkReg(tagged Invalid);
     FIFOF#(DataStream) dataStreamOutBuf <- mkFIFOF;
     FIFOF#(UdpIpMetaData) udpIpMetaDataOutBuf <- mkFIFOF;
 
-    rule getCrcResultAndPassMetaData if (!isValid(isPassDataStreamReg));
+    rule getCrcResultAndPassMetaData;
         let isPassUdpIpHdrChk = udpIpMetaAndDataStream.integrityCheckOut.first;
         udpIpMetaAndDataStream.integrityCheckOut.deq;
 
@@ -381,42 +375,29 @@ module mkUdpIpMetaDataAndDataStreamForRdma#(
         end
 
         if (isPassUdpIpHdrChk) begin
-        // if check of UdpIpHeader fails, mkUdpIpMetaDataAndDataStream throws metadata and datastream
+        // if check of UdpIpHeader fails, mkUdpIpMetaDataAndDataStream module throws metadata and datastream
             let udpIpMetaData = udpIpMetaDataBuf.first;
             udpIpMetaDataBuf.deq;
 
             if (isPassICrcChk) begin
                 udpIpMetaDataOutBuf.enq(udpIpMetaData);
             end
-
-            if (dataStreamBuffered.notEmpty()) begin
-                let dataStream = dataStreamBuffered.first;
-                dataStreamBuffered.deq;
-                if (isPassICrcChk) begin
-                    dataStreamOutBuf.enq(dataStream);
-                end
-                if (!dataStream.isLast) begin
-                    isPassDataStreamReg <= tagged Valid isPassICrcChk;
-                end
-            end
-            else begin
-                isPassDataStreamReg <= tagged Valid isPassICrcChk;
-            end
+            isPassDataStreamFlagBuf.enq(isPassICrcChk);
         end
 
         integrityCheckOutBuf.enq(isPassICrcChk && isPassUdpIpHdrChk);
     endrule
 
-    rule passDataStream if (isValid(isPassDataStreamReg));
-        let dataStream = dataStreamBuffered.first;
-        dataStreamBuffered.deq;
-
-        if (fromMaybe(?, isPassDataStreamReg)) begin
-            dataStreamOutBuf.enq(dataStream);
-        end
-
-        if (dataStream.isLast) begin
-            isPassDataStreamReg <= tagged Invalid;
+    rule passDataStream;
+        if (isPassDataStreamFlagBuf.notEmpty) begin
+            let dataStream = dataStreamBuffered.first;
+            dataStreamBuffered.deq;
+            if (isPassDataStreamFlagBuf.first) begin
+                dataStreamOutBuf.enq(dataStream);
+            end
+            if (dataStream.isLast) begin
+                isPassDataStreamFlagBuf.deq;
+            end
         end
     endrule
 

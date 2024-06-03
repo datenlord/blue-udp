@@ -36,7 +36,7 @@ typedef 32'hC0A80102 SOURCE_IP_ADDR;
 
 typedef 32'h00000000 TEST_NET_MASK;
 typedef 32'h00000000 TEST_GATE_WAY;
-typedef 88 TEST_UDP_PORT;
+typedef UDP_PORT_RDMA TEST_UDP_PORT;
 typedef 2048 TEST_PAYLOAD_SIZE;
 
 
@@ -97,8 +97,10 @@ module mkUdpIpEthBypassRxTxForXdma(UdpIpEthBypassRxTxForXdma);
     endrule
 
     rule recvUdpIpMetaData;
-        let udpIpMetaData = udpIpEthBypassRxTx.udpIpMetaDataRxOut.first;
         udpIpEthBypassRxTx.udpIpMetaDataRxOut.deq;
+    endrule
+
+    rule recvMacMetaData;
         udpIpEthBypassRxTx.macMetaDataRxOut.deq;
     endrule
 
@@ -119,6 +121,29 @@ module mkUdpIpEthBypassRxTxForXdma(UdpIpEthBypassRxTxForXdma);
     interface xdmaAxiStreamRxOut = xdmaAxiStream512RxOut;
     interface cmacAxiStreamRxIn  = cmacAxiStream512RxIn;
     interface cmacAxiStreamTxOut = cmacAxiStream512TxOut;
+endmodule
+
+interface RawUdpIpEthBypassRxTxForXdma;
+    interface RawAxiStreamSlave#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH)  xdmaAxiStreamTxIn;
+    interface RawAxiStreamMaster#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) xdmaAxiStreamRxOut;
+    interface RawAxiStreamSlave#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH)  cmacAxiStreamRxIn;
+    interface RawAxiStreamMaster#(AXIS512_TKEEP_WIDTH, AXIS_TUSER_WIDTH) cmacAxiStreamTxOut;
+endinterface
+
+(* synthesize *)
+module mkRawUdpIpEthBypassRxTxForXdma(RawUdpIpEthBypassRxTxForXdma);
+    let udpIpEthBypass <- mkUdpIpEthBypassRxTxForXdma;
+    
+    let rawXdmaAxiStreamTxIn <- mkFifoInToRawAxiStreamSlave(udpIpEthBypass.xdmaAxiStreamTxIn);
+    let rawXdmaAxiStreamRxOut <- mkFifoOutToRawAxiStreamMaster(udpIpEthBypass.xdmaAxiStreamRxOut);
+    let rawCmacAxiStreamRxIn <- mkFifoInToRawAxiStreamSlave(udpIpEthBypass.cmacAxiStreamRxIn);
+    let rawCmacAxiStreamTxOut <- mkFifoOutToRawAxiStreamMaster(udpIpEthBypass.cmacAxiStreamTxOut);
+
+    interface xdmaAxiStreamTxIn = rawXdmaAxiStreamTxIn;
+    interface xdmaAxiStreamRxOut = rawXdmaAxiStreamRxOut;
+    interface cmacAxiStreamRxIn = rawCmacAxiStreamRxIn;
+    interface cmacAxiStreamTxOut = rawCmacAxiStreamTxOut;
+
 endmodule
 
 
